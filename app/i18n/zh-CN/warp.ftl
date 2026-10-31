@@ -766,7 +766,6 @@ settings-ai-prompt-suggestions-label = 提示建议
 settings-ai-suggested-code-banners-label = 代码建议横幅
 settings-ai-natural-language-autosuggestions-label = 自然语言自动建议
 settings-ai-shared-block-title-generation-label = 共享 Block 标题生成
-settings-ai-git-operations-autogen-label = 提交与 Pull Request 生成
 
 # 权限下拉项
 settings-ai-permission-agent-decides = 智能体决定
@@ -1524,7 +1523,6 @@ settings-ai-prompt-suggestions-description = 让 AI 根据最近命令与输出,
 settings-ai-suggested-code-banners-description = 让 AI 根据最近命令与输出,在命令块列表中以行内横幅形式建议代码差异与查询。
 settings-ai-natural-language-autosuggestions = 让 AI 根据最近命令与输出,提供自然语言自动建议。
 settings-ai-shared-block-title-generation-description = 让 AI 根据命令与输出为共享命令块生成标题。
-settings-ai-git-operations-autogen-description = 让 AI 自动生成提交信息以及 Pull Request 的标题与描述。
 
 # =============================================================================
 # 其余 surface 章节缺失 key 会自动 fallback 到英文,见 en/warp.ftl

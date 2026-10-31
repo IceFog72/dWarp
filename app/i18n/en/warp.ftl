@@ -783,7 +783,6 @@ settings-ai-prompt-suggestions-label = Prompt Suggestions
 settings-ai-suggested-code-banners-label = Suggested Code Banners
 settings-ai-natural-language-autosuggestions-label = Natural Language Autosuggestions
 settings-ai-shared-block-title-generation-label = Shared Block Title Generation
-settings-ai-git-operations-autogen-label = Commit & Pull Request Generation
 
 # Permissions dropdown options
 settings-ai-permission-agent-decides = Agent decides
@@ -1551,7 +1550,6 @@ settings-ai-prompt-suggestions-description = Let AI suggest natural language pro
 settings-ai-suggested-code-banners-description = Let AI suggest code diffs and queries as inline banners in the blocklist, based on recent commands and their outputs.
 settings-ai-natural-language-autosuggestions = Let AI suggest natural language autosuggestions, based on recent commands and their outputs.
 settings-ai-shared-block-title-generation-description = Let AI generate a title for your shared block based on the command and output.
-settings-ai-git-operations-autogen-description = Let AI generate commit messages and pull request titles and descriptions.
 
 # =============================================================================
 # SECTION: ai (Owner: agent-ai)

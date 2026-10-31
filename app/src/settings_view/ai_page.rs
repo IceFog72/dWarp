@@ -27,7 +27,7 @@ use crate::settings::{
     AgentModeCodingPermissionsType, AgentModeCommandExecutionDenylist,
     AgentModeCommandExecutionPredicate, AgentModeQuerySuggestionsEnabled, AwsBedrockAutoLogin,
     AwsBedrockCredentialsEnabled, CodeSettings, CodebaseContextEnabled, FileBasedMcpEnabled,
-    GitOperationsAutogenEnabled, IncludeAgentCommandsInHistory, IntelligentAutosuggestionsEnabled,
+    IncludeAgentCommandsInHistory, IntelligentAutosuggestionsEnabled,
     MemoryEnabled, NLDInTerminalEnabled, NaturalLanguageAutosuggestionsEnabled,
     OrchestrationEnabled, RuleSuggestionsEnabled, SharedBlockTitleGenerationEnabled,
     ShouldRenderCLIAgentToolbar, ShouldRenderUseAgentToolbarForUserCommands, ShowAgentTips,
@@ -1402,10 +1402,6 @@ impl AISettingsPageView {
                         && ai_settings
                             .shared_block_title_generation_enabled_internal
                             .is_supported_on_current_platform())
-                    || (FeatureFlag::GitOperationsInCodeReview.is_enabled()
-                        && ai_settings
-                            .git_operations_autogen_enabled_internal
-                            .is_supported_on_current_platform())
                 {
                     widgets.push(Box::new(ActiveAIWidget::default()));
                 }
@@ -1441,10 +1437,6 @@ impl AISettingsPageView {
                     || (FeatureFlag::SharedBlockTitleGeneration.is_enabled()
                         && ai_settings
                             .shared_block_title_generation_enabled_internal
-                            .is_supported_on_current_platform())
-                    || (FeatureFlag::GitOperationsInCodeReview.is_enabled()
-                        && ai_settings
-                            .git_operations_autogen_enabled_internal
                             .is_supported_on_current_platform())
                 {
                     widgets.push(Box::new(ActiveAIWidget::default()));
@@ -2114,7 +2106,6 @@ pub enum AISettingsPageAction {
     ToggleCodeSuggestions,
     ToggleNaturalLanguageAutosuggestions,
     ToggleSharedTitleGeneration,
-    ToggleGitOperationsAutogen,
     ToggleAIInputAutoDetection,
     ToggleNLDInTerminal,
     ToggleCLIAgentToolbar,
@@ -2448,26 +2439,6 @@ impl TypedActionView for AISettingsPageView {
                         log::warn!(
                             "Failed to set value for Shared Block Title Generation setting: {e:?}"
                         );
-                    }
-                }
-                ctx.notify();
-            }
-            AISettingsPageAction::ToggleGitOperationsAutogen => {
-                match AISettings::handle(ctx).update(ctx, |settings, ctx| {
-                    settings
-                        .git_operations_autogen_enabled_internal
-                        .toggle_and_save_value(ctx)
-                }) {
-                    Ok(new_value) => {
-                        send_telemetry_from_ctx!(
-                            TelemetryEvent::ToggleGitOperationsAutogenSetting {
-                                is_git_operations_autogen_enabled: new_value,
-                            },
-                            ctx
-                        );
-                    }
-                    Err(e) => {
-                        log::warn!("Failed to set value for Git Operations Autogen setting: {e:?}");
                     }
                 }
                 ctx.notify();
@@ -4088,7 +4059,6 @@ struct ActiveAIWidget {
     code_suggestions_toggle: SwitchStateHandle,
     natural_language_autosuggestions_toggle: SwitchStateHandle,
     shared_block_title_generation_toggle: SwitchStateHandle,
-    git_operations_autogen_toggle: SwitchStateHandle,
 }
 
 impl ActiveAIWidget {
@@ -4135,14 +4105,6 @@ impl ActiveAIWidget {
                 // Override the enterprise check for dogfood builds, as our dogfood team
                 // is an enterprise team.
                 || ChannelState::channel().is_dogfood())
-    }
-
-    fn is_git_operations_autogen_toggleable(&self, app: &AppContext) -> bool {
-        FeatureFlag::GitOperationsInCodeReview.is_enabled()
-            && AISettings::as_ref(app)
-                .git_operations_autogen_enabled_internal
-                .is_supported_on_current_platform()
-            && UserWorkspaces::as_ref(app).ai_allowed_for_current_team()
     }
 
     fn render_next_command_section(
@@ -4280,38 +4242,13 @@ impl ActiveAIWidget {
             ))
             .finish()
     }
-
-    fn render_git_operations_autogen_section(
-        &self,
-        view: &AISettingsPageView,
-        app: &warpui::AppContext,
-    ) -> Box<dyn warpui::Element> {
-        let ai_settings = AISettings::as_ref(app);
-        let is_toggleable = ai_settings.is_active_ai_enabled(app);
-        Flex::column()
-            .with_child(render_ai_setting_toggle::<GitOperationsAutogenEnabled>(
-                crate::t!("settings-ai-git-operations-autogen-label"),
-                AISettingsPageAction::ToggleGitOperationsAutogen,
-                *ai_settings.git_operations_autogen_enabled_internal,
-                is_toggleable,
-                self.git_operations_autogen_toggle.clone(),
-                &view.local_only_icon_tooltip_states,
-                app,
-            ))
-            .with_child(render_ai_setting_description(
-                crate::t!("settings-ai-git-operations-autogen-description"),
-                is_toggleable,
-                app,
-            ))
-            .finish()
-    }
 }
 
 impl SettingsWidget for ActiveAIWidget {
     type View = AISettingsPageView;
 
     fn search_terms(&self) -> &str {
-        "active ai a.i. next command prompt suggestions code diffs suggested banners passive unit tests commit pull request pr git code review autogen generate"
+        "active ai a.i. next command prompt suggestions code diffs suggested banners passive unit tests"
     }
 
     fn should_render(&self, app: &AppContext) -> bool {
@@ -4320,7 +4257,6 @@ impl SettingsWidget for ActiveAIWidget {
             || self.is_suggested_code_banners_toggleable(app)
             || self.is_natural_language_autosuggestions_toggleable(app)
             || self.is_shared_block_title_generation_toggleable(app)
-            || self.is_git_operations_autogen_toggleable(app)
     }
 
     fn render(
@@ -4381,10 +4317,6 @@ impl SettingsWidget for ActiveAIWidget {
 
         if self.is_shared_block_title_generation_toggleable(app) {
             column.add_child(self.render_shared_block_title_generation_section(view, app));
-        }
-
-        if self.is_git_operations_autogen_toggleable(app) {
-            column.add_child(self.render_git_operations_autogen_section(view, app));
         }
 
         column.finish()
