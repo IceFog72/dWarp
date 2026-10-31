@@ -57,6 +57,9 @@ pub enum AgentToolbarItemKind {
     RichInput,
 
     // Both
+    /// Removed voice input button. Kept only so saved custom layouts that list it still load.
+    /// It is never offered or shown. See [`Self::is_removed`].
+    #[schemars(skip)]
     VoiceInput,
     // Renamed from ImageAttach; alias preserves existing user toolbar configs.
     #[serde(alias = "ImageAttach")]
@@ -139,6 +142,11 @@ impl AgentToolbarItemKind {
         }
     }
 
+    /// Whether this item belongs to a removed feature and must be dropped from saved layouts.
+    pub fn is_removed(&self) -> bool {
+        matches!(self, Self::VoiceInput)
+    }
+
     pub fn is_context_chip(&self) -> bool {
         matches!(self, Self::ContextChip(_))
     }
@@ -176,7 +184,6 @@ impl AgentToolbarItemKind {
         if false {
             items.push(Self::ShareSession);
         }
-        items.push(Self::VoiceInput);
         items.push(Self::FileAttach);
         items
     }
@@ -190,7 +197,6 @@ impl AgentToolbarItemKind {
         items.extend([
             Self::ModelSelector,
             Self::NLDToggle,
-            Self::VoiceInput,
             Self::FileAttach,
             Self::ContextWindowUsage,
         ]);
@@ -208,7 +214,6 @@ impl AgentToolbarItemKind {
     pub fn cli_default_left() -> Vec<Self> {
         let mut items = vec![
             Self::FileAttach,
-            Self::VoiceInput,
             Self::ContextChip(ContextChipKind::GitDiffStats),
         ];
         // OpenWarp:删除 Agent footer Share Session 按钮(云端 shared session)
@@ -241,7 +246,6 @@ impl AgentToolbarItemKind {
             Self::FileExplorer,
             Self::RichInput,
             Self::FileAttach,
-            Self::VoiceInput,
             Self::Settings,
         ]);
         // OpenWarp:删除 Agent footer Share Session 按钮(云端 shared session)

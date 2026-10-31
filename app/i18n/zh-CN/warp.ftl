@@ -290,7 +290,6 @@ terminal-use-agent = 使用智能体
 terminal-use-agent-tooltip = 让 Warp 智能体协助
 terminal-give-control-back-to-agent = 将控制权交还给智能体
 terminal-resume-agent-tooltip = 让 Warp 智能体继续
-terminal-voice-input-tooltip = 语音输入
 terminal-attach-file-tooltip = 附加文件
 terminal-slash-commands-tooltip = 斜杠命令
 terminal-manage-api-keys-tooltip = 管理 API 密钥
@@ -750,7 +749,6 @@ settings-ai-active-ai-section = 主动 AI
 settings-ai-input-section = 输入
 settings-ai-mcp-servers-section = MCP 服务器
 settings-ai-knowledge-section = Rules
-settings-ai-voice-section = 语音
 settings-ai-other-section = 其他
 settings-ai-third-party-cli-section = 第三方 CLI 智能体
 settings-ai-experimental-section = 实验性
@@ -841,10 +839,6 @@ settings-ai-suggested-rules-description = 让 AI 根据你的交互建议要保�
 settings-ai-manage-rules = 管理规则
 settings-ai-rules-description = 规则帮助 Warp 智能体遵循你的约定,无论是针对代码库还是特定工作流。
 
-# 语音
-settings-ai-voice-input-label = 语音输入
-settings-ai-voice-key = 激活语音输入的按键
-settings-ai-voice-key-hint = 按住以激活。
 
 # 其他区段
 settings-ai-show-use-agent-footer = 显示"使用智能体"页脚
@@ -2156,7 +2150,6 @@ toggle-suffix-prompt-suggestions = 提示词建议
 toggle-suffix-code-suggestions = 代码建议
 toggle-suffix-nl-autosuggestions = 自然语言自动建议
 toggle-suffix-shared-block-title-gen = 共享块标题生成
-toggle-suffix-voice-input = 语音输入
 toggle-suffix-codebase-index = 代码库索引
 toggle-suffix-auto-indexing = 自动索引
 toggle-suffix-compact-mode = 紧凑模式
@@ -2933,7 +2926,6 @@ agent-tip-cancel-task = 按 <keybinding> 取消当前智能体任务。
 agent-tip-action-open-palette = 打开命令面板
 agent-tip-action-warp-drive = Warp Drive。
 agent-tip-action-show-diff-view = 显示 diff 视图
-agent-tip-voice-input = 按住 <keybinding>,直接用语音向智能体输入提示词。
 hoa-welcome-banner-title = 引入通用智能体支持:用 Warp 增强任何编码智能体
 hoa-feature-vertical-tabs-title = 垂直标签页
 hoa-feature-vertical-tabs-description = 丰富的标签标题和元数据,如 git 分支、worktree 和 PR。完全可自定义。

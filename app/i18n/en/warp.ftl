@@ -296,7 +296,6 @@ terminal-use-agent = Use agent
 terminal-use-agent-tooltip = Ask the Warp agent to assist
 terminal-give-control-back-to-agent = Give control back to agent
 terminal-resume-agent-tooltip = Ask the Warp agent to resume
-terminal-voice-input-tooltip = Voice input
 terminal-attach-file-tooltip = Attach file
 terminal-slash-commands-tooltip = Slash commands
 terminal-manage-api-keys-tooltip = Manage API keys
@@ -767,7 +766,6 @@ settings-ai-active-ai-section = Active AI
 settings-ai-input-section = Input
 settings-ai-mcp-servers-section = MCP Servers
 settings-ai-knowledge-section = Knowledge
-settings-ai-voice-section = Voice
 settings-ai-other-section = Other
 settings-ai-third-party-cli-section = Third party CLI agents
 settings-ai-experimental-section = Experimental
@@ -858,10 +856,6 @@ settings-ai-suggested-rules-description = Let AI suggest rules to save based on 
 settings-ai-manage-rules = Manage rules
 settings-ai-rules-description = Rules help the Warp Agent follow your conventions, whether for codebases or specific workflows.
 
-# Voice
-settings-ai-voice-input-label = Voice Input
-settings-ai-voice-key = Key for Activating Voice Input
-settings-ai-voice-key-hint = Press and hold to activate.
 
 # Other section
 settings-ai-show-use-agent-footer = Show "Use Agent" footer
@@ -2233,7 +2227,6 @@ toggle-suffix-prompt-suggestions = prompt suggestions
 toggle-suffix-code-suggestions = code suggestions
 toggle-suffix-nl-autosuggestions = natural language autosuggestions
 toggle-suffix-shared-block-title-gen = shared block title generation
-toggle-suffix-voice-input = voice input
 toggle-suffix-codebase-index = codebase index
 toggle-suffix-auto-indexing = auto-indexing
 toggle-suffix-compact-mode = compact mode
@@ -3049,7 +3042,6 @@ agent-tip-cancel-task = <keybinding> to cancel the current agent task.
 agent-tip-action-open-palette = Open palette
 agent-tip-action-warp-drive = Warp Drive.
 agent-tip-action-show-diff-view = Show diff view
-agent-tip-voice-input = Hold <keybinding> to speak your prompt directly to the agent.
 hoa-welcome-banner-title = Introducing universal agent support: level up any coding agent with Warp
 hoa-feature-vertical-tabs-title = Vertical tabs
 hoa-feature-vertical-tabs-description = Rich tab titles and metadata like git branch, worktree, and PR. Fully customizable.

@@ -176,6 +176,15 @@ pub trait ToolbarChipSelection {
     }
 }
 
+/// Drops items of removed features from a saved custom layout.
+fn without_removed(items: &[AgentToolbarItemKind]) -> Vec<AgentToolbarItemKind> {
+    items
+        .iter()
+        .filter(|item| !item.is_removed())
+        .cloned()
+        .collect()
+}
+
 #[derive(
     Clone,
     Debug,
@@ -214,14 +223,14 @@ impl ToolbarChipSelection for AgentToolbarChipSelection {
     fn left_items(&self) -> Vec<AgentToolbarItemKind> {
         match self {
             Self::Default => Self::default_left_items(),
-            Self::Custom { left, .. } => left.clone(),
+            Self::Custom { left, .. } => without_removed(left),
         }
     }
 
     fn right_items(&self) -> Vec<AgentToolbarItemKind> {
         match self {
             Self::Default => Self::default_right_items(),
-            Self::Custom { right, .. } => right.clone(),
+            Self::Custom { right, .. } => without_removed(right),
         }
     }
 }
@@ -264,14 +273,14 @@ impl ToolbarChipSelection for CLIAgentToolbarChipSelection {
     fn left_items(&self) -> Vec<AgentToolbarItemKind> {
         match self {
             Self::Default => Self::default_left_items(),
-            Self::Custom { left, .. } => left.clone(),
+            Self::Custom { left, .. } => without_removed(left),
         }
     }
 
     fn right_items(&self) -> Vec<AgentToolbarItemKind> {
         match self {
             Self::Default => Self::default_right_items(),
-            Self::Custom { right, .. } => right.clone(),
+            Self::Custom { right, .. } => without_removed(right),
         }
     }
 }

@@ -931,7 +931,7 @@ impl TerminalView {
 ///
 /// For regular commands, displays a 'Use agent' keystroke button to enter agent mode.
 /// For CLI agent commands (e.g., Claude Code, Gemini CLI, Codex), displays a specialized
-/// footer with image attachment, voice input, file explorer, view changes, and share buttons.
+/// footer with image attachment, file explorer, view changes, and share buttons.
 pub struct UseAgentToolbar {
     terminal_view_id: EntityId,
     terminal_model: Arc<FairMutex<TerminalModel>>,
@@ -1163,11 +1163,6 @@ impl UseAgentToolbar {
         self.warpify_footer_view.as_ref(app).mode().cloned()
     }
 
-    /// Returns whether there's a current CLI agent (like Claude Code).
-    #[cfg(feature = "voice_input")]
-    pub fn has_cli_agent(&self, app: &AppContext) -> bool {
-        self.cli_agent(app).is_some()
-    }
 }
 
 /// Events emitted by UseAgentToolbar.

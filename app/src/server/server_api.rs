@@ -17,7 +17,6 @@ use crate::ai::predict::generate_ai_input_suggestions::GenerateAIInputSuggestion
 use crate::ai::predict::generate_am_query_suggestions;
 use crate::ai::predict::generate_am_query_suggestions::GenerateAMQuerySuggestionsRequest;
 use crate::ai::predict::predict_am_queries::{PredictAMQueriesRequest, PredictAMQueriesResponse};
-use crate::ai::voice::transcribe::{TranscribeRequest, TranscribeResponse};
 use crate::auth::auth_manager::AuthManager;
 use crate::auth::auth_state::AuthState;
 use crate::server::graphql::default_request_options;
@@ -325,28 +324,6 @@ impl ErrorExt for AIApiError {
     }
 }
 register_error!(AIApiError);
-
-#[derive(thiserror::Error, Debug)]
-pub enum TranscribeError {
-    #[error("Request failed due to lack of Voice quota.")]
-    QuotaLimit,
-
-    #[error("Warp is currently overloaded. Please try again later.")]
-    ServerOverloaded,
-
-    #[error("Internal error occurred at transport layer.")]
-    Transport,
-
-    #[error("Failed to deserialize JSON.")]
-    Deserialization,
-
-    /// OpenWarp 已禁用语音转写(BYOP genai 协议无法承载音频)。
-    #[error("Voice transcription is unavailable in OpenWarp.")]
-    Disabled,
-
-    #[error(transparent)]
-    Other(#[from] anyhow::Error),
-}
 
 cfg_if::cfg_if! {
     if #[cfg(target_family = "wasm")] {
@@ -1040,18 +1017,6 @@ impl ServerApi {
         .json()
         .await?;
         Ok(response)
-    }
-
-    /// 语音转写 — OpenWarp 已禁用。
-    ///
-    /// BYOP genai chat 协议无法承载音频流,且 OpenWarp 已剥离 Warp Inc 云端,
-    /// `/ai/transcribe` 端点不可达。直接返回 `Disabled`,UI 层显示禁用提示。
-    pub async fn transcribe(
-        &self,
-        _request: &TranscribeRequest,
-    ) -> Result<TranscribeResponse, TranscribeError> {
-        log::debug!("transcribe disabled in OpenWarp (BYOP cannot carry audio)");
-        Err(TranscribeError::Disabled)
     }
 
     pub async fn generate_multi_agent_output(
