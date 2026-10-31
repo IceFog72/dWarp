@@ -74,3 +74,6 @@ perf.data.old
 perf.data
 .codegraph/
 .agent/
+
+graphify-out/
+.unlazy/
