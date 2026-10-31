@@ -2,9 +2,9 @@
 
 # warp-cpu
 
-**Bring any AI model into your terminal (Software Rendered)**
+**Bring any AI model into your terminal (CPU Rendered)**
 
-warp-cpu is a fork of [OpenWarp](https://github.com/zerx-lab/warp) (a community fork of [Warp](https://github.com/warpdotdev/warp)) optimized to use CPU software rendering (`llvmpipe`) by default. This saves precious VRAM on Linux machines, especially those with dedicated GPUs where VRAM is needed for other tasks like AI models or gaming.
+warp-cpu is a fork of [OpenWarp](https://github.com/zerx-lab/warp) (a community fork of [Warp](https://github.com/warpdotdev/warp)) with an opt-in CPU renderer on Linux. It draws frames with `softbuffer` instead of wgpu, which saves VRAM on machines whose GPU memory is needed for other tasks like AI models or gaming.
 Keep the full Warp terminal experience — blocks, workflows, keymaps — while plugging in
 **any OpenAI-compatible provider**, customizing system prompts with minijinja templates,
 and keeping every credential local.
@@ -14,18 +14,16 @@ and keeping every credential local.
 > ⚠️ Early development. No official release yet. **Not affiliated with Warp, Inc.**
 
 ### 🖥️ Linux CPU Rendering
-Linux has two CPU-rendering paths:
+Linux renders with the GPU (wgpu) by default. **Use CPU renderer** switches to Warp's CPU rasterizer with `softbuffer`, so the window uses no GPU or VRAM. Enable it under Settings → Features → System → Use CPU renderer, then restart Warp.
 
-- **Force CPU software rendering** keeps the normal wgpu renderer but uses Mesa's `llvmpipe`. This remains enabled by default and can be changed under Settings → Features → System.
-- **Use CPU renderer** uses Warp's CPU rasterizer with `softbuffer`, avoiding both wgpu and `llvmpipe`. Enable it under Settings → Features → System → Use CPU renderer, then restart Warp.
-
-For one-off developer overrides, set the corresponding environment variable before launching Warp:
+While the CPU renderer is active, frames are paced to save CPU: 15 fps for steady terminal output, 30 fps while typing or clicking, 60 fps for short bursts such as resizing and scrolling. Override with environment variables:
 
 ```bash
-WARP_CPU_RENDERER=1 warp-terminal-oss
-# Or force the llvmpipe path:
-WARP_FORCE_SOFTWARE=1 warp-terminal-oss
+WARP_CPU_RENDERER=1 warp-terminal-oss          # one-off CPU renderer
+WARP_CPU_FPS=30 warp-terminal-oss              # one cap for every frame class
+WARP_CPU_TERMINAL_FPS=10 warp-terminal-oss     # steady-output cap only
 ```
+Also available: `WARP_CPU_IDLE_FPS`, `WARP_CPU_INTERACTIVE_FPS`, `WARP_CPU_BURST_FPS`.
 
 </div>
 
@@ -78,7 +76,7 @@ the experience is identical to Warp, but every layer is yours.
 - **SSE streaming** — incremental block rendering identical to Warp's first-party path
 - **18 local tools** — shell / read / edit / search / mcp / drive docs / skills / ask, all executed locally
 - **System prompt templates** — eight model-family prompts ported from opencode (default / anthropic / gpt / beast / gemini / kimi / codex / trinity)
-- **Software rendering enabled** — Prioritizes `llvmpipe` CPU rendering to conserve VRAM on Linux setups.
+- **CPU renderer** — opt-in `softbuffer` rendering on Linux with frame pacing, no VRAM use.
 - **models.dev integration** — searchable Providers subpage with thousands of preloaded model entries
 - **Privacy first** — Cloud Agent / Computer Use / Referral disabled by default; no telemetry
 - **Warp experience preserved** — continuously merged with upstream; Blocks, Workflows, AI commands, Keymaps and themes all kept

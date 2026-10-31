@@ -69,7 +69,7 @@ const MAX_TAP_DISTANCE: f64 = 18.;
 const LONG_PRESS_DURATION: Duration = Duration::from_millis(500);
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum SoftwareFrameClass {
+enum FrameClass {
     Idle,
     TerminalSteady,
     Interactive,
@@ -77,23 +77,23 @@ enum SoftwareFrameClass {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-struct SoftwareFramePolicy {
+struct CpuFramePolicy {
     idle_interval: Option<Duration>,
     terminal_interval: Option<Duration>,
     interactive_interval: Option<Duration>,
     burst_interval: Option<Duration>,
 }
 
-impl SoftwareFramePolicy {
+impl CpuFramePolicy {
     fn from_fps_values(
-        is_software: bool,
+        cpu_renderer: bool,
         legacy_fps: Option<u64>,
         idle_fps: Option<u64>,
         terminal_fps: Option<u64>,
         interactive_fps: Option<u64>,
         burst_fps: Option<u64>,
     ) -> Self {
-        if !is_software && legacy_fps.is_none() {
+        if !cpu_renderer && legacy_fps.is_none() {
             return Self {
                 idle_interval: None,
                 terminal_interval: None,
@@ -106,25 +106,25 @@ impl SoftwareFramePolicy {
             idle_interval: idle_fps.and_then(frame_interval_for_fps),
             terminal_interval: terminal_fps
                 .or(legacy_fps)
-                .or(Some(6))
+                .or(Some(15))
                 .and_then(frame_interval_for_fps),
             interactive_interval: interactive_fps
                 .or(legacy_fps)
-                .or(Some(12))
+                .or(Some(30))
                 .and_then(frame_interval_for_fps),
             burst_interval: burst_fps
                 .or(legacy_fps)
-                .or(Some(30))
+                .or(Some(60))
                 .and_then(frame_interval_for_fps),
         }
     }
 
-    fn interval_for_class(&self, frame_class: SoftwareFrameClass) -> Option<Duration> {
+    fn interval_for_class(&self, frame_class: FrameClass) -> Option<Duration> {
         match frame_class {
-            SoftwareFrameClass::Idle => self.idle_interval,
-            SoftwareFrameClass::TerminalSteady => self.terminal_interval,
-            SoftwareFrameClass::Interactive => self.interactive_interval,
-            SoftwareFrameClass::Burst => self.burst_interval,
+            FrameClass::Idle => self.idle_interval,
+            FrameClass::TerminalSteady => self.terminal_interval,
+            FrameClass::Interactive => self.interactive_interval,
+            FrameClass::Burst => self.burst_interval,
         }
     }
 }
@@ -586,9 +586,9 @@ pub(super) struct EventLoop {
     /// Soft keyboard manager for mobile WASM.
     #[cfg(target_family = "wasm")]
     soft_keyboard_manager: Option<std::rc::Rc<crate::platform::wasm::SoftKeyboardManager>>,
-    /// Frame pacing policy for software rendering. `None` intervals mean no frame limiting.
-    software_frame_policy: SoftwareFramePolicy,
-    current_frame_class: SoftwareFrameClass,
+    /// Frame pacing policy for the CPU renderer. `None` intervals mean no frame limiting.
+    cpu_frame_policy: CpuFramePolicy,
+    current_frame_class: FrameClass,
     burst_until: Option<Instant>,
     /// Timestamp of the last completed frame.
     last_frame_time: Option<Instant>,
@@ -602,7 +602,7 @@ impl EventLoop {
         window_class: Option<String>,
         proxy: EventLoopProxy<CustomEvent>,
     ) -> Self {
-        let software_frame_policy = Self::compute_software_frame_policy();
+        let cpu_frame_policy = Self::compute_cpu_frame_policy();
 
         Self {
             ui_app: ui_app.clone(),
@@ -613,8 +613,8 @@ impl EventLoop {
             proxy,
             ime_enabled: false,
             downrank_non_nvidia_vulkan_adapters: false,
-            software_frame_policy,
-            current_frame_class: SoftwareFrameClass::Idle,
+            cpu_frame_policy,
+            current_frame_class: FrameClass::Idle,
             burst_until: None,
             last_frame_time: None,
             #[cfg(target_family = "wasm")]
@@ -622,55 +622,49 @@ impl EventLoop {
         }
     }
 
-    fn compute_software_frame_policy() -> SoftwareFramePolicy {
-        let force_software = std::env::var("WARP_FORCE_SOFTWARE")
-            .ok()
-            .is_some_and(|v| v == "1" || v.eq_ignore_ascii_case("true"));
+    fn compute_cpu_frame_policy() -> CpuFramePolicy {
+        #[cfg(all(
+            feature = "cpu-renderer",
+            any(target_os = "linux", target_os = "freebsd")
+        ))]
+        let cpu_renderer = crate::rendering::cpu::cpu_renderer_requested();
+        #[cfg(not(all(
+            feature = "cpu-renderer",
+            any(target_os = "linux", target_os = "freebsd")
+        )))]
+        let cpu_renderer = false;
 
-        let libgl_software = std::env::var("LIBGL_ALWAYS_SOFTWARE")
-            .ok()
-            .is_some_and(|v| v == "1" || v.eq_ignore_ascii_case("true"));
-
-        let wgpu_gl_backend = std::env::var("WGPU_BACKEND")
-            .ok()
-            .is_some_and(|v| v.eq_ignore_ascii_case("gl"));
-
-        let is_software = force_software || libgl_software || wgpu_gl_backend;
-
-        let legacy_fps = env_fps("WARP_SOFTWARE_FPS");
-        let policy = SoftwareFramePolicy::from_fps_values(
-            is_software,
-            legacy_fps,
-            env_fps("WARP_SOFTWARE_IDLE_FPS"),
-            env_fps("WARP_SOFTWARE_TERMINAL_FPS"),
-            env_fps("WARP_SOFTWARE_INTERACTIVE_FPS"),
-            env_fps("WARP_SOFTWARE_BURST_FPS"),
-        );
-
-        policy
+        CpuFramePolicy::from_fps_values(
+            cpu_renderer,
+            env_fps("WARP_CPU_FPS"),
+            env_fps("WARP_CPU_IDLE_FPS"),
+            env_fps("WARP_CPU_TERMINAL_FPS"),
+            env_fps("WARP_CPU_INTERACTIVE_FPS"),
+            env_fps("WARP_CPU_BURST_FPS"),
+        )
     }
 
-    fn set_frame_class(&mut self, frame_class: SoftwareFrameClass) {
+    fn set_frame_class(&mut self, frame_class: FrameClass) {
         self.current_frame_class = frame_class;
     }
 
     fn start_burst(&mut self, duration: Duration) {
-        self.current_frame_class = SoftwareFrameClass::Burst;
+        self.current_frame_class = FrameClass::Burst;
         self.burst_until = Some(Instant::now() + duration);
     }
 
     fn current_frame_interval(&mut self) -> Option<Duration> {
-        if self.current_frame_class == SoftwareFrameClass::Burst {
+        if self.current_frame_class == FrameClass::Burst {
             match self.burst_until {
                 Some(burst_until) if Instant::now() < burst_until => {}
                 Some(_) | None => {
                     self.burst_until = None;
-                    self.current_frame_class = SoftwareFrameClass::TerminalSteady;
+                    self.current_frame_class = FrameClass::TerminalSteady;
                 }
             }
         }
 
-        self.software_frame_policy
+        self.cpu_frame_policy
             .interval_for_class(self.current_frame_class)
     }
 
@@ -682,7 +676,7 @@ impl EventLoop {
             WindowEvent::KeyboardInput { .. }
             | WindowEvent::Ime(_)
             | WindowEvent::MouseInput { .. }
-            | WindowEvent::Touch(_) => self.set_frame_class(SoftwareFrameClass::Interactive),
+            | WindowEvent::Touch(_) => self.set_frame_class(FrameClass::Interactive),
             _ => {}
         }
     }
@@ -2232,22 +2226,22 @@ fn downcast_window(window: &dyn platform::Window) -> &super::Window {
 }
 
 #[cfg(test)]
-mod software_frame_policy_tests {
+mod cpu_frame_policy_tests {
     use super::*;
 
     #[test]
-    fn software_defaults_to_low_power_intervals() {
-        let policy = SoftwareFramePolicy::from_fps_values(true, None, None, None, None, None);
+    fn cpu_renderer_defaults_to_low_power_intervals() {
+        let policy = CpuFramePolicy::from_fps_values(true, None, None, None, None, None);
 
         assert_eq!(policy.idle_interval, None);
-        assert_eq!(policy.terminal_interval, Some(Duration::from_millis(166)));
-        assert_eq!(policy.interactive_interval, Some(Duration::from_millis(83)));
-        assert_eq!(policy.burst_interval, Some(Duration::from_millis(33)));
+        assert_eq!(policy.terminal_interval, Some(Duration::from_millis(66)));
+        assert_eq!(policy.interactive_interval, Some(Duration::from_millis(33)));
+        assert_eq!(policy.burst_interval, Some(Duration::from_millis(16)));
     }
 
     #[test]
-    fn legacy_fps_applies_to_all_active_software_classes() {
-        let policy = SoftwareFramePolicy::from_fps_values(true, Some(10), None, None, None, None);
+    fn global_fps_applies_to_all_active_classes() {
+        let policy = CpuFramePolicy::from_fps_values(true, Some(10), None, None, None, None);
 
         assert_eq!(policy.terminal_interval, Some(Duration::from_millis(100)));
         assert_eq!(
@@ -2259,7 +2253,7 @@ mod software_frame_policy_tests {
 
     #[test]
     fn specific_fps_overrides_legacy_fps() {
-        let policy = SoftwareFramePolicy::from_fps_values(
+        let policy = CpuFramePolicy::from_fps_values(
             true,
             Some(10),
             Some(2),
@@ -2275,8 +2269,8 @@ mod software_frame_policy_tests {
     }
 
     #[test]
-    fn hardware_policy_does_not_limit_frames_without_explicit_fps() {
-        let policy = SoftwareFramePolicy::from_fps_values(false, None, None, None, None, None);
+    fn gpu_policy_does_not_limit_frames_without_explicit_fps() {
+        let policy = CpuFramePolicy::from_fps_values(false, None, None, None, None, None);
 
         assert_eq!(policy.idle_interval, None);
         assert_eq!(policy.terminal_interval, None);
@@ -2287,22 +2281,22 @@ mod software_frame_policy_tests {
     #[test]
     fn interval_for_class_uses_matching_policy_value() {
         let policy =
-            SoftwareFramePolicy::from_fps_values(true, None, Some(1), Some(5), Some(10), Some(20));
+            CpuFramePolicy::from_fps_values(true, None, Some(1), Some(5), Some(10), Some(20));
 
         assert_eq!(
-            policy.interval_for_class(SoftwareFrameClass::Idle),
+            policy.interval_for_class(FrameClass::Idle),
             Some(Duration::from_millis(1000))
         );
         assert_eq!(
-            policy.interval_for_class(SoftwareFrameClass::TerminalSteady),
+            policy.interval_for_class(FrameClass::TerminalSteady),
             Some(Duration::from_millis(200))
         );
         assert_eq!(
-            policy.interval_for_class(SoftwareFrameClass::Interactive),
+            policy.interval_for_class(FrameClass::Interactive),
             Some(Duration::from_millis(100))
         );
         assert_eq!(
-            policy.interval_for_class(SoftwareFrameClass::Burst),
+            policy.interval_for_class(FrameClass::Burst),
             Some(Duration::from_millis(50))
         );
     }

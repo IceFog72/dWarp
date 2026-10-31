@@ -7,10 +7,9 @@
 #   ./script/build-and-install.sh --channel oss
 #
 # Environment variables:
-#   WARP_FORCE_SOFTWARE=1        Force CPU software rendering (llvmpipe)
-#   WARP_SOFTWARE_LOW_POWER=1    Enable software-rendering low-power throttles
-#   WARP_SOFTWARE_FPS=30         Cap FPS for software rendering
-#   WARP_SOFTWARE_TERMINAL_FPS=6 Cap terminal spinner/output redraw FPS
+#   WARP_CPU_RENDERER=1          Use the softbuffer CPU renderer instead of wgpu
+#   WARP_CPU_FPS=30              Cap FPS for every CPU renderer frame class
+#   WARP_CPU_TERMINAL_FPS=15     Cap terminal spinner/output redraw FPS
 #
 
 set -euo pipefail
@@ -85,14 +84,13 @@ RUNTIME_COMMAND="/usr/local/bin/$DESKTOP_COMMAND"
 REAL_COMMAND="/usr/local/bin/$DESKTOP_COMMAND.real"
 sudo install -D "$EXECUTABLE_PATH" "$REAL_COMMAND"
 
-if [[ -n "${WARP_FORCE_SOFTWARE:-}" || -n "${WARP_SOFTWARE_LOW_POWER:-}" || -n "${WARP_SOFTWARE_FPS:-}" || -n "${WARP_SOFTWARE_TERMINAL_FPS:-}" ]]; then
+if [[ -n "${WARP_CPU_RENDERER:-}" || -n "${WARP_CPU_FPS:-}" || -n "${WARP_CPU_TERMINAL_FPS:-}" ]]; then
   WRAPPER_PATH="$(mktemp)"
   cat > "$WRAPPER_PATH" <<EOF
 #!/usr/bin/env bash
-export WARP_FORCE_SOFTWARE="${WARP_FORCE_SOFTWARE:-}"
-export WARP_SOFTWARE_LOW_POWER="${WARP_SOFTWARE_LOW_POWER:-}"
-export WARP_SOFTWARE_FPS="${WARP_SOFTWARE_FPS:-}"
-export WARP_SOFTWARE_TERMINAL_FPS="${WARP_SOFTWARE_TERMINAL_FPS:-}"
+export WARP_CPU_RENDERER="${WARP_CPU_RENDERER:-}"
+export WARP_CPU_FPS="${WARP_CPU_FPS:-}"
+export WARP_CPU_TERMINAL_FPS="${WARP_CPU_TERMINAL_FPS:-}"
 exec "$REAL_COMMAND" "\$@"
 EOF
   chmod 755 "$WRAPPER_PATH"

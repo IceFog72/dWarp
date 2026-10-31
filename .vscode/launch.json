@@ -23,14 +23,9 @@
         }
       },
       "env": {
-        "__EGL_VENDOR_LIBRARY_FILENAMES": "/usr/share/glvnd/egl_vendor.d/50_mesa.json",
-        "LIBGL_ALWAYS_SOFTWARE": "1",
-        "WARP_FORCE_SOFTWARE": "1",
-        "WGPU_BACKEND": "gl",
+        "WARP_CPU_RENDERER": "1",
         "RUST_BACKTRACE": "1",
-        "RUST_LOG": "info,wgpu=warn,wgpu_hal=warn,naga=warn,warp::terminal::view=info",
-        "MESA_DEBUG": "silent",
-        "MESA_LOADER_DRIVER_OVERRIDE": "kms_swrast"
+        "RUST_LOG": "info,wgpu=warn,wgpu_hal=warn,naga=warn,warp::terminal::view=info"
       },
       "args": [],
       "cwd": "${workspaceFolder}",
@@ -58,14 +53,8 @@
         }
       },
       "env": {
-        "__EGL_VENDOR_LIBRARY_FILENAMES": "/usr/share/glvnd/egl_vendor.d/50_mesa.json",
-        "LIBGL_ALWAYS_SOFTWARE": "1",
-        "WARP_FORCE_SOFTWARE": "1",
-        "WGPU_BACKEND": "gl",
         "RUST_BACKTRACE": "1",
-        "RUST_LOG": "info,wgpu=warn,wgpu_hal=warn,naga=warn,warp::terminal::view=info",
-        "MESA_DEBUG": "silent",
-        "MESA_LOADER_DRIVER_OVERRIDE": "kms_swrast"
+        "RUST_LOG": "info,wgpu=warn,wgpu_hal=warn,naga=warn,warp::terminal::view=info"
       },
       "args": [],
       "cwd": "${workspaceFolder}",
@@ -83,10 +72,6 @@
         }
       },
       "env": {
-        "__EGL_VENDOR_LIBRARY_FILENAMES": "/usr/share/glvnd/egl_vendor.d/50_mesa.json",
-        "LIBGL_ALWAYS_SOFTWARE": "1",
-        "WARP_FORCE_SOFTWARE": "1",
-        "WGPU_BACKEND": "gl",
         "RUST_BACKTRACE": "1"
       },
       "args": [],

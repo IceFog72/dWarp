@@ -911,7 +911,7 @@ fn run_internal(mut launch_mode: LaunchMode) -> Result<()> {
         };
 
     #[cfg(any(target_os = "linux", target_os = "freebsd"))]
-    apply_software_rendering_environment(prefs_for_public_settings);
+    apply_cpu_renderer_environment(prefs_for_public_settings);
 
     #[cfg(enable_crash_recovery)]
     let crash_recovery =
@@ -1060,37 +1060,13 @@ fn run_internal(mut launch_mode: LaunchMode) -> Result<()> {
 }
 
 #[cfg(any(target_os = "linux", target_os = "freebsd"))]
-fn apply_software_rendering_environment(
+fn apply_cpu_renderer_environment(
     prefs_for_public_settings: &dyn warpui_extras::user_preferences::UserPreferences,
 ) {
-    use crate::settings::{CpuRenderer, ForceSoftwareRendering};
+    use crate::settings::CpuRenderer;
 
-    let env_forces_software = std::env::var("WARP_FORCE_SOFTWARE")
-        .ok()
-        .is_some_and(|value| value == "1" || value.eq_ignore_ascii_case("true"));
-    let force_software = env_forces_software
-        || ForceSoftwareRendering::read_from_preferences(prefs_for_public_settings)
-            .unwrap_or_else(ForceSoftwareRendering::default_value);
-
-    if force_software {
-        std::env::set_var(
-            "__EGL_VENDOR_LIBRARY_FILENAMES",
-            "/usr/share/glvnd/egl_vendor.d/50_mesa.json",
-        );
-        std::env::set_var("LIBGL_ALWAYS_SOFTWARE", "1");
-        std::env::set_var("WGPU_BACKEND", "gl");
-        std::env::set_var("WARP_FORCE_SOFTWARE", "1");
-        std::env::set_var("MESA_LOADER_DRIVER_OVERRIDE", "kms_swrast");
-    } else {
-        remove_env_if_value(
-            "__EGL_VENDOR_LIBRARY_FILENAMES",
-            "/usr/share/glvnd/egl_vendor.d/50_mesa.json",
-        );
-        remove_env_if_value("LIBGL_ALWAYS_SOFTWARE", "1");
-        remove_env_if_value("WGPU_BACKEND", "gl");
-        remove_env_if_value("MESA_LOADER_DRIVER_OVERRIDE", "kms_swrast");
-    }
-
+    // The persisted setting uses its own variable so turning it off takes effect on the next
+    // launch without being mistaken for an explicit `WARP_CPU_RENDERER` override.
     let setting_enables_cpu_renderer = CpuRenderer::read_from_preferences(
         prefs_for_public_settings,
     )
@@ -1098,14 +1074,7 @@ fn apply_software_rendering_environment(
     if setting_enables_cpu_renderer {
         std::env::set_var("WARP_CPU_RENDERER_FROM_SETTINGS", "1");
     } else {
-        remove_env_if_value("WARP_CPU_RENDERER_FROM_SETTINGS", "1");
-    }
-}
-
-#[cfg(any(target_os = "linux", target_os = "freebsd"))]
-fn remove_env_if_value(key: &str, value: &str) {
-    if std::env::var(key).is_ok_and(|current| current == value) {
-        std::env::remove_var(key);
+        std::env::remove_var("WARP_CPU_RENDERER_FROM_SETTINGS");
     }
 }
 

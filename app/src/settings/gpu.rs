@@ -3,15 +3,6 @@ use std::time::Duration;
 use warpui::platform::GraphicsBackend;
 
 define_settings_group!(GPUSettings, settings: [
-   force_software_rendering: ForceSoftwareRendering {
-       type: bool,
-       default: cfg!(any(target_os = "linux", target_os = "freebsd")),
-       supported_platforms: SupportedPlatforms::LINUX,
-       sync_to_cloud: SyncToCloud::Never,
-       private: false,
-       toml_path: "system.force_software_rendering",
-       description: "Whether to force CPU software rendering on Linux.",
-   },
    cpu_renderer: CpuRenderer {
        type: bool,
        default: false,
@@ -43,31 +34,27 @@ define_settings_group!(GPUSettings, settings: [
    },
 ]);
 
-pub const DEFAULT_SOFTWARE_TERMINAL_FPS: u64 = 6;
+/// Default rate for repainting same-line spinner output while the CPU renderer is active.
+pub const DEFAULT_CPU_TERMINAL_FPS: u64 = 15;
 
-pub fn software_low_power_rendering_enabled() -> bool {
-    software_low_power_rendering_enabled_from_env(
-        std::env::var("WARP_SOFTWARE_LOW_POWER").ok().as_deref(),
-        std::env::var("WARP_FORCE_SOFTWARE").ok().as_deref(),
-        std::env::var("LIBGL_ALWAYS_SOFTWARE").ok().as_deref(),
-    )
+/// Whether the CPU (softbuffer) renderer is active, so terminal wakeups should be paced.
+pub fn cpu_renderer_active() -> bool {
+    #[cfg(any(target_os = "linux", target_os = "freebsd"))]
+    {
+        warpui::rendering::cpu::cpu_renderer_requested()
+    }
+    #[cfg(not(any(target_os = "linux", target_os = "freebsd")))]
+    {
+        false
+    }
 }
 
-pub fn software_terminal_frame_interval() -> Duration {
+/// Shares `WARP_CPU_TERMINAL_FPS` with the window event loop's frame pacing.
+pub fn cpu_terminal_frame_interval() -> Duration {
     fps_interval(
-        std::env::var("WARP_SOFTWARE_TERMINAL_FPS").ok().as_deref(),
-        DEFAULT_SOFTWARE_TERMINAL_FPS,
+        std::env::var("WARP_CPU_TERMINAL_FPS").ok().as_deref(),
+        DEFAULT_CPU_TERMINAL_FPS,
     )
-}
-
-fn software_low_power_rendering_enabled_from_env(
-    low_power: Option<&str>,
-    force_software: Option<&str>,
-    libgl_software: Option<&str>,
-) -> bool {
-    env_flag_enabled(low_power)
-        || env_flag_enabled(force_software)
-        || env_flag_enabled(libgl_software)
 }
 
 fn fps_interval(value: Option<&str>, default_fps: u64) -> Duration {
@@ -77,10 +64,6 @@ fn fps_interval(value: Option<&str>, default_fps: u64) -> Duration {
         .unwrap_or(default_fps);
 
     Duration::from_micros(1_000_000 / fps)
-}
-
-fn env_flag_enabled(value: Option<&str>) -> bool {
-    matches!(value, Some("1" | "true" | "TRUE" | "True"))
 }
 
 #[cfg(test)]
