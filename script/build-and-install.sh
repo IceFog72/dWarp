@@ -15,6 +15,13 @@
 set -euo pipefail
 
 WORKSPACE_ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
+LOG_DIR="$WORKSPACE_ROOT_DIR/logs/build-and-install"
+mkdir -p "$LOG_DIR"
+LOG_FILE="$(mktemp "$LOG_DIR/$(date -u +%Y%m%dT%H%M%SZ)-XXXXXX.log")"
+
+{
+trap 'status=$?; printf "\nBuild/install exited with status %s. Log: %s\n" "$status" "$LOG_FILE"' EXIT
+echo "Build/install log: $LOG_FILE"
 cd "$WORKSPACE_ROOT_DIR"
 
 if [[ "${1:-}" == "--channel" ]]; then
@@ -145,3 +152,4 @@ echo "Run '$DESKTOP_COMMAND'"
 echo ""
 echo "You may need to run: sudo update-desktop-database"
 echo "And:                sudo update-icon-caches /usr/share/icons/*"
+} 2>&1 | tee "$LOG_FILE"

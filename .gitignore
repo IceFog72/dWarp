@@ -3,6 +3,7 @@ app/frameworks/default/Carthage
 app/frameworks/dev/Carthage
 app/frameworks/**/*.xcframework
 /target
+/logs/build-and-install/
 /app/target
 /lib/*
 !/lib/rust-genai/

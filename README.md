@@ -111,6 +111,10 @@ To build the optimized `release-lto` binary and install it system-wide, use [`sc
 
 The script also accepts `dev` or `local` channels. The OSS launcher is installed as `dwarp`.
 
+Each run saves its complete output and exit status in a timestamped file under
+`logs/build-and-install/`, while also showing output in the terminal. Failed runs
+keep their logs and return the original failure status.
+
 On Windows, run [`script/build-and-install.bat`](script/build-and-install.bat) to build the OSS installer and open its installation wizard. Use `-BuildOnly` to produce the installer without installing it. Prerequisites and options are in [Windows build instructions](docs/windows-build.md).
 
 > ⚠️ Do not run `cargo build --release` / `cargo run --release --bin {warp,stable,dev,preview}`
