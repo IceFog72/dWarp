@@ -1,4 +1,4 @@
-use crate::ai::agent::AgentReviewCommentBatch;
+use crate::code_review::agent_review::AgentReviewCommentBatch;
 use crate::code_review::code_review_header::HEADER_BUTTON_PADDING;
 #[cfg(feature = "local_fs")]
 use crate::code_review::code_review_view::CodeReviewAction;
@@ -6,7 +6,6 @@ use crate::code_review::code_review_view::{
     render_file_navigation_button, CodeReviewView, CONTENT_LEFT_MARGIN, CONTENT_RIGHT_MARGIN,
 };
 use crate::code_review::code_review_view::{CodeReviewCommentDebugState, CodeReviewViewEvent};
-use crate::code_review::telemetry_event::CodeReviewContextDestination;
 use crate::pane_group::pane::view::header::{components::HEADER_EDGE_PADDING, PANE_HEADER_HEIGHT};
 use crate::pane_group::WorkingDirectoriesEvent;
 use crate::pane_group::{Event as PaneGroupEvent, PaneGroup, WorkingDirectoriesModel};
@@ -26,8 +25,8 @@ use crate::workspace::view::TOGGLE_RIGHT_PANEL_BINDING_NAME;
 use crate::workspace::WorkspaceAction;
 use crate::{
     appearance::Appearance,
-    drive::panel::{MAX_SIDEBAR_WIDTH_RATIO, MIN_SIDEBAR_WIDTH},
     terminal::resizable_data::{ModalType, ResizableData},
+    workspace::view::left_panel::{MAX_SIDEBAR_WIDTH_RATIO, MIN_SIDEBAR_WIDTH},
 };
 use crate::{code_review::diff_state::DiffStateModel, terminal::view::TerminalView};
 use dunce::canonicalize;
@@ -63,21 +62,15 @@ use warpui::{
 /// Describes which agent destination is available for sending review comments.
 #[derive(Clone, Debug, PartialEq)]
 pub enum ReviewDestination {
-    /// No terminal is available to receive comments.
+    /// No CLI agent terminal is available to receive comments.
     None,
-    /// A Warp agent terminal is available (input box visible, not executing).
-    Warp,
     /// A CLI agent (e.g. Claude Code, Gemini) is running in a terminal.
     Cli(CLIAgent),
 }
 
 /// Result of attempting to submit review comments to a terminal.
 pub enum ReviewSubmissionResult {
-    Success {
-        comment_count: usize,
-        file_count: usize,
-        destination: CodeReviewContextDestination,
-    },
+    Success,
     Error,
 }
 
@@ -339,7 +332,6 @@ pub struct RightPanelView {
     code_review_state: Option<CodeReviewState>,
     #[cfg(feature = "local_fs")]
     code_review_session_env: Option<CodeReviewSessionEnv>,
-    is_agent_management_view_open: bool,
     panel_position: super::PanelPosition,
 }
 
@@ -437,14 +429,8 @@ impl RightPanelView {
             code_review_state,
             #[cfg(feature = "local_fs")]
             code_review_session_env: None,
-            is_agent_management_view_open: false,
             panel_position: super::PanelPosition::Right,
         }
-    }
-
-    pub fn set_agent_management_view_open(&mut self, is_open: bool, ctx: &mut ViewContext<Self>) {
-        self.is_agent_management_view_open = is_open;
-        ctx.notify();
     }
 
     pub fn set_panel_position(
@@ -1215,7 +1201,7 @@ impl RightPanelView {
             return;
         };
 
-        let ai_enabled = AISettings::as_ref(ctx).is_any_ai_enabled(ctx);
+        let ai_enabled = AISettings::as_ref(ctx).is_any_ai_enabled();
         let chosen = self.find_review_terminal(pane_group, repo_path, ai_enabled, ctx);
 
         let Some(terminal_view) = chosen else {
@@ -1226,47 +1212,16 @@ impl RightPanelView {
             return;
         };
 
-        let comment_count = comments.comments.len();
-        let file_count = comments
-            .comments
-            .iter()
-            .filter_map(|c| {
-                c.target
-                    .absolute_file_path()
-                    .map(|p| p.to_string_lossy().to_string())
-            })
-            .collect::<std::collections::HashSet<_>>()
-            .len();
-
-        let active_cli_agent = terminal_view.read(ctx, |t, ctx| t.active_cli_agent(ctx));
-
-        let (result, destination) = if active_cli_agent.is_some() {
-            let r = terminal_view.update(ctx, |terminal, ctx| {
-                terminal.send_review_to_cli_agent_or_rich_input(&comments, ctx)
-            });
-            let dest = if terminal_view.read(ctx, |t, ctx| t.is_cli_agent_rich_input_open(ctx)) {
-                CodeReviewContextDestination::RichInput
-            } else {
-                CodeReviewContextDestination::Pty
-            };
-            (r, dest)
-        } else {
-            let r = terminal_view.update(ctx, |terminal, ctx| {
-                terminal.send_inline_review(comments, ctx)
-            });
-            (r, CodeReviewContextDestination::AgentReview)
-        };
+        let result = terminal_view.update(ctx, |terminal, ctx| {
+            terminal.send_review_to_cli_agent_or_rich_input(&comments, ctx)
+        });
 
         if let Err(err) = &result {
             log::error!("Failed to submit review comments to terminal: {err}");
         }
 
         let submission_result = if result.is_ok() {
-            ReviewSubmissionResult::Success {
-                comment_count,
-                file_count,
-                destination,
-            }
+            ReviewSubmissionResult::Success
         } else {
             ReviewSubmissionResult::Error
         };
@@ -1337,7 +1292,7 @@ impl RightPanelView {
 
     fn log_code_review_debug_state(debug_state: &CodeReviewCommentDebugState) {
         log::info!(
-            "Active code review view: repo_path={}, has_active_comment_model={}, review_destination={:?}, total_comments={}, sendable_comments={}, is_collapsed={}, is_outdated_section_collapsed={:?}, ai_available={}, ai_enabled={}, send_button_tooltip={}",
+            "Active code review view: repo_path={}, has_active_comment_model={}, review_destination={:?}, total_comments={}, sendable_comments={}, is_collapsed={}, is_outdated_section_collapsed={:?},, send_button_tooltip={}",
             Self::format_optional_path(debug_state.repo_path.as_deref()),
             debug_state.has_active_comment_model,
             debug_state.comment_list.review_destination,
@@ -1345,15 +1300,13 @@ impl RightPanelView {
             debug_state.comment_list.sendable_comments,
             debug_state.comment_list.is_collapsed,
             debug_state.comment_list.is_outdated_section_collapsed,
-            debug_state.comment_list.ai_available,
-            debug_state.comment_list.ai_enabled,
             debug_state.comment_list.send_button_tooltip_text,
         );
     }
 
     pub fn log_review_comment_send_status_for_active_tab(&self, ctx: &AppContext) {
         let selected_repo_path = self.selected_repo_path().cloned();
-        let ai_enabled = AISettings::as_ref(ctx).is_any_ai_enabled(ctx);
+        let ai_enabled = AISettings::as_ref(ctx).is_any_ai_enabled();
         let code_review_debug_state =
             self.get_active_code_review_view(ctx)
                 .map(|code_review_view| {
@@ -1560,16 +1513,11 @@ impl RightPanelView {
             return;
         };
 
-        let ai_enabled = AISettings::as_ref(ctx).is_any_ai_enabled(ctx);
+        let ai_enabled = AISettings::as_ref(ctx).is_any_ai_enabled();
         let destination = self
             .find_review_terminal(pane_group, &repo_path, ai_enabled, ctx)
-            .map(|tv| {
-                tv.read(ctx, |t, ctx| {
-                    t.active_cli_agent(ctx)
-                        .map(ReviewDestination::Cli)
-                        .unwrap_or(ReviewDestination::Warp)
-                })
-            })
+            .and_then(|tv| tv.read(ctx, |t, ctx| t.active_cli_agent(ctx)))
+            .map(ReviewDestination::Cli)
             .unwrap_or(ReviewDestination::None);
 
         code_review_view.update(ctx, |view, ctx| {

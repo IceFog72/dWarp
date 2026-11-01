@@ -1,8 +1,5 @@
 use std::rc::Rc;
 
-use crate::ai::blocklist::inline_action::requested_action::{ENTER_KEYSTROKE, ESCAPE_KEYSTROKE};
-use crate::ai::blocklist::inline_action::requested_script::{self, RequestedScriptMouseStates};
-use crate::ai::blocklist::inline_action::requested_script::{RequestedScriptStatus, TitledScript};
 use crate::appearance::Appearance;
 use crate::terminal::model::ansi::SystemDetails;
 use crate::terminal::model::escape_sequences;
@@ -10,6 +7,9 @@ use crate::terminal::warpify::render;
 use crate::terminal::warpify::settings::WarpifySettings;
 use crate::ui_components::blended_colors;
 use crate::ui_components::icons::Icon as UiIcon;
+use crate::ui_components::inline_action::requested_action::{ENTER_KEYSTROKE, ESCAPE_KEYSTROKE};
+use crate::ui_components::inline_action::requested_script::{self, RequestedScriptMouseStates};
+use crate::ui_components::inline_action::requested_script::{RequestedScriptStatus, TitledScript};
 use markdown_parser::{FormattedText, FormattedTextFragment, FormattedTextLine};
 use warp_core::ui::theme::WarpTheme;
 use warpui::elements::{

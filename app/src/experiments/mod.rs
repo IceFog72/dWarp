@@ -8,12 +8,11 @@
 mod block_onboarding_layer;
 mod login_layer;
 mod rendering;
-pub use block_onboarding_layer::{BlockOnboarding, BLOCK_ONBOARDING_LAYER};
+pub use block_onboarding_layer::BLOCK_ONBOARDING_LAYER;
 pub use improved_palette_search_layer::{ImprovedPaletteSearch, IMPROVED_PALETTE_SEARCH_LAYER};
-pub use login_layer::{AuthFlowInstructions, LOGIN_LAYER};
+pub use login_layer::LOGIN_LAYER;
 use warp_core::user_preferences::GetUserPreferences as _;
 
-use crate::auth::auth_state::AuthStateProvider;
 use crate::channel::{Channel, ChannelState};
 use anyhow::Result;
 use dashmap::DashMap;
@@ -24,9 +23,7 @@ use std::ops::Range;
 use std::str::FromStr;
 use std::{collections::HashMap, hash::Hasher};
 
-use warpui::{AppContext, SingletonEntity};
-
-use crate::send_telemetry_sync_from_app_ctx;
+use warpui::AppContext;
 
 /// Number of buckets we are using to partition user traffic. The largest valid
 /// bucket index is NUM_BUCKETS - 1.
@@ -276,11 +273,7 @@ pub trait Experiment<T: Experiment<T>>: FromStr {
     /// Gets the assigned group of the experiment for the current user. Returns None
     /// if the user is not in this experiment.
     ///
-    /// TODO: we should investigate if we can suffice with just a AppContext
-    /// here to allow `get_group` to be used when a AppContext isn't available
-    /// (e.g. when rendering a view). We currently need it because `get_group`
-    /// might emit telemetry.
-    fn get_group(ctx: &mut AppContext) -> Option<T>
+    fn get_group() -> Option<T>
     where
         <T as FromStr>::Err: fmt::Debug,
     {
@@ -315,33 +308,14 @@ pub trait Experiment<T: Experiment<T>>: FromStr {
 
         // If there was no override, derive the assignment from the user's anonymous id.
         if assigned_group.is_none() {
-            let anonymous_id = AuthStateProvider::as_ref(ctx).get().anonymous_id();
+            let anonymous_id = uuid::Uuid::nil().to_string();
             assigned_group = Self::layer().get_assigned_group(&anonymous_id);
-
-            if let Some(group) = assigned_group.as_ref() {
-                let group_assignment = group.variant();
-                // Send synchronously since this we rely on this event to collect experiment data.
-                send_telemetry_sync_from_app_ctx!(
-                    crate::server::telemetry::TelemetryEvent::ExperimentTriggered {
-                        experiment: Self::name(),
-                        layer: Self::layer().name(),
-                        group_assignment,
-                    },
-                    ctx
-                );
-            }
         }
 
         // If the user is in a group for this experiment, cache the result of
         // the work above and do any one-time accounting.
         if let Some(group) = assigned_group.as_ref() {
             GROUP_ASSIGNMENTS.insert(Self::name(), group.variant());
-
-            #[cfg(feature = "crash_reporting")]
-            {
-                let tag_name = format!("warp.experiments.{}", Self::name());
-                crate::crash_reporting::set_tag(&tag_name, group.variant());
-            }
         }
 
         assigned_group

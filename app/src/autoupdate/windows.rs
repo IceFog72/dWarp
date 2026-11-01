@@ -1,4 +1,3 @@
-use crate::server::telemetry::TelemetryEvent;
 use anyhow::anyhow;
 use anyhow::{bail, Context as _, Result};
 use channel_versions::VersionInfo;
@@ -116,35 +115,20 @@ pub(super) fn check_and_report_update_errors(ctx: &mut AppContext) {
         b"setup was unable to automatically close all applications",
     )
     .is_some();
-    if has_unable_to_close {
-        crate::send_telemetry_sync_from_app_ctx!(
-            TelemetryEvent::AutoupdateUnableToCloseApplications,
-            ctx
-        );
-    }
 
     let has_file_in_use = memchr::memmem::find(
         &contents_lowercase,
         b"the process cannot access the file because it is being used by another process",
     )
     .is_some();
-    if has_file_in_use {
-        crate::send_telemetry_sync_from_app_ctx!(TelemetryEvent::AutoupdateFileInUse, ctx);
-    }
 
     // Fired when the mutex polling loop timed out and a force-kill was attempted.
     let has_mutex_timeout =
         memchr::memmem::find(&contents_lowercase, b"warp mutex still held after timeout").is_some();
-    if has_mutex_timeout {
-        crate::send_telemetry_sync_from_app_ctx!(TelemetryEvent::AutoupdateMutexTimeout, ctx);
-    }
 
     // Fired when taskkill returned non-zero after the mutex timeout.
     let has_forcekill_failed =
         memchr::memmem::find(&contents_lowercase, b"force-kill failed for").is_some();
-    if has_forcekill_failed {
-        crate::send_telemetry_sync_from_app_ctx!(TelemetryEvent::AutoupdateForcekillFailed, ctx);
-    }
 
     // openWarp 闭源遥测剥离 P2:原 #[cfg(feature = "crash_reporting")] 块会把 autoupdate 失败
     // 日志(完整文件内容作为 sentry attachment)上报到 Warp 官方 Sentry。剥离后改为本地

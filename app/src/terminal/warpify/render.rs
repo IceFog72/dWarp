@@ -1,5 +1,5 @@
-use crate::ai::blocklist::inline_action::inline_action_icons;
 use crate::ui_components::blended_colors;
+use crate::ui_components::inline_action::inline_action_icons;
 use markdown_parser::{FormattedText, FormattedTextFragment, FormattedTextLine};
 use pathfinder_color::ColorU;
 use pathfinder_geometry::rect::RectF;

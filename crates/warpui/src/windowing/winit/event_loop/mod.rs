@@ -1675,7 +1675,6 @@ impl EventLoop {
         }
 
         let approve_terminate_result = self.callbacks.should_terminate_app();
-        if let ApproveTerminateResult::Terminate = approve_terminate_result {}
         approve_terminate_result
     }
 
@@ -2253,14 +2252,8 @@ mod cpu_frame_policy_tests {
 
     #[test]
     fn specific_fps_overrides_legacy_fps() {
-        let policy = CpuFramePolicy::from_fps_values(
-            true,
-            Some(10),
-            Some(2),
-            Some(5),
-            Some(20),
-            Some(40),
-        );
+        let policy =
+            CpuFramePolicy::from_fps_values(true, Some(10), Some(2), Some(5), Some(20), Some(40));
 
         assert_eq!(policy.idle_interval, Some(Duration::from_millis(500)));
         assert_eq!(policy.terminal_interval, Some(Duration::from_millis(200)));

@@ -4,22 +4,22 @@
 //! 会话标题生成等):需要发一次短请求拿到一段文本,**不需要 tool calling、
 //! 不需要流式、不需要持久化到 task.messages**。
 //!
-//! 与 `chat_stream::generate_byop_output`(主对话流)的差别:
+//! 与流式对话的差别:
 //! - 这里走 `Client::exec_chat`(非流式),一次性拿 `ChatResponse::first_text()`。
 //! - 不接 `RequestParams` / `ResponseEvent` / `task_store`,纯字符串入字符串出。
 //! - reasoning 默认禁(主动 AI 不应触发思考链 — 浪费 token + 慢),
 //!   仅当 `OneshotOptions.allow_reasoning = true` 才按 capability gate 注入。
 //!
-//! 模型选择由调用方决定:`resolve_active_ai_oneshot()` 把 `active_ai_model`
-//! (profile fallback 到 base_model)解码为 BYOP `OneshotConfig`,
+//! 模型选择:`resolve_command_suggestion_oneshot()` 把用户为命令建议选择的 BYOP 模型
+//! 解码为 `OneshotConfig`。
 //! 解码失败(没配 BYOP / 模型不在 BYOP 编码空间)→ 返回 `None`,
 //! 调用方静默 no-op。
 
 use anyhow::Context as _;
 use genai::chat::{ChatMessage, ChatOptions, ChatRequest};
-use warpui::{AppContext, EntityId, SingletonEntity as _};
+use warpui::{AppContext, SingletonEntity as _};
 
-use super::chat_stream;
+use super::client;
 use crate::ai::llms::LLMPreferences;
 use crate::settings::{AgentProviderApiType, ReasoningEffortSetting};
 
@@ -76,7 +76,7 @@ pub async fn byop_oneshot_completion(
     user: &str,
     opts: &OneshotOptions,
 ) -> anyhow::Result<String> {
-    let client = chat_stream::build_client(cfg.api_type, cfg.base_url.clone(), cfg.api_key.clone());
+    let client = client::build_client(cfg.api_type, cfg.base_url.clone(), cfg.api_key.clone());
 
     let mut chat_opts = ChatOptions::default()
         .with_capture_content(true)
@@ -109,43 +109,13 @@ pub async fn byop_oneshot_completion(
     Ok(resp.first_text().unwrap_or("").to_owned())
 }
 
-/// 解析当前 active profile 的 `active_ai_model`(fallback 到 `base_model`),
-/// 若解码为合法 BYOP 编码 → 返回 `OneshotConfig`,否则 `None`(调用方静默 no-op)。
-pub fn resolve_active_ai_oneshot(
-    app: &AppContext,
-    terminal_view_id: Option<EntityId>,
-) -> Option<OneshotConfig> {
+/// Resolves the BYOP model selected for AI command suggestions into a `OneshotConfig`.
+/// Returns `None` when no usable BYOP provider is configured (callers no-op silently).
+pub fn resolve_command_suggestion_oneshot(app: &AppContext) -> Option<OneshotConfig> {
     let llm_prefs = LLMPreferences::as_ref(app);
-    let id = llm_prefs
-        .get_active_ai_model(app, terminal_view_id)
-        .id
-        .clone();
+    let id = llm_prefs.get_command_suggestion_model(app).id.clone();
     let (provider, api_key, model_id) = super::lookup_byop(app, &id)?;
-    let reasoning_effort =
-        llm_prefs.get_reasoning_effort(terminal_view_id, provider.api_type, &model_id);
-    Some(OneshotConfig {
-        base_url: provider.base_url,
-        api_key,
-        model_id,
-        api_type: provider.api_type,
-        reasoning_effort,
-    })
-}
-
-/// 解析当前 active profile 的 `next_command_model`(fallback 到 `base_model`),
-/// 若解码为合法 BYOP 编码 → 返回 `OneshotConfig`,否则 `None`。
-pub fn resolve_next_command_oneshot(
-    app: &AppContext,
-    terminal_view_id: Option<EntityId>,
-) -> Option<OneshotConfig> {
-    let llm_prefs = LLMPreferences::as_ref(app);
-    let id = llm_prefs
-        .get_active_next_command_model(app, terminal_view_id)
-        .id
-        .clone();
-    let (provider, api_key, model_id) = super::lookup_byop(app, &id)?;
-    let reasoning_effort =
-        llm_prefs.get_reasoning_effort(terminal_view_id, provider.api_type, &model_id);
+    let reasoning_effort = llm_prefs.get_reasoning_effort(provider.api_type, &model_id);
     Some(OneshotConfig {
         base_url: provider.base_url,
         api_key,

@@ -4,13 +4,13 @@ use std::{
 };
 
 use crate::ai::skills::SkillOpenOrigin;
+use crate::persistence::model::AIAgentActionId;
 use ai::skills::SkillReference;
 use serde::{Deserialize, Serialize};
 use warp_util::path::LineAndColumnArg;
 use warpui::{AppContext, Entity, EntityId, ModelContext, SingletonEntity, ViewHandle, WindowId};
 
 use crate::{
-    ai::agent::AIAgentActionId,
     code_review::code_review_view::CodeReviewView,
     pane_group::{PaneGroup, PaneId},
     workspace::PaneViewLocator,

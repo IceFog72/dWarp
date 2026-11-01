@@ -26,7 +26,6 @@ const HERO_HEIGHT: f32 = 92.;
 const HERO_IMAGE_PATH: &str = "async/png/onboarding/openwarp_launch_banner.png";
 const REPO_URL: &str = "https://github.com/warpdotdev/warp";
 const CONTRIBUTING_URL: &str = "https://github.com/warpdotdev/warp/blob/master/CONTRIBUTING.md";
-const OZ_URL: &str = "https://oz.warp.dev";
 
 struct InlineLink {
     text: String,
@@ -41,33 +40,16 @@ struct FeatureItem {
     inline_link: Option<InlineLink>,
 }
 
-fn feature_items() -> [FeatureItem; 3] {
-    [
-        FeatureItem {
-            icon: Icon::HeartHand,
-            title: crate::t!("openwarp-launch-contribute-title"),
-            description: crate::t!("openwarp-launch-contribute-description"),
-            inline_link: Some(InlineLink {
-                text: crate::t!("openwarp-launch-contribute-link-text"),
-                url: CONTRIBUTING_URL,
-            }),
-        },
-        FeatureItem {
-            icon: Icon::Oz,
-            title: crate::t!("openwarp-launch-oad-title"),
-            description: crate::t!("openwarp-launch-oad-description"),
-            inline_link: Some(InlineLink {
-                text: "Oz".to_string(),
-                url: OZ_URL,
-            }),
-        },
-        FeatureItem {
-            icon: Icon::MessageChatSquare,
-            title: crate::t!("openwarp-launch-auto-model-title"),
-            description: crate::t!("openwarp-launch-auto-model-description"),
-            inline_link: None,
-        },
-    ]
+fn feature_items() -> [FeatureItem; 1] {
+    [FeatureItem {
+        icon: Icon::HeartHand,
+        title: crate::t!("openwarp-launch-contribute-title"),
+        description: crate::t!("openwarp-launch-contribute-description"),
+        inline_link: Some(InlineLink {
+            text: crate::t!("openwarp-launch-contribute-link-text"),
+            url: CONTRIBUTING_URL,
+        }),
+    }]
 }
 
 pub fn init(app: &mut AppContext) {

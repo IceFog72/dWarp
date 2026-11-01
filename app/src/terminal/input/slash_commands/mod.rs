@@ -10,49 +10,31 @@ use std::path::PathBuf;
 
 use ai::skills::SkillReference;
 use warp_core::features::FeatureFlag;
-use warp_core::send_telemetry_from_ctx;
-use warp_core::ui::appearance::Appearance;
 #[cfg(feature = "local_fs")]
 use warp_util::path::{CleanPathResult, LineAndColumnArg};
-use warpui::clipboard::ClipboardContent;
 use warpui::{SingletonEntity, ViewContext};
 
-use crate::ai::blocklist::agent_view::{
-    AgentViewEntryOrigin, DismissalStrategy, EphemeralMessage, ENTER_OR_EXIT_CONFIRMATION_WINDOW,
-};
-use crate::ai::blocklist::{BlocklistAIHistoryModel, SlashCommandRequest};
-use crate::cloud_object::model::persistence::CloudModel;
 use crate::code_review::telemetry_event::CodeReviewPaneEntrypoint;
 use crate::search::slash_command_menu::static_commands::commands::{self, COMMAND_REGISTRY};
 use crate::search::slash_command_menu::static_commands::Availability;
 use crate::search::slash_command_menu::{SlashCommandId, StaticCommand};
-use crate::server::ids::SyncId;
-use crate::server::telemetry::SlashCommandAcceptedDetails;
 use crate::settings::AISettings;
 use crate::terminal::input::decorations::InputBackgroundJobOptions;
 use crate::terminal::input::inline_menu::{InlineMenuAction, InlineMenuType};
-use crate::terminal::input::message_bar::Message;
 use crate::terminal::input::slash_command_model::{
     SlashCommandEntryState, UpdatedSlashCommandModel,
 };
-use crate::terminal::input::{
-    CompletionsTrigger, Event, Input, InputSuggestionsMode, UserQueryMenuAction,
-};
+use crate::terminal::input::{CompletionsTrigger, Event, Input, InputSuggestionsMode};
 #[cfg(feature = "local_fs")]
 use crate::terminal::model::session::Session;
 use crate::terminal::view::TerminalAction;
 use crate::view_components::DismissibleToast;
-use crate::workflows::{WorkflowSelectionSource, WorkflowSource, WorkflowType};
-use crate::workspace::{ForkedConversationDestination, ToastStack, WorkspaceAction};
-use crate::TelemetryEvent;
+use crate::workspace::{ToastStack, WorkspaceAction};
 
 #[derive(Debug, Clone)]
 pub enum AcceptSlashCommandOrSavedPrompt {
     SlashCommand {
         id: SlashCommandId,
-    },
-    SavedPrompt {
-        id: SyncId,
     },
     /// A skill selected from browse or search. Contains name (for display/insertion) and path/bundled_skill_id (for execution).
     Skill {
@@ -62,43 +44,6 @@ pub enum AcceptSlashCommandOrSavedPrompt {
 }
 impl InlineMenuAction for AcceptSlashCommandOrSavedPrompt {
     const MENU_TYPE: InlineMenuType = InlineMenuType::SlashCommands;
-}
-
-#[derive(Debug, Copy, Clone, PartialEq, Eq)]
-pub enum SlashCommandTrigger {
-    Input { cmd_or_ctrl_enter: bool },
-    Keybinding,
-}
-
-impl SlashCommandTrigger {
-    fn cmd_or_ctrl_enter() -> Self {
-        Self::Input {
-            cmd_or_ctrl_enter: true,
-        }
-    }
-
-    pub fn input() -> Self {
-        Self::Input {
-            cmd_or_ctrl_enter: false,
-        }
-    }
-
-    pub(super) fn keybinding() -> Self {
-        Self::Keybinding
-    }
-
-    pub fn is_keybinding(&self) -> bool {
-        matches!(self, Self::Keybinding)
-    }
-
-    fn is_cmd_or_ctrl_enter(&self) -> bool {
-        matches!(
-            self,
-            Self::Input {
-                cmd_or_ctrl_enter: true
-            }
-        )
-    }
 }
 
 #[cfg(feature = "local_fs")]
@@ -132,13 +77,10 @@ impl Input {
     pub(super) fn select_slash_command(
         &mut self,
         command: &StaticCommand,
-        trigger: SlashCommandTrigger,
         ctx: &mut ViewContext<Self>,
     ) {
         if command.argument.as_ref().is_none() {
-            self.execute_slash_command(
-                command, None, trigger, /*is_queued_prompt*/ false, ctx,
-            );
+            self.execute_slash_command(command, None, /*is_queued_prompt*/ false, ctx);
         } else if command
             .argument
             .as_ref()
@@ -155,7 +97,6 @@ impl Input {
             self.execute_slash_command(
                 command,
                 argument.as_ref(),
-                trigger,
                 /*is_queued_prompt*/ false,
                 ctx,
             );
@@ -217,12 +158,6 @@ impl Input {
                     self.close_slash_commands_menu(ctx);
                 }
 
-                if detected_command.command.auto_enter_ai_mode
-                    || !FeatureFlag::AgentView.is_enabled()
-                {
-                    self.enter_ai_mode(ctx);
-                }
-
                 if detected_command.command.name == commands::EDIT.name
                     && detected_command
                         .argument
@@ -245,9 +180,6 @@ impl Input {
                 {
                     self.close_slash_commands_menu(ctx);
                 }
-
-                // Skill commands always require AI mode
-                self.enter_ai_mode(ctx);
             }
         }
     }
@@ -270,43 +202,11 @@ impl Input {
                 });
                 ctx.notify();
             }
-            SlashCommandsEvent::SelectedSavedPrompt { id } => {
-                let Some(workflow) = CloudModel::as_ref(ctx).get_workflow(id).cloned() else {
-                    log::warn!("Tried to execute workflow for id {id:?} but it does not exist");
-                    return;
-                };
-                let is_in_agent_view = FeatureFlag::AgentView.is_enabled()
-                    && self.agent_view_controller.as_ref(ctx).is_fullscreen();
-                send_telemetry_from_ctx!(
-                    TelemetryEvent::SlashCommandAccepted {
-                        command_details: SlashCommandAcceptedDetails::SavedPrompt,
-                        is_in_agent_view,
-                    },
-                    ctx
-                );
-
-                self.show_workflows_info_box_on_workflow_selection(
-                    WorkflowType::Cloud(Box::new(workflow)),
-                    WorkflowSource::WarpAI,
-                    WorkflowSelectionSource::SlashMenu,
-                    None,
-                    ctx,
-                );
-            }
-            SlashCommandsEvent::SelectedStaticCommand {
-                id,
-                cmd_or_ctrl_enter,
-            } => {
+            SlashCommandsEvent::SelectedStaticCommand { id, .. } => {
                 let Some(command) = COMMAND_REGISTRY.get_command(id) else {
                     return;
                 };
-                self.select_slash_command(
-                    command,
-                    SlashCommandTrigger::Input {
-                        cmd_or_ctrl_enter: *cmd_or_ctrl_enter,
-                    },
-                    ctx,
-                );
+                self.select_slash_command(command, ctx);
             }
             SlashCommandsEvent::SelectedSkill { name, reference: _ } => {
                 // Insert /{skill-name} into the buffer
@@ -329,7 +229,6 @@ impl Input {
         &mut self,
         command: &StaticCommand,
         argument: Option<&String>,
-        trigger: SlashCommandTrigger,
         is_queued_prompt: bool,
         ctx: &mut ViewContext<Self>,
     ) -> bool {
@@ -344,7 +243,7 @@ impl Input {
         // globally disabled. They're normally filtered out of the slash command menu, but this
         // protects keybinding-triggered execution where a bound key may still address the command.
         if command.availability.contains(Availability::AI_ENABLED)
-            && !AISettings::as_ref(ctx).is_any_ai_enabled(ctx)
+            && !AISettings::as_ref(ctx).is_any_ai_enabled()
         {
             show_error_toast(format!("{} requires AI to be enabled", command.name), ctx);
             return true;
@@ -352,80 +251,6 @@ impl Input {
 
         // Handle the slash command action based on its kind
         match command.name {
-            add_mcp if command.name == commands::ADD_MCP.name => {
-                ctx.dispatch_typed_action(&TerminalAction::OpenAddMCPPane);
-            }
-            add_prompt if command.name == commands::ADD_PROMPT.name => {
-                ctx.dispatch_typed_action(&TerminalAction::OpenAddPromptPane);
-            }
-            add_rule if command.name == commands::ADD_RULE.name => {
-                ctx.dispatch_typed_action(&TerminalAction::OpenAddRulePane);
-            }
-            agent_or_new
-                if command.name == commands::NEW.name || command.name == commands::AGENT.name =>
-            {
-                if !self
-                    .ai_context_model
-                    .as_ref(ctx)
-                    .can_start_new_conversation()
-                {
-                    self.ephemeral_message_model.update(ctx, |model, ctx| {
-                        let appearance = Appearance::handle(ctx).as_ref(ctx);
-                        let message = Message::from_text(
-                            "cannot start new conversation while terminal command is running",
-                        )
-                        .with_text_color(appearance.theme().ansi_fg_red());
-                        model.show_ephemeral_message(
-                            EphemeralMessage::new(
-                                message,
-                                DismissalStrategy::Timer(ENTER_OR_EXIT_CONFIRMATION_WINDOW),
-                            ),
-                            ctx,
-                        );
-                    });
-                    return true;
-                }
-                // Keybindings can be triggered reflexively while users are already in an active
-                // conversation, so we gate only this path behind a second-press confirmation.
-                // Typed `/agent`/`/new` and slash-menu execution stay single-step by design.
-                if trigger.is_keybinding() && self.agent_view_controller.as_ref(ctx).is_active() {
-                    let should_start_new_conversation =
-                        self.agent_view_controller.update(ctx, |controller, ctx| {
-                            controller
-                                .should_start_new_conversation_for_keybinding(command.name, ctx)
-                        });
-                    if !should_start_new_conversation {
-                        // Keep the current input/conversation untouched on first press; only the
-                        // ephemeral confirmation prompt should change.
-                        return true;
-                    }
-                }
-
-                let prompt = argument.and_then(|argument| {
-                    let trimmed = argument.trim();
-                    if trimmed.is_empty() {
-                        None
-                    } else {
-                        Some(trimmed.to_owned())
-                    }
-                });
-
-                ctx.emit(Event::EnterAgentView {
-                    initial_prompt: prompt,
-                    conversation_id: None,
-                    origin: AgentViewEntryOrigin::SlashCommand { trigger },
-                });
-            }
-            create_docker_sandbox if command.name == commands::CREATE_DOCKER_SANDBOX.name => {
-                ctx.emit(Event::CreateDockerSandbox);
-            }
-            conversations if command.name == commands::CONVERSATIONS.name => {
-                if FeatureFlag::AgentView.is_enabled() {
-                    self.open_conversation_menu(ctx);
-                } else {
-                    ctx.dispatch_typed_action(&TerminalAction::OpenConversationsPalette);
-                }
-            }
             rename_tab if command.name == commands::RENAME_TAB.name => {
                 let Some(name) = argument
                     .map(|name| name.trim())
@@ -439,32 +264,6 @@ impl Input {
                 };
 
                 ctx.dispatch_typed_action(&WorkspaceAction::SetActiveTabName(name.to_owned()));
-            }
-            create_env if command.name == commands::CREATE_ENVIRONMENT.name => {
-                // If the user included args after the slash command, treat them as repo paths/URLs.
-                let repos = argument
-                    .map(|arg| {
-                        arg.split_whitespace()
-                            .filter(|s| !s.is_empty())
-                            .map(|s| s.to_string())
-                            .collect()
-                    })
-                    .unwrap_or_default();
-
-                ctx.emit(Event::TriggerEnvironmentSetup { repos });
-            }
-            create_project if command.name == commands::CREATE_NEW_PROJECT.name => {
-                if argument.is_none_or(|args| args.is_empty()) {
-                    show_error_toast(
-                        "Please describe the project you want to create after /create-new-project"
-                            .to_owned(),
-                        ctx,
-                    );
-                    return true;
-                }
-
-                let args = argument.expect("args are Some()");
-                self.initiate_create_new_project(args.to_owned(), ctx);
             }
             edit if command.name == commands::EDIT.name => {
                 #[cfg(feature = "local_fs")]
@@ -550,54 +349,6 @@ impl Input {
                     return true;
                 }
             }
-            export_to_clipboard if command.name == commands::EXPORT_TO_CLIPBOARD.name => {
-                let history = BlocklistAIHistoryModel::handle(ctx);
-                let Some(conversation) = history
-                    .as_ref(ctx)
-                    .active_conversation(self.terminal_view_id)
-                else {
-                    show_error_toast("No active conversation to export".to_owned(), ctx);
-                    return true;
-                };
-
-                let action_model = self.ai_action_model.as_ref(ctx);
-                let conversation_text = conversation.export_to_markdown(Some(action_model));
-
-                ctx.clipboard()
-                    .write(ClipboardContent::plain_text(conversation_text));
-
-                // Show a toast to confirm the export
-                let window_id = ctx.window_id();
-                ToastStack::handle(ctx).update(ctx, |toast_stack, ctx| {
-                    let toast = DismissibleToast::default(String::from(
-                        "Conversation exported to clipboard",
-                    ));
-                    toast_stack.add_ephemeral_toast(toast, window_id, ctx);
-                });
-            }
-            export_to_file if command.name == commands::EXPORT_TO_FILE.name => {
-                #[cfg(not(target_family = "wasm"))]
-                {
-                    self.export_conversation_to_file(
-                        argument.map(|filename| filename.to_owned()),
-                        ctx,
-                    );
-                }
-                #[cfg(target_family = "wasm")]
-                {
-                    show_error_toast(
-                        "Export conversation to file unsupported in web".to_owned(),
-                        ctx,
-                    );
-                    return true;
-                }
-            }
-            index if command.name == commands::INDEX.name => {
-                ctx.dispatch_typed_action(&TerminalAction::IndexProjectSpeedbump);
-            }
-            init if command.name == commands::INIT.name => {
-                ctx.dispatch_typed_action(&TerminalAction::InitProject);
-            }
             changelog if command.name == commands::CHANGELOG.name => {
                 if !FeatureFlag::Changelog.is_enabled() {
                     return false;
@@ -609,20 +360,11 @@ impl Input {
                     entrypoint: CodeReviewPaneEntrypoint::SlashCommand,
                 });
             }
-            open_mcp_servers if command.name == commands::OPEN_MCP_SERVERS.name => {
-                ctx.dispatch_typed_action(&TerminalAction::OpenViewMCPPane);
-            }
             open_settings_file if command.name == commands::OPEN_SETTINGS_FILE.name => {
                 if !FeatureFlag::SettingsFile.is_enabled() || !cfg!(feature = "local_fs") {
                     return false;
                 }
                 ctx.dispatch_typed_action(&WorkspaceAction::OpenSettingsFile);
-            }
-            open_project_rules if command.name == commands::OPEN_PROJECT_RULES.name => {
-                ctx.dispatch_typed_action(&TerminalAction::OpenProjectRulesPane);
-            }
-            open_rules if command.name == commands::OPEN_RULES.name => {
-                ctx.dispatch_typed_action(&TerminalAction::OpenRulesPane);
             }
             edit_skill if command.name == commands::EDIT_SKILL.name => {
                 if !FeatureFlag::ListSkills.is_enabled() {
@@ -638,217 +380,14 @@ impl Input {
                 // Open the skill selector menu for invocation - skill command will be inserted into buffer
                 self.open_invoke_skill_selector(ctx);
             }
-            models if command.name == commands::MODEL.name => {
-                self.open_model_selector(ctx);
-            }
-            profiles if command.name == commands::PROFILE.name => {
-                if !FeatureFlag::InlineProfileSelector.is_enabled() {
-                    return false;
-                }
-
-                self.open_profile_selector(ctx);
-            }
-            prompts if command.name == commands::PROMPTS.name => {
-                if FeatureFlag::AgentView.is_enabled() {
-                    self.open_prompts_menu(ctx);
-                } else {
-                    return false;
-                }
-            }
-            rewind if command.name == commands::REWIND.name => {
-                self.open_rewind_menu(ctx);
-            }
-            pr_comments if command.name == commands::PR_COMMENTS.name => {
-                if !FeatureFlag::PRCommentsSlashCommand.is_enabled() {
-                    return false;
-                }
-
-                let Some(repo_path) = self
-                    .active_session_path_if_local(ctx)
-                    .map(|path| path.to_path_buf())
-                    .map(|path| path.to_string_lossy().to_string())
-                else {
-                    log::error!("Expected a valid working directory since /pr-comments is only available from the terminal");
-                    return false;
-                };
-
-                self.ai_controller.update(ctx, move |controller, ctx| {
-                    controller.send_slash_command_request(
-                        SlashCommandRequest::FetchReviewComments { repo_path },
-                        ctx,
-                    )
-                });
-            }
-            remote_control if command.name == commands::REMOTE_CONTROL.name => {
-                if !FeatureFlag::CreatingSharedSessions.is_enabled()
-                    || !FeatureFlag::HOARemoteControl.is_enabled()
-                {
-                    return false;
-                }
-                if self
-                    .model
-                    .lock()
-                    .shared_session_status()
-                    .is_sharer_or_viewer()
-                {
-                    show_error_toast("Session is already being shared".to_owned(), ctx);
-                    return true;
-                }
-                ctx.emit(Event::StartRemoteControl);
-            }
-            fork if command.name == commands::FORK.name => {
-                let Some(conversation_id) = self
-                    .ai_context_model
-                    .as_ref(ctx)
-                    .selected_conversation_id(ctx)
-                else {
-                    show_error_toast("/fork requires an active conversation".to_owned(), ctx);
-                    return true;
-                };
-
-                let destination = if trigger.is_cmd_or_ctrl_enter() {
-                    ForkedConversationDestination::NewTab
-                } else {
-                    ForkedConversationDestination::SplitPane
-                };
-
-                ctx.dispatch_typed_action(&WorkspaceAction::ForkAIConversation {
-                    conversation_id,
-                    fork_from_exchange: None,
-                    summarize_after_fork: false,
-                    summarization_prompt: None,
-                    initial_prompt: argument.cloned(),
-                    destination,
-                });
-            }
-            fork_from if command.name == commands::FORK_FROM.name => {
-                self.open_user_query_menu(UserQueryMenuAction::ForkFrom, ctx);
-                return true;
-            }
-            fork_and_compact if command.name == commands::FORK_AND_COMPACT.name => {
-                let Some(conversation_id) = self
-                    .ai_context_model
-                    .as_ref(ctx)
-                    .selected_conversation_id(ctx)
-                else {
-                    show_error_toast(
-                        "/fork-and-compact requires an active conversation".to_owned(),
-                        ctx,
-                    );
-                    return true;
-                };
-
-                let destination = if trigger.is_cmd_or_ctrl_enter() {
-                    ForkedConversationDestination::SplitPane
-                } else {
-                    ForkedConversationDestination::CurrentPane
-                };
-
-                ctx.dispatch_typed_action(&WorkspaceAction::ForkAIConversation {
-                    conversation_id,
-                    fork_from_exchange: None,
-                    summarize_after_fork: true,
-                    summarization_prompt: None,
-                    initial_prompt: argument.cloned(),
-                    destination,
-                });
-            }
-            compact_and if command.name == commands::COMPACT_AND.name => {
-                if self
-                    .ai_context_model
-                    .as_ref(ctx)
-                    .selected_conversation_id(ctx)
-                    .is_none()
-                {
-                    show_error_toast(
-                        "/compact-and requires an active conversation".to_owned(),
-                        ctx,
-                    );
-                    return true;
-                };
-
-                // menu 路径无参数时 argument 是 Some(""),规范化为 None,避免摘要后
-                // 触发一次空 user query 浪费 token。
-                let initial_prompt = argument.cloned().filter(|p: &String| !p.is_empty());
-                ctx.dispatch_typed_action(&WorkspaceAction::SummarizeAIConversation {
-                    prompt: None,
-                    initial_prompt,
-                });
-            }
-            queue if command.name == commands::QUEUE.name => {
-                let Some(conversation_id) = self
-                    .ai_context_model
-                    .as_ref(ctx)
-                    .selected_conversation_id(ctx)
-                else {
-                    show_error_toast("/queue requires an active conversation".to_owned(), ctx);
-                    return true;
-                };
-
-                let Some(prompt) = argument.filter(|a| !a.is_empty()).cloned() else {
-                    show_error_toast("/queue requires a prompt argument".to_owned(), ctx);
-                    return true;
-                };
-
-                let history = BlocklistAIHistoryModel::handle(ctx);
-                let is_in_progress = history
-                    .as_ref(ctx)
-                    .conversation(&conversation_id)
-                    .is_some_and(|c| c.status().is_in_progress() || c.status().is_blocked());
-
-                if is_in_progress {
-                    ctx.dispatch_typed_action(&WorkspaceAction::QueuePromptForConversation {
-                        prompt,
-                    });
-                } else {
-                    self.submit_queued_prompt(prompt, ctx);
-                }
-            }
             open_repo if command.name == commands::OPEN_REPO.name => {
                 if !FeatureFlag::InlineRepoMenu.is_enabled() {
                     return false;
                 }
                 self.open_repos_menu(ctx);
             }
-            compact if command.name == commands::COMPACT.name => {
-                // OpenWarp:`/compact` 与 `/compact-and` 共用本地会话压缩链路 —
-                // dispatch `WorkspaceAction::SummarizeAIConversation`,initial_prompt: None
-                // 表示"压缩完不发后续 prompt",仅做摘要静默落到 conversation。
-                // 自定义指令(`/compact <指令>`)进 prompt 字段,在 BYOP build_chat_request
-                // 路径下会拼到 SUMMARY_TEMPLATE 后面作为 plugin_context。
-                //
-                // 非 BYOP 路径下,`SummarizeConversation { prompt }` 仍走 server protobuf
-                // (`api::request::input::SummarizeConversation`),server 端处理摘要 —
-                // 之前 prefix 注入的语义被 SummarizeConversation 完整替代。
-                if self
-                    .ai_context_model
-                    .as_ref(ctx)
-                    .selected_conversation_id(ctx)
-                    .is_none()
-                {
-                    show_error_toast("/compact requires an active conversation".to_owned(), ctx);
-                    return true;
-                };
-                // menu 路径无参数时 argument 是 Some(""),规范化为 None,
-                // 避免 chat_stream 拼摘要 prompt 时多走一次空 filter 分支。
-                let prompt = argument.cloned().filter(|p: &String| !p.is_empty());
-                ctx.dispatch_typed_action(&WorkspaceAction::SummarizeAIConversation {
-                    prompt,
-                    initial_prompt: None,
-                });
-            }
-            command_that_just_sends_ai_request_with_prefix
-                if command.name == commands::PLAN.name
-                    || command.name == commands::ORCHESTRATE.name =>
-            {
-                // These slash commands just send AI requests with the slash command text as a
-                // prefix, and special handling is done downstream as an implementation detail
-                // of handling user queries with specific slash command prefixes.
-                return false;
-            }
             _ => {
-                debug_assert!(
-                    false,
+                log::warn!(
                     "Attempted to execute slash command with no handler: {}",
                     command.name
                 );
@@ -864,34 +403,6 @@ impl Input {
             });
         }
 
-        // If the command must be executed in AI mode, and we're not already in an agent view,
-        // enter the agent view.
-        if FeatureFlag::AgentView.is_enabled()
-            && command.auto_enter_ai_mode
-            && !self.agent_view_controller.as_ref(ctx).is_active()
-        {
-            self.agent_view_controller.update(ctx, |controller, ctx| {
-                let _ = controller.try_enter_agent_view(
-                    None,
-                    AgentViewEntryOrigin::SlashCommand {
-                        trigger: SlashCommandTrigger::input(),
-                    },
-                    ctx,
-                );
-            });
-        }
-
-        let is_in_agent_view = FeatureFlag::AgentView.is_enabled()
-            && self.agent_view_controller.as_ref(ctx).is_active();
-        send_telemetry_from_ctx!(
-            TelemetryEvent::SlashCommandAccepted {
-                command_details: SlashCommandAcceptedDetails::StaticCommand {
-                    command_name: command.name.to_owned(),
-                },
-                is_in_agent_view,
-            },
-            ctx
-        );
         true
     }
 
@@ -921,7 +432,6 @@ impl Input {
                 self.execute_slash_command(
                     &command,
                     argument.as_ref(),
-                    SlashCommandTrigger::cmd_or_ctrl_enter(),
                     /*is_queued_prompt*/ false,
                     ctx,
                 )
@@ -971,7 +481,6 @@ impl Input {
                 self.execute_slash_command(
                     &command,
                     argument.as_ref(),
-                    SlashCommandTrigger::input(),
                     /*is_queued_prompt*/ false,
                     ctx,
                 )

@@ -181,7 +181,9 @@ pub enum ContextChipKind {
     #[serde(alias = "RemoteLogin")]
     Ssh,
     Subshell,
-    /// A chip that shows the plan and todo list for the current conversation.
+    /// Chip of the removed Warp agent. Kept only so saved layouts that list it still load. It
+    /// produces no chip.
+    #[schemars(skip)]
     AgentPlanAndTodoList,
 }
 
@@ -353,11 +355,7 @@ impl ContextChipKind {
                 builtins::subshell,
                 RefreshConfig::OnDemandOnly,
             )),
-            Self::AgentPlanAndTodoList => Some(ContextChip::builtin(
-                "Agent Plan and Todo List",
-                |_| Some(ChipValue::Text(String::new())),
-                RefreshConfig::OnDemandOnly,
-            )),
+            Self::AgentPlanAndTodoList => None,
         }
     }
 
@@ -534,13 +532,6 @@ impl ContextChipKind {
             Self::Custom { .. } => None,
         }
     }
-}
-
-/// Returns the set of chips that are available for use in the agent footer.
-pub fn agent_footer_available_chips() -> Vec<ContextChipKind> {
-    let mut chips = available_chips();
-    chips.push(ContextChipKind::AgentPlanAndTodoList);
-    chips
 }
 
 /// TODO: this needs to also fetch the custom chips from sqlite

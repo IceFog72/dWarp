@@ -1,7 +1,6 @@
 //! Utility functions for working with skills.
 
 use super::{SkillDescriptor, SkillManager};
-use crate::ai::blocklist::view_util::render_provider_icon_button;
 use ai::skills::{
     home_skills_path, provider_rank, ParsedSkill, SkillProvider, SKILL_PROVIDER_DEFINITIONS,
 };
@@ -12,12 +11,8 @@ use std::collections::HashMap;
 use std::hash::{Hash, Hasher};
 use std::path::Path;
 use std::path::PathBuf;
-use warp_core::ui::appearance::Appearance;
-use warp_core::ui::theme::color::internal_colors;
 use warp_core::ui::Icon;
-use warpui::prelude::MouseStateHandle;
-use warpui::EventContext;
-use warpui::{AppContext, Element, SingletonEntity};
+use warpui::{AppContext, SingletonEntity};
 
 use crate::warp_managed_paths_watcher::warp_managed_skill_dirs;
 
@@ -94,39 +89,6 @@ pub(crate) fn unique_skills(
 /// 因此简化为每轮全量返回。
 pub fn list_skills(working_directory: Option<&Path>, app: &AppContext) -> Vec<SkillDescriptor> {
     SkillManager::as_ref(app).get_skills_for_working_directory(working_directory, app)
-}
-
-/// Renders an 'open skill' button for blocklist AI actions and the code diff view.
-pub fn render_skill_button<F>(
-    button_label: &str,
-    button_handle: MouseStateHandle,
-    appearance: &Appearance,
-    skill_provider: SkillProvider,
-    icon_override: Option<Icon>,
-    on_click: F,
-) -> Box<dyn Element>
-where
-    F: FnMut(&mut EventContext) + 'static,
-{
-    let theme = appearance.theme();
-    let logo_fill = internal_colors::fg_overlay_6(theme);
-
-    let icon = icon_override.unwrap_or_else(|| skill_provider.icon());
-
-    let color = if icon_override.is_some() {
-        logo_fill
-    } else {
-        skill_provider.icon_fill(logo_fill)
-    };
-
-    render_provider_icon_button(
-        button_label,
-        button_handle,
-        appearance,
-        icon,
-        color,
-        on_click,
-    )
 }
 
 /// Returns a branded icon override for well-known skill names.

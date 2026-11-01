@@ -207,11 +207,6 @@ impl Workspace {
             return;
         };
 
-        // Suppress deferred agent view entry so setup commands run in
-        // terminal mode and the tutorial starts in terminal mode.
-        terminal_view_handle.update(ctx, |view, _| {
-            view.clear_enter_agent_view_after_pending_commands();
-        });
         let has_pending_command = terminal_view_handle.read(ctx, |view, ctx| {
             view.has_pending_command_or_awaiting_completion(ctx)
         });

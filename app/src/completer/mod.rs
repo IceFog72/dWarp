@@ -18,12 +18,13 @@ use warp_completer::completer::{
 use warp_completer::signatures::CommandRegistry;
 use warp_core::features::FeatureFlag;
 use warp_util::path::{EscapeChar, ShellFamily};
-use warpui::{AppContext, SingletonEntity};
+use warpui::AppContext;
+#[cfg(feature = "completions_v2")]
+use warpui::SingletonEntity;
 
 use crate::safe_warn;
 use crate::terminal::model::session::{ExecuteCommandOptions, Session, SessionType};
 use crate::util::AsciiDebug;
-use crate::workflows::aliases::WorkflowAliases;
 
 lazy_static! {
     pub static ref CURR_DIRECTORY_ENTRY: EngineDirEntry = EngineDirEntry {
@@ -47,9 +48,6 @@ pub struct SessionContext {
     js_ctx: Option<js::SessionJsExecutionContext>,
 
     cached_directory_entries: dashmap::DashMap<TypedPathBuf, Arc<Vec<EngineDirEntry>>>,
-
-    /// Snapshot of all Warp workflow aliases.
-    workflow_aliases: HashMap<String, String>,
 }
 
 impl SessionContext {
@@ -260,11 +258,7 @@ impl CompletionContext for SessionContext {
     }
 
     fn top_level_commands(&self) -> Box<dyn Iterator<Item = &str> + '_> {
-        Box::new(
-            self.session
-                .top_level_commands()
-                .chain(self.workflow_aliases.keys().map(String::as_str)),
-        )
+        Box::new(self.session.top_level_commands())
     }
 
     fn command_case_sensitivity(&self) -> TopLevelCommandCaseSensitivity {
@@ -276,23 +270,16 @@ impl CompletionContext for SessionContext {
     }
 
     fn aliases(&self) -> Box<dyn Iterator<Item = (&str, &str)> + '_> {
-        let session_aliases = self
-            .session
-            .aliases()
-            .iter()
-            .map(|(alias, command)| (alias.as_str(), command.as_str()));
-        let workflow_aliases = self
-            .workflow_aliases
-            .iter()
-            .map(|(alias, command)| (alias.as_str(), command.as_str()));
-        Box::new(workflow_aliases.chain(session_aliases))
+        Box::new(
+            self.session
+                .aliases()
+                .iter()
+                .map(|(alias, command)| (alias.as_str(), command.as_str())),
+        )
     }
 
     fn alias_command(&self, alias: &str) -> Option<&str> {
-        self.workflow_aliases
-            .get(alias)
-            .or_else(|| self.session.aliases().get(alias))
-            .map(Deref::deref)
+        self.session.aliases().get(alias).map(Deref::deref)
     }
 
     fn abbreviations(&self) -> Option<&HashMap<SmolStr, String>> {
@@ -338,12 +325,6 @@ impl SessionContext {
         current_working_directory: TypedPathBuf,
         #[allow(unused_variables)] ctx: &AppContext,
     ) -> Self {
-        let workflow_aliases = if FeatureFlag::WorkflowAliases.is_enabled() {
-            WorkflowAliases::as_ref(ctx).autocomplete_data(ctx)
-        } else {
-            Default::default()
-        };
-
         cfg_if::cfg_if! {
             if #[cfg(feature = "completions_v2")] {
                 use crate::plugin::{PluginHost, service::CallJsFunctionService};
@@ -357,7 +338,6 @@ impl SessionContext {
                     current_working_directory,
                     js_ctx: js_function_caller.map(js::SessionJsExecutionContext::new),
                     cached_directory_entries: Default::default(),
-                    workflow_aliases,
                 }
             } else {
                 Self {
@@ -365,7 +345,6 @@ impl SessionContext {
                     command_registry,
                     current_working_directory,
                     cached_directory_entries: Default::default(),
-                    workflow_aliases,
                 }
             }
         }

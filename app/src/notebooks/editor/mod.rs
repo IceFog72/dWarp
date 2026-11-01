@@ -10,8 +10,8 @@ use warp_editor::{
         BlockHeaderSize, BlockType as ContentBlockType, BufferBlockStyle, CodeBlockType,
     },
     render::model::{
-        BrokenLinkStyle, CheckBoxStyle, EmbeddedItem, HorizontalRuleStyle, InlineCodeStyle,
-        ParagraphStyles, RichTextStyles, TableStyle, PARAGRAPH_MIN_HEIGHT,
+        BrokenLinkStyle, CheckBoxStyle, HorizontalRuleStyle, InlineCodeStyle, ParagraphStyles,
+        RichTextStyles, TableStyle, PARAGRAPH_MIN_HEIGHT,
     },
 };
 use warp_util::user_input::UserInput;
@@ -19,17 +19,14 @@ use warpui::{elements::Border, fonts::FamilyId, ui_components::checkbox::HOVER_B
 
 use crate::{
     appearance::Appearance,
-    notebooks::editor::embedded_item::EmbeddedWorkflow,
     settings::{derived_notebook_font_size, FontSettings},
     themes::theme::Fill,
     ui_components::icons::Icon,
     util::color::{ContrastingColor, MinimumAllowedContrast},
-    workflows::{CloudWorkflow, WorkflowSource, WorkflowType},
+    workflows::{WorkflowSource, WorkflowType},
 };
 
 mod block_insertion_menu;
-mod embedded_item;
-mod embedding_model;
 mod find_bar;
 mod interaction_state_model;
 pub mod keys;
@@ -39,7 +36,6 @@ pub mod notebook_command;
 mod omnibar;
 pub mod view;
 
-pub use block_insertion_menu::BlockInsertionSource;
 use warpui::elements::ListIndentLevel;
 
 const NOTEBOOK_LINE_HEIGHT_RATIO: f32 = 1.6;
@@ -144,17 +140,6 @@ impl BlockType {
             BlockType::Code => "Code",
             BlockType::TaskList => "To-do list",
         }
-    }
-}
-
-/// The embedded item transformation for notebooks.
-pub(super) fn notebook_embedded_item_conversion(
-    mut mapping: serde_yaml::Mapping,
-) -> Option<Arc<dyn EmbeddedItem>> {
-    use serde_yaml::Value;
-    match mapping.remove(&Value::String("id".to_string())) {
-        Some(Value::String(hashed_id)) => Some(Arc::new(EmbeddedWorkflow::new(hashed_id))),
-        _ => None,
     }
 }
 
@@ -341,13 +326,6 @@ pub struct NotebookWorkflow {
 }
 
 impl NotebookWorkflow {
-    pub fn from_cloud_workflow(cloud_workflow: Box<CloudWorkflow>) -> Self {
-        Self {
-            source: Some(cloud_workflow.permissions.owner.into()),
-            workflow: UserInput::new(Arc::new(WorkflowType::Cloud(cloud_workflow))),
-        }
-    }
-
     /// Extract the [`WorkflowType`], assigning a name using the given callback if needed.
     pub fn named_workflow<F: FnOnce() -> Option<String>>(&self, name: F) -> Arc<WorkflowType> {
         match &**self.workflow {

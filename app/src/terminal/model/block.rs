@@ -1,9 +1,6 @@
-mod interaction_mode;
 mod serialized_block;
 
-pub use interaction_mode::*;
 pub use serialized_block::*;
-use warp_core::features::FeatureFlag;
 
 use super::grid::grid_handler::{GridHandler, PerformResetGridChecks};
 use super::grid::{Cursor, RespectDisplayedOutput};
@@ -18,12 +15,10 @@ pub use super::BlockId;
 use super::{bootstrap::BootstrapStage, find::RegexDFAs};
 use warp_terminal::model::{KeyboardModes, KeyboardModesApplyBehavior};
 
-use crate::ai::agent::conversation::AIConversationId;
-use crate::ai::blocklist::agent_view::{AgentViewDisplayMode, AgentViewState};
 use crate::{
-    ai::agent::redaction::redact_secrets,
     context_chips::prompt_snapshot::PromptSnapshot,
-    server::{block::DisplaySetting, ids::SyncId},
+    server::block::DisplaySetting,
+    terminal::model::secret_redaction::redact_secrets,
     terminal::{
         block_filter::BlockFilterQuery,
         block_list_element::GridType,
@@ -143,146 +138,6 @@ pub struct BlocklistEnvVarMetadata {
     pub should_hide_block: bool,
 }
 
-/// Tracks which views (terminal and/or agent conversations) a block should be visible in.
-#[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
-pub enum AgentViewVisibility {
-    /// Block was created in terminal mode. It should always be visible in terminal view,
-    /// and may also be attached to conversations as context.
-    Terminal {
-        /// Conversation IDs where this block is in pending context.
-        pending_conversation_ids: HashSet<AIConversationId>,
-        /// Conversation IDs where this block was attached as context.
-        conversation_ids: HashSet<AIConversationId>,
-    },
-    /// Block was created inside an agent view conversation.
-    Agent {
-        /// The conversation where this block originally executed (the one where users saw this command run).
-        origin_conversation_id: AIConversationId,
-        /// Other conversations where users currently see this block as pending context before send.
-        pending_other_conversation_ids: HashSet<AIConversationId>,
-        /// Other conversations where users see this block as attached context after send.
-        other_conversation_ids: HashSet<AIConversationId>,
-    },
-}
-
-impl AgentViewVisibility {
-    /// Visibility for a block created in the top-level terminal (not in an agent view).
-    pub fn new_from_terminal() -> Self {
-        Self::Terminal {
-            pending_conversation_ids: HashSet::new(),
-            conversation_ids: HashSet::new(),
-        }
-    }
-
-    /// Visibility for a block created inside an agent view conversation.
-    pub fn new_from_conversation(conversation_id: AIConversationId) -> Self {
-        Self::Agent {
-            origin_conversation_id: conversation_id,
-            pending_other_conversation_ids: HashSet::new(),
-            other_conversation_ids: HashSet::new(),
-        }
-    }
-
-    pub fn agent_view_conversation_id(&self) -> Option<AIConversationId> {
-        match self {
-            Self::Terminal { .. } => None,
-            Self::Agent {
-                origin_conversation_id,
-                ..
-            } => Some(*origin_conversation_id),
-        }
-    }
-
-    /// Adds a conversation ID to the set of conversations where this block was attached as context in a request.
-    fn add_attached_conversation_id(&mut self, id: AIConversationId) {
-        match self {
-            Self::Terminal {
-                conversation_ids, ..
-            } => {
-                conversation_ids.insert(id);
-            }
-            Self::Agent {
-                origin_conversation_id,
-                other_conversation_ids,
-                ..
-            } => {
-                if id == *origin_conversation_id {
-                    return;
-                }
-                other_conversation_ids.insert(id);
-            }
-        }
-    }
-
-    /// Marks the block as pending context in the conversation with the given ID.
-    /// It maybe removed if the user removes the block attachment before sending the request, else if it is attached it will be 'promoted'.
-    fn add_pending_conversation_id(&mut self, id: AIConversationId) {
-        match self {
-            Self::Terminal {
-                pending_conversation_ids,
-                ..
-            } => {
-                pending_conversation_ids.insert(id);
-            }
-            Self::Agent {
-                origin_conversation_id,
-                pending_other_conversation_ids,
-                ..
-            } => {
-                if id == *origin_conversation_id {
-                    return;
-                }
-                pending_other_conversation_ids.insert(id);
-            }
-        }
-    }
-
-    /// Moves the block from pending context to attached context for the given conversation ID.
-    /// Returns true if the conversation was in pending and was promoted, false otherwise.
-    fn promote_pending_to_attached(&mut self, id: AIConversationId) -> bool {
-        match self {
-            Self::Terminal {
-                pending_conversation_ids,
-                conversation_ids,
-            } => {
-                if pending_conversation_ids.remove(&id) {
-                    conversation_ids.insert(id);
-                    true
-                } else {
-                    false
-                }
-            }
-            Self::Agent {
-                pending_other_conversation_ids,
-                other_conversation_ids,
-                ..
-            } => {
-                if pending_other_conversation_ids.remove(&id) {
-                    other_conversation_ids.insert(id);
-                    true
-                } else {
-                    false
-                }
-            }
-        }
-    }
-
-    /// Removes a pending conversation ID from the set of conversations where this block should be visible.
-    /// Returns true if the conversation ID was present and removed, false if it wasn't present.
-    fn remove_pending_conversation_id(&mut self, id: AIConversationId) -> bool {
-        match self {
-            Self::Terminal {
-                pending_conversation_ids,
-                ..
-            } => pending_conversation_ids.remove(&id),
-            Self::Agent {
-                pending_other_conversation_ids,
-                ..
-            } => pending_other_conversation_ids.remove(&id),
-        }
-    }
-}
-
 pub struct Block {
     id: BlockId,
     size: SizeInfo,
@@ -345,17 +200,8 @@ pub struct Block {
     /// model because they may be shown for debugging purposes.
     pub(super) is_for_in_band_command: bool,
 
-    /// `true` if this command block corresponds to a startup command in an oz environment executed
-    /// in cloud mode.
-    is_oz_environment_startup_command: bool,
-
     /// Blocklist Env var metadata associated with this block, if any.
     env_var_metadata: Option<BlocklistEnvVarMetadata>,
-
-    /// Represents the 'interaction mode' for a command block with respect to the agent.
-    ///
-    /// See doc comment on [`InteractionMode`] for detailed explanation of semantics.
-    interaction_mode: InteractionMode,
 
     /// This represents when a banner appears in this Block above the prompt.
     pub(super) block_banner: Option<WithinBlockBanner>,
@@ -371,13 +217,6 @@ pub struct Block {
     home_dir: Option<String>,
 
     filter_query: Option<BlockFilterQuery>,
-
-    /// If the command is a cloud workflow, this is set to its id. If the block was not a workflow,
-    /// this is None.
-    cloud_workflow_id: Option<SyncId>,
-
-    /// If the command included an env var invocation. If not this will be None.
-    cloud_env_var_collection_id: Option<SyncId>,
 
     /// The last time this block was painted (i.e.: visible in the window),
     /// if ever.
@@ -404,22 +243,8 @@ pub struct Block {
     /// track the count of discarded newlines here in order to correct the row number.
     leading_linefeeds_ignored: usize,
 
-    /// `true` if client-side telemetry for user-generated AI data is enabled.
-    pub(super) is_ai_ugc_telemetry_enabled: bool,
-
     /// Only set on restored blocks. Indicates whether the block was local or from a remote session.
     restored_block_was_local: Option<bool>,
-
-    /// Tracks which views (terminal and/or agent conversations) this block should be visible in.
-    ///
-    /// This is only used if `FeatureFlag::AgentView` is enabled.
-    agent_view_visibility: AgentViewVisibility,
-
-    /// Whether natural language detection (NLD) was overridden (i.e., the user had manually locked
-    /// the input type) at the time this block's command was submitted.
-    ///
-    /// This is used for debugging UI shown in the block header on dogfood builds.
-    nld_overridden: bool,
 }
 
 #[cfg(debug_assertions)]
@@ -525,7 +350,7 @@ impl From<&Block> for BlockType {
             BootstrapStage::RestoreBlocks => BlockType::Restored,
             BootstrapStage::WarpInput | BootstrapStage::Bootstrapped => BlockType::BootstrapHidden,
             BootstrapStage::ScriptExecution => {
-                if block.is_empty(&AgentViewState::Inactive) {
+                if block.is_empty() {
                     BlockType::BootstrapHidden
                 } else {
                     let serialized_block = block.into();
@@ -542,27 +367,15 @@ impl From<&Block> for BlockType {
                     let mut command_with_obfuscated_secrets =
                         block.command_with_secrets_obfuscated(false);
 
-                    let (output_truncated, mut output_truncated_with_obfuscated_secrets) =
-                        if block.is_ai_ugc_telemetry_enabled {
-                            // If telemetry is enabled, we collect the full output but are limiting it to
-                            // the first and last 2500 lines in case the block is very large.
-                            (
-                                block.output_grid().content_summary(2500, 2500, false),
-                                block.output_grid().content_summary(2500, 2500, true),
-                            )
-                        } else {
-                            (
-                                block
-                                    .output_grid()
-                                    .contents_to_string(false, Some(MAX_SERIALIZED_OUTPUT_LINES)),
-                                block
-                                    .output_grid()
-                                    .contents_to_string_force_secrets_obfuscated(
-                                        false,
-                                        Some(MAX_SERIALIZED_OUTPUT_LINES),
-                                    ),
-                            )
-                        };
+                    let output_truncated = block
+                        .output_grid()
+                        .contents_to_string(false, Some(MAX_SERIALIZED_OUTPUT_LINES));
+                    let mut output_truncated_with_obfuscated_secrets = block
+                        .output_grid()
+                        .contents_to_string_force_secrets_obfuscated(
+                            false,
+                            Some(MAX_SERIALIZED_OUTPUT_LINES),
+                        );
 
                     // If secret redaction is disabled, we manually scan for secrets and redact them.
                     if matches!(
@@ -585,7 +398,6 @@ impl From<&Block> for BlockType {
                         command_with_obfuscated_secrets,
                         output_truncated,
                         output_truncated_with_obfuscated_secrets,
-                        was_part_of_agent_interaction: block.agent_interaction_metadata().is_some(),
                         started_at: block.command_start_time(),
                         num_output_lines: block.output_grid().len() as u64,
                         num_output_lines_truncated: block
@@ -917,6 +729,218 @@ fn calculate_optimal_row_counts(
 }
 
 impl Block {
+    pub fn set_trim_trailing_blank_rows(&mut self, trim: bool) {
+        self.output_grid.set_trim_trailing_blank_rows(trim);
+    }
+
+    pub fn mark_received_user_input(&mut self) {
+        self.has_received_user_input = true;
+    }
+
+    pub fn has_received_user_input(&self) -> bool {
+        self.has_received_user_input
+    }
+
+    pub fn restored_block_was_local(&self) -> Option<bool> {
+        self.restored_block_was_local
+    }
+
+    fn disable_reset_grid_checks(&mut self) {
+        self.header_grid.disable_reset_grid_checks();
+        self.output_grid.disable_reset_grid_checks();
+    }
+
+    fn is_enough_space_for_rprompt(&self, size: &SizeInfo) -> bool {
+        // The rprompt must start AFTER the end of the last line of the lprompt (which can include
+        // the first line of the command, in the combined grid case).
+        let lprompt_last_row_width =
+            self.header_grid.lprompt_last_line_width_cols() as f32 * size.cell_width_px.as_f32();
+        let rprompt_render_offset = self.rprompt_render_offset(size);
+
+        rprompt_render_offset.x() > lprompt_last_row_width
+    }
+
+    pub fn prompt_snapshot(&self) -> Option<&PromptSnapshot> {
+        self.prompt_snapshot.as_ref()
+    }
+
+    #[cfg(not(feature = "integration_tests"))]
+    pub(in crate::terminal) fn block_banner(&self) -> Option<&WithinBlockBanner> {
+        self.block_banner.as_ref()
+    }
+
+    #[cfg(feature = "integration_tests")]
+    pub fn block_banner(&self) -> Option<&WithinBlockBanner> {
+        self.block_banner.as_ref()
+    }
+
+    pub fn env_var_metadata(&self) -> Option<&BlocklistEnvVarMetadata> {
+        self.env_var_metadata.as_ref()
+    }
+
+    /// Replaces the block's lprompt and command combined grid with the given one.
+    #[cfg(test)]
+    pub fn set_prompt_and_command_grid(&mut self, prompt_and_command_grid: BlockGrid) {
+        self.header_grid
+            .set_prompt_and_command_grid(prompt_and_command_grid);
+    }
+
+    /// Manually update the prompt end point, for test purposes.
+    #[cfg(test)]
+    pub(super) fn set_raw_prompt_end_point(&mut self, point: Option<PromptEndPoint>) {
+        self.header_grid.set_raw_prompt_end_point(point);
+    }
+
+    /// Replaces the block's prompt grid with the given one.
+    #[cfg(test)]
+    pub(super) fn set_prompt_grid(&mut self, prompt_grid: BlockGrid) {
+        self.header_grid.set_prompt_grid(prompt_grid);
+    }
+
+    /// Replaces the block's rprompt grid with the given one.
+    #[cfg(test)]
+    pub(super) fn set_rprompt_grid(&mut self, rprompt_grid: BlockGrid) {
+        self.rprompt_grid = rprompt_grid;
+    }
+
+    /// Replaces the block's output grid with the given one.
+    /// Useful for test functions.
+    #[cfg(test)]
+    pub fn set_output_grid(&mut self, output_grid: BlockGrid) {
+        self.output_grid = output_grid;
+    }
+
+    /// Method used in tests to finish the BlockGrid containing the command WITHOUT a linefeed in the empty command
+    /// case.
+    #[cfg(test)]
+    pub fn finish_command_grid(&mut self) {
+        self.header_grid.finish_command_grid();
+    }
+
+    pub fn honor_ps1(&self) -> bool {
+        self.header_grid.honor_ps1()
+    }
+
+    pub fn init_command(&mut self, command: impl AsRef<[u8]>) {
+        self.header_grid.init_command(command);
+    }
+
+    fn init_rprompt_grid(&mut self, rprompt: &str) {
+        if rprompt.is_empty() {
+            return;
+        }
+        if self.ignore_next_rprompt {
+            self.ignore_next_rprompt = false;
+            return;
+        }
+
+        // Decoding the bytes passed from the shell
+        if let Ok(unescaped_rprompt) = hex::decode(rprompt) {
+            let mut processor = Processor::new();
+            self.rprompt_grid.start();
+            processor.parse_bytes(&mut self.rprompt_grid, &unescaped_rprompt, &mut io::sink());
+            self.rprompt_grid.finish();
+        }
+    }
+
+    pub fn metadata(&self) -> BlockMetadata {
+        BlockMetadata::new(self.session_id, self.pwd.clone())
+    }
+
+    pub(super) fn receiving_chars_for_prompt(&self) -> Option<ansi::PromptKind> {
+        self.header_grid.receiving_chars_for_prompt
+    }
+
+    pub(super) fn reset_index(&mut self, index: BlockIndex) {
+        self.block_index = index
+    }
+
+    pub fn scan_full_block_for_secrets(&mut self) {
+        self.for_each_block_grid(|block_grid| block_grid.scan_full_grid_for_secrets())
+    }
+
+    pub fn set_env_var_metadata(&mut self, env_var_metadata: BlocklistEnvVarMetadata) {
+        self.env_var_metadata = Some(env_var_metadata);
+    }
+
+    pub fn set_honor_ps1(&mut self, honor_ps1: bool) {
+        self.header_grid.set_honor_ps1(honor_ps1);
+    }
+
+    pub(super) fn set_obfuscate_secrets(&mut self, obfuscate_secrets: ObfuscateSecrets) {
+        self.for_each_block_grid(|block_grid| {
+            if obfuscate_secrets.should_redact_secret() {
+                block_grid.maybe_enable_secret_obfuscation(obfuscate_secrets);
+            } else {
+                block_grid.disable_secret_obfuscation();
+            }
+        });
+    }
+
+    pub(super) fn set_prompt_grids_from_cached_data(
+        &mut self,
+        prompt_grid: BlockGrid,
+        rprompt_grid: BlockGrid,
+    ) {
+        self.header_grid.set_prompt_from_cached_data(prompt_grid);
+        self.rprompt_grid = rprompt_grid;
+        self.ignore_next_rprompt = true;
+    }
+
+    pub fn set_prompt_snapshot(&mut self, prompt_snapshot: PromptSnapshot) {
+        self.prompt_snapshot = Some(prompt_snapshot);
+    }
+
+    pub fn set_restored_block_was_local(&mut self, was_local: bool) {
+        debug_assert!(
+            self.bootstrap_stage == BootstrapStage::RestoreBlocks,
+            "set_restored_block_was_local should only be called for restored blocks"
+        );
+        self.restored_block_was_local = Some(was_local);
+    }
+
+    pub fn should_display_rprompt(&self, size: &SizeInfo) -> bool {
+        self.rprompt_grid.finished()
+            && self.rprompt_grid.has_received_content()
+            && self.is_enough_space_for_rprompt(size)
+    }
+
+    pub fn start(&mut self) {
+        if self.start_ts.is_none() {
+            self.start_ts = Some(Local::now());
+        }
+
+        // If we are in script execution stage and the shell starts a new block,
+        // this means we have a visible bootstrap block.
+        if self.bootstrap_stage() == BootstrapStage::ScriptExecution {
+            self.event_proxy
+                .send_terminal_event(Event::VisibleBootstrapBlock);
+        }
+
+        self.header_grid.start_command_grid();
+        self.wakeup_after_delay();
+    }
+
+    pub fn start_background(&mut self, session_id: Option<SessionId>) {
+        if self.start_ts.is_none() {
+            self.start_ts = Some(Local::now());
+        }
+        self.session_id = session_id;
+        self.header_grid.start_command_grid();
+        self.header_grid.finish_command_grid();
+
+        // TODO(CORE-2826): We disable reset grid checks for background blocks.
+        self.disable_reset_grid_checks();
+        self.output_grid.start();
+        self.state = BlockState::Background;
+        self.wakeup_after_delay();
+    }
+
+    pub fn start_for_in_band_command(&mut self) {
+        self.is_for_in_band_command = true;
+        self.start();
+    }
+
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         id: BlockId,
@@ -930,8 +954,6 @@ impl Block {
         block_index: BlockIndex,
         honor_ps1: bool,
         should_scan_for_secrets: ObfuscateSecrets,
-        is_ai_ugc_telemetry_enabled: bool,
-        conversation_id: Option<AIConversationId>,
     ) -> Self {
         let perform_reset_grid_checks = if cfg!(windows) && bootstrap_stage.is_done() {
             PerformResetGridChecks::Yes
@@ -995,27 +1017,17 @@ impl Block {
             shell_host: None,
             is_for_in_band_command: false,
             env_var_metadata: None,
-            interaction_mode: InteractionMode::default(),
             block_banner: None,
             ignore_next_rprompt: false,
             prompt_snapshot: None,
             home_dir: None,
             filter_query: None,
-            cloud_workflow_id: None,
-            cloud_env_var_collection_id: None,
             last_painted_at: None.into(),
             has_received_user_input: false,
             hidden: false,
             should_hide_output_grid: false,
             leading_linefeeds_ignored: 0,
-            is_ai_ugc_telemetry_enabled,
             restored_block_was_local: None,
-            agent_view_visibility: match conversation_id {
-                Some(id) => AgentViewVisibility::new_from_conversation(id),
-                None => AgentViewVisibility::new_from_terminal(),
-            },
-            nld_overridden: false,
-            is_oz_environment_startup_command: false,
         }
     }
 
@@ -1027,340 +1039,15 @@ impl Block {
         self.size
     }
 
-    pub fn interaction_mode(&self) -> &InteractionMode {
-        &self.interaction_mode
-    }
-
-    /// Replaces this block's visibility to be associated with the given conversation.
-    /// Use this when a block is being created/assigned to a conversation (e.g., entering agent view).
-    pub fn set_conversation_id(&mut self, conversation_id: AIConversationId) {
-        self.agent_view_visibility = AgentViewVisibility::new_from_conversation(conversation_id);
-    }
-
-    /// Resets this block's visibility to terminal mode.
-    /// Use this when a block is being returned to terminal context (e.g., exiting agent view).
-    pub fn clear_conversation_id(&mut self) {
-        self.agent_view_visibility = AgentViewVisibility::new_from_terminal();
-    }
-
-    /// Sets this block's agent view visibility state directly.
-    /// Use this when restoring a block from serialization.
-    pub fn set_agent_view_visibility(&mut self, visibility: AgentViewVisibility) {
-        self.agent_view_visibility = visibility;
-    }
-
-    /// Adds a conversation ID to the set of conversations where this block is attached as context.
-    pub(super) fn add_attached_conversation_id(&mut self, conversation_id: AIConversationId) {
-        self.agent_view_visibility
-            .add_attached_conversation_id(conversation_id);
-    }
-
-    /// Adds a conversation ID to the set of conversations where this block is pending context.
-    /// It maybe removed if the user removes the block attachment before sending the request, else if it is attached it will be 'promoted'.
-    pub(super) fn add_pending_conversation_id(&mut self, conversation_id: AIConversationId) {
-        self.agent_view_visibility
-            .add_pending_conversation_id(conversation_id);
-    }
-
-    /// Removes a conversation ID from the set of conversations where this block should be visible.
-    /// Returns true if the conversation ID was present and removed, false if it wasn't present.
-    pub(super) fn remove_pending_conversation_id(
-        &mut self,
-        conversation_id: AIConversationId,
-    ) -> bool {
-        self.agent_view_visibility
-            .remove_pending_conversation_id(conversation_id)
-    }
-
-    /// Moves the block from pending context to attached context for the given conversation ID.
-    pub(super) fn promote_pending_to_attached(
-        &mut self,
-        conversation_id: AIConversationId,
-    ) -> bool {
-        self.agent_view_visibility
-            .promote_pending_to_attached(conversation_id)
-    }
-
-    pub fn agent_view_visibility(&self) -> &AgentViewVisibility {
-        &self.agent_view_visibility
-    }
-
-    /// Returns whether NLD was overridden (input type was manually locked) when this block's
-    /// command was submitted.
-    ///
-    /// This is used for debugging UI shown in the block header on dogfood builds.
-    pub fn nld_overridden(&self) -> bool {
-        self.nld_overridden
-    }
-
-    /// Sets whether NLD was overridden at command submission time.
-    pub fn set_nld_overridden(&mut self, nld_overridden: bool) {
-        self.nld_overridden = nld_overridden;
-    }
-
-    pub fn set_trim_trailing_blank_rows(&mut self, trim: bool) {
-        self.output_grid.set_trim_trailing_blank_rows(trim);
-    }
-
-    pub fn set_restored_block_was_local(&mut self, was_local: bool) {
-        debug_assert!(
-            self.bootstrap_stage == BootstrapStage::RestoreBlocks,
-            "set_restored_block_was_local should only be called for restored blocks"
-        );
-        self.restored_block_was_local = Some(was_local);
-    }
-
-    pub fn restored_block_was_local(&self) -> Option<bool> {
-        self.restored_block_was_local
-    }
-
-    pub(super) fn receiving_chars_for_prompt(&self) -> Option<ansi::PromptKind> {
-        self.header_grid.receiving_chars_for_prompt
-    }
-
-    /// Replaces the block's lprompt and command combined grid with the given one.
-    #[cfg(test)]
-    pub fn set_prompt_and_command_grid(&mut self, prompt_and_command_grid: BlockGrid) {
-        self.header_grid
-            .set_prompt_and_command_grid(prompt_and_command_grid);
-    }
-
-    /// Manually update the prompt end point, for test purposes.
-    #[cfg(test)]
-    pub(super) fn set_raw_prompt_end_point(&mut self, point: Option<PromptEndPoint>) {
-        self.header_grid.set_raw_prompt_end_point(point);
-    }
-
-    /// Replaces the block's prompt grid with the given one.
-    #[cfg(test)]
-    pub(super) fn set_prompt_grid(&mut self, prompt_grid: BlockGrid) {
-        self.header_grid.set_prompt_grid(prompt_grid);
-    }
-
-    /// Replaces the block's rprompt grid with the given one.
-    #[cfg(test)]
-    pub(super) fn set_rprompt_grid(&mut self, rprompt_grid: BlockGrid) {
-        self.rprompt_grid = rprompt_grid;
-    }
-
-    /// Replaces the block's output grid with the given one.
-    /// Useful for test functions.
-    #[cfg(test)]
-    pub fn set_output_grid(&mut self, output_grid: BlockGrid) {
-        self.output_grid = output_grid;
-    }
-
-    #[cfg(not(feature = "integration_tests"))]
-    pub(in crate::terminal) fn block_banner(&self) -> Option<&WithinBlockBanner> {
-        self.block_banner.as_ref()
-    }
-
-    #[cfg(feature = "integration_tests")]
-    pub fn block_banner(&self) -> Option<&WithinBlockBanner> {
-        self.block_banner.as_ref()
-    }
-
-    /// Prefer using the `reset_block_index` fn on the BlockList instead.
-    /// Resets the index of the block to `index`. This is useful in the case where the block list
-    /// may have had a block deleted, in which case some blocks may need to have their index reset.
-    pub(super) fn reset_index(&mut self, index: BlockIndex) {
-        self.block_index = index
-    }
-
-    pub fn honor_ps1(&self) -> bool {
-        self.header_grid.honor_ps1()
-    }
-
-    pub fn set_honor_ps1(&mut self, honor_ps1: bool) {
-        self.header_grid.set_honor_ps1(honor_ps1);
-    }
-
-    pub fn start(&mut self) {
-        if self.start_ts.is_none() {
-            self.start_ts = Some(Local::now());
-        }
-
-        // If we are in script execution stage and the shell starts a new block,
-        // this means we have a visible bootstrap block.
-        if self.bootstrap_stage() == BootstrapStage::ScriptExecution {
-            self.event_proxy
-                .send_terminal_event(Event::VisibleBootstrapBlock);
-        }
-
-        self.header_grid.start_command_grid();
-        self.wakeup_after_delay();
-    }
-
-    /// Returns the `env_var_metadata` associated with this block, if any.
-    pub fn env_var_metadata(&self) -> Option<&BlocklistEnvVarMetadata> {
-        self.env_var_metadata.as_ref()
-    }
-
-    pub fn set_env_var_metadata(&mut self, env_var_metadata: BlocklistEnvVarMetadata) {
-        self.env_var_metadata = Some(env_var_metadata);
-    }
-
-    pub fn all_bytes_scanned_for_secrets(&self) -> bool {
-        all::<GridType>()
-            .filter_map(|grid_type| self.grid_of_type(grid_type))
-            .fold(false, |prev, block_grid| {
-                prev && block_grid.all_bytes_scanned_for_secrets()
-            })
-    }
-
-    pub(super) fn set_obfuscate_secrets(&mut self, obfuscate_secrets: ObfuscateSecrets) {
-        self.for_each_block_grid(|block_grid| {
-            if obfuscate_secrets.should_redact_secret() {
-                block_grid.maybe_enable_secret_obfuscation(obfuscate_secrets);
-            } else {
-                block_grid.disable_secret_obfuscation();
-            }
-        });
-    }
-
-    /// Scans the entire block (not just the dirty bytes) for secrets.
-    pub fn scan_full_block_for_secrets(&mut self) {
-        self.for_each_block_grid(|block_grid| block_grid.scan_full_grid_for_secrets())
-    }
-
-    /// Starts this block as a background output block, with no command.
-    /// Background blocks never receive precmd metadata, so where possible they
-    /// inherit the last command block's session ID.
-    pub fn start_background(&mut self, session_id: Option<SessionId>) {
-        if self.start_ts.is_none() {
-            self.start_ts = Some(Local::now());
-        }
-        self.session_id = session_id;
-        self.header_grid.start_command_grid();
-        self.header_grid.finish_command_grid();
-
-        // TODO(CORE-2826): We disable reset grid checks for background blocks.
-        self.disable_reset_grid_checks();
-        self.output_grid.start();
-        self.state = BlockState::Background;
-        self.wakeup_after_delay();
-    }
-
-    fn disable_reset_grid_checks(&mut self) {
-        self.header_grid.disable_reset_grid_checks();
-        self.output_grid.disable_reset_grid_checks();
-    }
-
-    /// Method used in tests to finish the BlockGrid containing the command WITHOUT a linefeed in the empty command
-    /// case.
-    #[cfg(test)]
-    pub fn finish_command_grid(&mut self) {
-        self.header_grid.finish_command_grid();
-    }
-
-    /// Starts this block as an "in-band" command block, which are hidden from the user unless
-    /// they've explicitly chosen to show them via the 'Blocks > Show in-band command blocks'
-    /// menu item.
-    pub fn start_for_in_band_command(&mut self) {
-        self.is_for_in_band_command = true;
-        self.start();
-    }
-
-    /// This block's minimal metadata. Until the block has received its metadata (either from a
-    /// precmd hook or static construction), this metadata is incomplete.
-    pub fn metadata(&self) -> BlockMetadata {
-        BlockMetadata::new(self.session_id, self.pwd.clone())
-    }
-
-    pub fn has_received_user_input(&self) -> bool {
-        self.has_received_user_input
-    }
-
-    /// Marks `has_received_user_input` as `true`.
-    ///
-    /// To be called upon writing user bytes to the pty for the first time during this block's
-    /// command execution.
-    pub fn mark_received_user_input(&mut self) {
-        self.has_received_user_input = true;
-    }
-
-    fn init_rprompt_grid(&mut self, rprompt: &str) {
-        if rprompt.is_empty() {
-            return;
-        }
-        if self.ignore_next_rprompt {
-            self.ignore_next_rprompt = false;
-            return;
-        }
-
-        // Decoding the bytes passed from the shell
-        if let Ok(unescaped_rprompt) = hex::decode(rprompt) {
-            let mut processor = Processor::new();
-            self.rprompt_grid.start();
-            processor.parse_bytes(&mut self.rprompt_grid, &unescaped_rprompt, &mut io::sink());
-            self.rprompt_grid.finish();
-        }
-    }
-
-    pub fn set_prompt_snapshot(&mut self, prompt_snapshot: PromptSnapshot) {
-        self.prompt_snapshot = Some(prompt_snapshot);
-    }
-
-    pub fn prompt_snapshot(&self) -> Option<&PromptSnapshot> {
-        self.prompt_snapshot.as_ref()
-    }
-
-    /// Sets the prompt and right prompt grids in this block from grids that
-    /// we cached when the last user command was submitted.
-    ///
-    /// We additionally set some state to ignore the next prompt and right
-    /// prompt we attempt to set in this block, to ensure that the initial
-    /// prompt update that normally occurs doesn't overwrite these copied
-    /// grids.  We only want to skip the initial prompt update to not interfere
-    /// with transient prompt features (modifications to the prompt in preexec).
-    pub(super) fn set_prompt_grids_from_cached_data(
-        &mut self,
-        prompt_grid: BlockGrid,
-        rprompt_grid: BlockGrid,
-    ) {
-        self.header_grid.set_prompt_from_cached_data(prompt_grid);
-        self.rprompt_grid = rprompt_grid;
-        self.ignore_next_rprompt = true;
-    }
-
-    /// Returns whether or not we should display an rprompt to the user.
-    pub fn should_display_rprompt(&self, size: &SizeInfo) -> bool {
-        self.rprompt_grid.finished()
-            && self.rprompt_grid.has_received_content()
-            && self.is_enough_space_for_rprompt(size)
-    }
-
-    /// Returns whether or not there is enough space to render the rprompt
-    /// in addition to the prompt with the given sizing info.
-    fn is_enough_space_for_rprompt(&self, size: &SizeInfo) -> bool {
-        // The rprompt must start AFTER the end of the last line of the lprompt (which can include
-        // the first line of the command, in the combined grid case).
-        let lprompt_last_row_width =
-            self.header_grid.lprompt_last_line_width_cols() as f32 * size.cell_width_px.as_f32();
-        let rprompt_render_offset = self.rprompt_render_offset(size);
-
-        rprompt_render_offset.x() > lprompt_last_row_width
-    }
-
-    /// Write a new command into this block's command grid. We use this to
-    /// fill out the command grid when the actual command, as echoed by the shell,
-    /// was instead classified as background output.
-    pub fn init_command(&mut self, command: impl AsRef<[u8]>) {
-        self.header_grid.init_command(command);
-    }
-
-    /// Copy an existing grid into this block's command grid. We use this to
-    /// fill out the command grid when the actual command, as echoed by the shell,
-    /// was instead classified as background output.
     pub fn copy_command_grid(&mut self, command: &BlockGrid) {
         // Cloning the background command grid as-is, instead of roundtripping
         // through a string, is more efficient and preserves shell formatting.
         self.header_grid.clone_command_from_blockgrid(command);
     }
 
-    pub fn is_empty(&self, agent_view_state: &AgentViewState) -> bool {
+    pub fn is_empty(&self) -> bool {
         // TODO(vorporeal): this should use a larger epsilon
-        self.height(agent_view_state).as_f64() < f64::EPSILON
+        self.height().as_f64() < f64::EPSILON
     }
 
     pub fn is_restored(&self) -> bool {
@@ -1381,56 +1068,10 @@ impl Block {
     }
 
     /// If true, this block is hidden and has a height of 0.
-    pub fn should_hide_block(&self, agent_view_state: &AgentViewState) -> bool {
+    pub fn should_hide_block(&self) -> bool {
         if self.hidden {
             return true;
         }
-        if FeatureFlag::AgentView.is_enabled() {
-            match agent_view_state {
-                AgentViewState::Active {
-                    display_mode: AgentViewDisplayMode::FullScreen,
-                    conversation_id: active_id,
-                    ..
-                } => {
-                    // Agent view is active - show only blocks that belong to this conversation
-                    let visible_in_conversation = match &self.agent_view_visibility {
-                        AgentViewVisibility::Terminal {
-                            pending_conversation_ids,
-                            conversation_ids,
-                        } => {
-                            pending_conversation_ids.contains(active_id)
-                                || conversation_ids.contains(active_id)
-                        }
-                        AgentViewVisibility::Agent {
-                            origin_conversation_id,
-                            pending_other_conversation_ids,
-                            other_conversation_ids,
-                        } => {
-                            active_id == origin_conversation_id
-                                || pending_other_conversation_ids.contains(active_id)
-                                || other_conversation_ids.contains(active_id)
-                        }
-                    };
-                    if !visible_in_conversation {
-                        return true;
-                    }
-                }
-                AgentViewState::Active {
-                    display_mode: AgentViewDisplayMode::Inline,
-                    ..
-                }
-                | AgentViewState::Inactive => {
-                    // Terminal view - hide blocks that were created in agent mode
-                    if matches!(
-                        self.agent_view_visibility,
-                        AgentViewVisibility::Agent { .. }
-                    ) {
-                        return true;
-                    }
-                }
-            }
-        }
-
         let is_bootstrap_block = self.bootstrap_stage == BootstrapStage::WarpInput;
         let is_empty_bootstrap_script_execution_block = self.bootstrap_stage
             == BootstrapStage::ScriptExecution
@@ -1447,7 +1088,6 @@ impl Block {
                 .as_ref()
                 .is_some_and(|metadata| metadata.should_hide_block)
             || (self.is_for_in_band_command && !self.show_in_band_command_blocks)
-            || self.interaction_mode.should_hide_block()
     }
 
     pub fn is_hidden(&self) -> bool {
@@ -1457,14 +1097,6 @@ impl Block {
     /// Prevent the block from showing in the blocklist.
     pub fn hide(&mut self) {
         self.hidden = true;
-    }
-
-    pub fn is_oz_environment_startup_command(&self) -> bool {
-        self.is_oz_environment_startup_command
-    }
-
-    pub(super) fn set_is_oz_environment_startup_command(&mut self, is_startup_command: bool) {
-        self.is_oz_environment_startup_command = is_startup_command;
     }
 
     /// Reset the block so it's no longer hidden. Undoes the effects of Self::hide().
@@ -1487,11 +1119,8 @@ impl Block {
 
     /// Returns true iff this block should be used as a scrollback block
     /// in a shared session context. Note the active block is included in scrollback to get the active prompt.
-    pub fn is_scrollback_block_for_shared_session(
-        &self,
-        agent_view_state: &AgentViewState,
-    ) -> bool {
-        !self.should_hide_block(agent_view_state) && !self.is_restored()
+    pub fn is_scrollback_block_for_shared_session(&self) -> bool {
+        !self.should_hide_block() && !self.is_restored()
     }
 
     pub fn index(&self) -> BlockIndex {
@@ -1499,15 +1128,14 @@ impl Block {
     }
 
     /// `true` if the block is rendered in the blocklist.
-    pub fn is_visible(&self, agent_view_state: &AgentViewState) -> bool {
-        self.height(agent_view_state) > Lines::zero()
+    pub fn is_visible(&self) -> bool {
+        self.height() > Lines::zero()
     }
 
     /// Height is the source-of-truth determinant for whether or not a block is hidden (i.e. if it
-    /// has a height of 0). Thus it depends on agent_view_state, which affects whether or not a
-    /// given block should be hidden.
-    pub fn height(&self, agent_view_state: &AgentViewState) -> Lines {
-        if self.should_hide_block(agent_view_state) {
+    /// has a height of 0).
+    pub fn height(&self) -> Lines {
+        if self.should_hide_block() {
             Lines::zero()
         } else {
             self.block_banner_height()
@@ -2566,7 +2194,7 @@ impl Block {
             x if x < (self.output_grid_offset() + self.output_grid_displayed_height()) => {
                 BlockSection::OutputGrid((row - self.output_grid_offset()).max(Lines::zero()))
             }
-            x if x < self.height(&AgentViewState::Inactive) => BlockSection::PaddingBottom,
+            x if x < self.height() => BlockSection::PaddingBottom,
             _ => BlockSection::NotContained,
         }
     }
@@ -2619,22 +2247,6 @@ impl Block {
 
     pub fn set_home_dir(&mut self, home_dir: Option<String>) {
         self.home_dir = home_dir;
-    }
-
-    pub fn set_cloud_env_var_state(&mut self, env_var_collection_id: Option<SyncId>) {
-        self.cloud_env_var_collection_id = env_var_collection_id;
-    }
-
-    pub fn cloud_env_var_collection_state(&self) -> Option<SyncId> {
-        self.cloud_env_var_collection_id
-    }
-
-    pub fn set_cloud_workflow_state(&mut self, workflow_id: Option<SyncId>) {
-        self.cloud_workflow_id = workflow_id;
-    }
-
-    pub fn cloud_workflow_state(&self) -> Option<SyncId> {
-        self.cloud_workflow_id
     }
 
     pub fn server_pwd(&self) -> Option<Cow<'_, str>> {
@@ -2802,10 +2414,8 @@ impl Block {
     }
 
     /// Returns `true` if this block is a valid option to use as context for an AI model.
-    pub fn can_be_ai_context(&self, agent_view_state: &AgentViewState) -> bool {
-        self.is_visible(agent_view_state)
-            && !self.is_in_band_command_block()
-            && !self.is_agent_monitoring()
+    pub fn can_be_ai_context(&self) -> bool {
+        self.is_visible() && !self.is_in_band_command_block()
     }
 
     pub fn estimated_heap_usage_bytes(&self) -> usize {

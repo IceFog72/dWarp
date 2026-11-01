@@ -1,15 +1,11 @@
-use std::sync::Arc;
 use warp_core::ui::appearance::Appearance;
 use warpui::{platform::WindowStyle, App};
 
-use crate::auth::AuthStateProvider;
-use crate::server::server_api::{team::MockTeamClient, workspace::MockWorkspaceClient};
-use crate::server::telemetry::context_provider::AppTelemetryContextProvider;
+use crate::server::telemetry::context_provider::NoopTelemetryContextProvider;
 use crate::settings_view::keybindings::KeybindingChangedNotifier;
 use crate::test_util::settings::initialize_settings_for_tests;
 use crate::vim_registers::VimRegisters;
 use crate::workspace::sync_inputs::SyncedInputState;
-use crate::workspaces::user_workspaces::UserWorkspaces;
 
 use super::{Find, FindDirection, FindEvent, FindModel};
 
@@ -33,20 +29,12 @@ impl FindModel for MockFindModel {
 
 fn initialize_test_app(app: &mut App) {
     initialize_settings_for_tests(app);
-    app.add_singleton_model(|_| AuthStateProvider::new_for_test());
-    app.add_singleton_model(AppTelemetryContextProvider::new_context_provider);
+
+    app.add_singleton_model(NoopTelemetryContextProvider::new_context_provider);
     app.add_singleton_model(|_| Appearance::mock());
     app.add_singleton_model(|_| SyncedInputState::mock());
     app.add_singleton_model(|_| VimRegisters::new());
     app.add_singleton_model(|_| KeybindingChangedNotifier::mock());
-    app.add_singleton_model(|ctx| {
-        UserWorkspaces::mock(
-            Arc::new(MockTeamClient::new()),
-            Arc::new(MockWorkspaceClient::new()),
-            vec![],
-            ctx,
-        )
-    });
 }
 
 #[test]

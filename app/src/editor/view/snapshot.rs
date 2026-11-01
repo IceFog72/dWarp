@@ -88,7 +88,6 @@ pub struct ViewSnapshot {
 
     pub baseline_position_computation_method: BaselinePositionComputationMethod,
 
-
     pub editor_height_shrink_delay: Arc<Mutex<EditorHeightShrinkDelay>>,
 }
 
@@ -644,5 +643,4 @@ impl ViewSnapshot {
     pub fn cursor_avatar_size(&self) -> f32 {
         self.font_size + CURSOR_AVATAR_IMAGE_OFFSET
     }
-
 }

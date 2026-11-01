@@ -15,13 +15,13 @@ use warpui::{
 use markdown_parser::{FormattedText, FormattedTextFragment, FormattedTextLine};
 use warpui::elements::FormattedTextElement;
 
-use crate::ai::blocklist::code_block::{
-    render_code_block_plain, CodeBlockOptions, CodeSnippetButtonHandles,
-};
 use crate::appearance::Appearance;
 use crate::terminal::cli_agent_sessions::plugin_manager::PluginInstructions;
 use crate::terminal::CLIAgent;
 use crate::ui_components::icons::Icon;
+use crate::ui_components::inline_action::code_block::{
+    render_code_block_plain, CodeBlockOptions, CodeSnippetButtonHandles,
+};
 use crate::view_components::action_button::{ActionButton, ButtonSize, NakedTheme};
 use crate::view_components::DismissibleToast;
 use crate::workspace::{ToastStack, WorkspaceAction};

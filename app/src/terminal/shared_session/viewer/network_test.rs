@@ -8,10 +8,7 @@ use parking_lot::FairMutex;
 
 use warpui::{App, ModelHandle};
 
-use crate::{
-    terminal::{event_listener::ChannelEventListener, TerminalModel},
-    test_util::{add_window_with_terminal, terminal::initialize_app_for_terminal_view},
-};
+use crate::{terminal::{event_listener::ChannelEventListener, TerminalModel}, test_util::{add_window_with_terminal, terminal::initialize_app_for_terminal_view}};
 
 use super::{Network, PtyBytesBatchStatus, Stage};
 

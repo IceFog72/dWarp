@@ -1,3 +1,4 @@
+pub mod agent_review;
 pub mod code_review_view;
 pub mod comment_list_view;
 pub mod context;
@@ -10,8 +11,6 @@ pub(crate) mod git_dialog;
 pub mod git_status_update;
 mod hidden_lines;
 pub mod telemetry_event;
-#[cfg_attr(not(feature = "local_fs"), allow(unused_imports))]
-pub use telemetry_event::CodeReviewTelemetryEvent;
 
 pub(crate) mod code_review_header;
 pub(crate) mod comment_rendering;

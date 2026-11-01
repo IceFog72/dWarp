@@ -36,9 +36,8 @@ fn create_default_serialized_block() -> SerializedBlock {
         shell_host: None,
         is_background: false,
         prompt_snapshot: None,
-        ai_metadata: None,
+
         is_local: None,
-        agent_view_visibility: None,
     }
 }
 
@@ -163,9 +162,8 @@ fn test_restored_blocks_on_different_host() {
             }),
             is_background: false,
             prompt_snapshot: None,
-            ai_metadata: None,
+
             is_local: Some(true),
-            agent_view_visibility: None,
         }
         .into(),
         SerializedBlock {
@@ -201,9 +199,8 @@ fn test_restored_blocks_on_different_host() {
             }),
             is_background: false,
             prompt_snapshot: None,
-            ai_metadata: None,
+
             is_local: Some(true),
-            agent_view_visibility: None,
         }
         .into(),
         SerializedBlock {
@@ -239,9 +236,8 @@ fn test_restored_blocks_on_different_host() {
             }),
             is_background: false,
             prompt_snapshot: None,
-            ai_metadata: None,
+
             is_local: Some(false),
-            agent_view_visibility: None,
         }
         .into(),
         SerializedBlock {
@@ -273,9 +269,8 @@ fn test_restored_blocks_on_different_host() {
             shell_host: None,
             is_background: false,
             prompt_snapshot: None,
-            ai_metadata: None,
+
             is_local: Some(true),
-            agent_view_visibility: None,
         }
         .into(),
     ];

@@ -2,9 +2,7 @@ use serde::{Deserialize, Deserializer, Serialize};
 use serde_json::Value;
 use warp_workflows;
 
-use crate::{
-    cloud_object::model::generic_string_model::GenericStringObjectId, server::ids::SyncId,
-};
+use crate::server::ids::SyncId;
 
 /// Workflow model to be used inside of `warp-internal`
 #[derive(Clone, Debug, Serialize, Deserialize, Eq, PartialEq, Hash)]
@@ -151,17 +149,6 @@ impl Workflow {
     }
 
     /// Return a list of every enum ID that has been synced to the server, used for telemetry.
-    pub fn get_server_enum_ids(&self) -> Vec<GenericStringObjectId> {
-        self.arguments()
-            .iter()
-            .filter_map(|arg| match arg.arg_type {
-                ArgumentType::Enum { enum_id } => enum_id.into_server(),
-                _ => None,
-            })
-            .map(Into::into)
-            .collect()
-    }
-
     pub fn default_env_vars(&self) -> Option<SyncId> {
         match self {
             Workflow::Command {
@@ -386,3 +373,9 @@ where
 #[cfg(test)]
 #[path = "workflow_test.rs"]
 mod tests;
+
+#[derive(Clone, Debug, Deserialize, Serialize, Eq, PartialEq, Hash, PartialOrd)]
+pub enum EnumVariants {
+    Static(Vec<String>), // contains the explicit variants for a static enum
+    Dynamic(String),     // contains the value of the shell command associated with the dynamic enum
+}

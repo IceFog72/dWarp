@@ -1,7 +1,6 @@
 use std::collections::HashSet;
 use std::ops::Deref as _;
 use std::path::PathBuf;
-use std::sync::Arc;
 
 use chrono::Utc;
 use itertools::Itertools as _;
@@ -24,17 +23,14 @@ use warpui::{
 
 use super::super::palette_styles as styles;
 use crate::appearance::Appearance;
-use crate::cloud_object::model::persistence::CloudModel;
-use crate::drive::CloudObjectTypeAndId;
 use crate::palette::PaletteMode;
 use crate::pane_group::pane::welcome_view::WelcomeViewAction;
 use crate::search::action::search_item::MatchedBinding;
 use crate::search::action::{CommandBindingDataSource, Event as CommandBindingDataSourceEvent};
 use crate::search::binding_source::BindingSource;
-use crate::search::command_palette::conversations::{self};
 use crate::search::command_palette::mixer::CommandPaletteItemAction;
 use crate::search::command_palette::new_session::{AllowedSessionKinds, NewSessionDataSource};
-use crate::search::command_palette::{launch_config, warp_drive, CommandPaletteMixer};
+use crate::search::command_palette::{launch_config, CommandPaletteMixer};
 use crate::search::command_search::projects::project_data_source::ProjectDataSource;
 use crate::search::command_search::projects::{ProjectSearchItem, SuggestedProjectsDataSource};
 use crate::search::data_source::QueryResult;
@@ -44,14 +40,9 @@ use crate::search::search_bar::{
     SearchBar, SearchBarEvent, SearchBarState, SearchResultOrdering, SelectionUpdate,
 };
 use crate::search::QueryFilter;
-use crate::send_telemetry_from_ctx;
-use crate::server::{ids::SyncId, telemetry::TelemetryEvent};
-use crate::settings::AISettings;
 use crate::terminal::History;
 use crate::themes::theme::WarpTheme;
 use crate::ui_components::icons::Icon;
-use crate::workflows::{WorkflowSelectionSource, WorkflowSource, WorkflowType};
-use crate::workspace::WorkspaceAction;
 
 /// Position ID for the command palette list.
 const PALETTE_LIST_SAVE_POSITION_ID: &str = "welcome_palette:list";
@@ -63,7 +54,6 @@ const PALETTE_LIST_SAVE_POSITION_ID: &str = "welcome_palette:list";
 const MAX_SEARCH_RESULTS: usize = 250;
 
 const MAX_PROJECTS_IN_ZERO_STATE: usize = 4;
-const MAX_ITEMS_IN_ZERO_STATE: usize = 5;
 
 #[derive(Debug)]
 pub enum Action {
@@ -76,22 +66,6 @@ pub enum Event {
     Close,
     ParentAction {
         action: WelcomeViewAction,
-    },
-    /// Execute the workflow identified by `id`.
-    ExecuteWorkflow {
-        id: SyncId,
-    },
-    /// Invoke the env vars identified by `id`.
-    InvokeEnvironmentVariables {
-        id: SyncId,
-    },
-    /// Open a notebook identified by `id`.
-    OpenNotebook {
-        id: SyncId,
-    },
-    /// View the relevant object in the Warp Drive sidebar.
-    ViewInWarpDrive {
-        id: CloudObjectTypeAndId,
     },
     /// Open a file at the given path.
     OpenFile {
@@ -137,7 +111,6 @@ pub struct WelcomePalette {
     zero_state_items: Vec<QueryResultRenderer<CommandPaletteItemAction>>,
     selected_item: SelectedItem,
     project_data_source: ModelHandle<ProjectDataSource>,
-    conversations_data_source: ModelHandle<conversations::DataSource>,
     suggested_projects_data_source: ModelHandle<SuggestedProjectsDataSource>,
     open_project_keybinding: Option<String>,
     terminal_session_keybinding: Option<String>,
@@ -156,7 +129,7 @@ impl TypedActionView for WelcomePalette {
                 self.handle_result_accepted(action.clone(), ctx);
             }
             Action::ParentAction { action } => ctx.emit(Event::ParentAction { action: *action }),
-            Action::Close => self.close(ctx, None),
+            Action::Close => self.close(ctx),
         }
     }
 }
@@ -232,24 +205,17 @@ impl WelcomePalette {
 
         let project_data_source = ctx.add_model(ProjectDataSource::new);
         let suggested_projects_data_source = ctx.add_model(SuggestedProjectsDataSource::new);
-        let conversations_data_source = ctx.add_model(|_| conversations::DataSource::new());
         let launch_config_data_source = ctx.add_model(launch_config::DataSource::new);
         let new_session_data_source = ctx.add_model(|ctx| {
             NewSessionDataSource::new(binding_source.clone(), ctx)
                 .with_allowed_kinds(AllowedSessionKinds::tabs_only())
         });
-        let warp_drive_data_source = ctx.add_model(warp_drive::DataSource::new);
 
-        let mixer = ctx.add_model(|ctx| {
+        let mixer = ctx.add_model(|_| {
             let mut mixer = CommandPaletteMixer::new();
             mixer.add_sync_source(actions_data_source.clone(), HashSet::new());
             mixer.add_sync_source(project_data_source.clone(), HashSet::new());
             mixer.add_sync_source(suggested_projects_data_source.clone(), HashSet::new());
-            mixer.add_sync_source(warp_drive_data_source.clone(), HashSet::new());
-
-            if AISettings::as_ref(ctx).is_any_ai_enabled(ctx) {
-                mixer.add_sync_source(conversations_data_source.clone(), HashSet::new());
-            }
 
             if ContextFlag::LaunchConfigurations.is_enabled() {
                 mixer.add_sync_source(launch_config_data_source.clone(), HashSet::new());
@@ -299,7 +265,6 @@ impl WelcomePalette {
             placeholder_query_renderer: placeholder_element,
             binding_source,
             project_data_source,
-            conversations_data_source,
             open_project_keybinding,
             terminal_session_keybinding,
             suggested_projects_data_source,
@@ -355,19 +320,6 @@ impl WelcomePalette {
             vec![]
         };
 
-        let conversation_slots = MAX_ITEMS_IN_ZERO_STATE
-            .saturating_sub(projects.len())
-            .saturating_sub(suggested_projects.len());
-
-        let conversations = if conversation_slots > 0 {
-            self.conversations_data_source
-                .read(ctx, |conversations, ctx| {
-                    conversations.top_n(conversation_slots, ctx).collect()
-                })
-        } else {
-            vec![]
-        };
-
         let projects = dedupe_score(
             projects
                 .into_iter()
@@ -378,7 +330,6 @@ impl WelcomePalette {
 
         self.zero_state_items = projects
             .into_iter()
-            .chain(conversations)
             .enumerate()
             .map(|(i, item)| Self::create_query_result_renderer(i, item))
             .collect();
@@ -466,7 +417,7 @@ impl WelcomePalette {
     ) {
         match event {
             SearchBarEvent::Close => {
-                self.close(ctx, None);
+                self.close(ctx);
             }
             SearchBarEvent::BufferCleared { .. } => {}
             SearchBarEvent::ResultAccepted { action, .. } => {
@@ -573,24 +524,7 @@ impl WelcomePalette {
         ctx.notify();
     }
 
-    fn close(&mut self, ctx: &mut ViewContext<Self>, accepted_action_type: Option<&'static str>) {
-        let buffer_length = self.search_bar.as_ref(ctx).query(ctx).len();
-        let filter = self.active_query_filter(ctx);
-        let event = if let Some(result_type) = accepted_action_type {
-            TelemetryEvent::PaletteSearchResultAccepted {
-                result_type,
-                filter,
-                buffer_length,
-            }
-        } else {
-            TelemetryEvent::PaletteSearchExited {
-                filter,
-                buffer_length,
-            }
-        };
-
-        send_telemetry_from_ctx!(event, ctx);
-
+    fn close(&mut self, ctx: &mut ViewContext<Self>) {
         self.state_handles.clipped_scroll_state = Default::default();
         self.reset(ctx);
 
@@ -798,33 +732,10 @@ impl WelcomePalette {
             } => {
                 ctx.emit(Event::NewConversationInProject { path: path.clone() });
             }
-            CommandPaletteItemAction::NavigateToConversation { .. } => {
-                // This code is dead, so no need to support this case
-            }
-            CommandPaletteItemAction::OpenNotebook { id } => {
-                self.dispatch_typed_action_on_view(&WorkspaceAction::OpenNotebook { id: *id }, ctx);
-                self.close(ctx, Some(result_action.result_type()));
-            }
-            CommandPaletteItemAction::ExecuteWorkflow { id } => {
-                let Some(workflow) = CloudModel::as_ref(ctx).get_workflow(id) else {
-                    log::warn!("Tried to execute workflow for id {id:?} but it does not exist");
-                    return;
-                };
 
-                self.dispatch_typed_action_on_view(
-                    &WorkspaceAction::RunWorkflow {
-                        workflow: Arc::new(WorkflowType::Cloud(Box::new(workflow.clone()))),
-                        workflow_source: WorkflowSource::Global,
-                        workflow_selection_source: WorkflowSelectionSource::CommandPalette,
-                        argument_override: None,
-                    },
-                    ctx,
-                );
-                self.close(ctx, Some(result_action.result_type()));
-            }
             CommandPaletteItemAction::NewSession { source } => {
                 self.dispatch_typed_action_on_view(source.action().deref(), ctx);
-                self.close(ctx, Some(result_action.result_type()));
+                self.close(ctx);
             }
             _ => {
                 // TODO
@@ -839,11 +750,6 @@ impl WelcomePalette {
         action: &dyn warpui::Action,
         ctx: &mut ViewContext<Self>,
     ) {
-        send_telemetry_from_ctx!(
-            TelemetryEvent::SelectCommandPaletteOption(format!("{action:?}")),
-            ctx
-        );
-
         let (window_id, view_id) = match self.binding_source.as_ref(ctx) {
             BindingSource::View {
                 window_id, view_id, ..

@@ -19,9 +19,7 @@ pub use {
 use self::model::{LocalSelections, Selection, UpdateBufferOption};
 use super::soft_wrap::{ClampDirection, DisplayPointAndClampDirection};
 use super::Point;
-use base64::{engine::general_purpose, Engine as _};
 use element::CommandXRayMouseStateHandle;
-use figma_utils::is_figma_png;
 use itertools::{Either, Itertools};
 use mime_guess::from_path;
 use model::{
@@ -34,14 +32,12 @@ use pathfinder_color::ColorU;
 use settings::Setting as _;
 use snapshot::{EditorHeightShrinkDelay, ViewSnapshot};
 use vec1::{vec1, Vec1};
-use warp_core::{safe_error, send_telemetry_from_ctx};
+use warp_core::safe_error;
 use warp_util::{path::ShellFamily, user_input::UserInput};
 use warpui::ui_components::button::ButtonTooltipPosition;
 use warpui::ui_components::components::{Coords, UiComponent, UiComponentStyles};
 use warpui::{elements, ViewHandle};
 
-use crate::ai::agent::ImageContext;
-use crate::ai::blocklist::{BlocklistAIContextModel, PendingAttachment, PendingFile};
 use crate::ai::predict::next_command_model::{NextCommandModel, NextCommandSuggestionState};
 use crate::appearance::Appearance;
 use crate::channel::{Channel, ChannelState};
@@ -51,7 +47,7 @@ use crate::search::ai_context_menu::mixer::AIContextMenuSearchableAction;
 use crate::search::ai_context_menu::view::{
     AIContextMenu, AIContextMenuCategory, AIContextMenuEvent,
 };
-use crate::server::telemetry::TelemetryEvent;
+use crate::settings::AISettings;
 use crate::settings_view::flags;
 use crate::suggestions::ignored_suggestions_model::{IgnoredSuggestionsModel, SuggestionType};
 use crate::ui_components::buttons::icon_button;
@@ -59,7 +55,7 @@ use crate::ui_components::icons;
 use crate::view_components::DismissibleToast;
 use crate::vim_registers::{RegisterContent, VimRegisters};
 use crate::workspace::ToastStack;
-use crate::{ai::blocklist::InputType, settings::AISettings};
+use std::path::PathBuf;
 
 use crate::editor::RangeExt;
 use crate::features::FeatureFlag;
@@ -68,7 +64,6 @@ use crate::settings::{
     AppEditorSettingsChangedEvent, CursorDisplayType, InputSettings, SelectionSettings,
 };
 use crate::terminal::grid_size_util::grid_cell_dimensions;
-use crate::terminal::model::block::BlockId;
 use crate::themes::theme::Fill;
 use crate::ui_components::avatar::{Avatar, AvatarContent};
 use crate::util::bindings::{cmd_or_ctrl_shift, keybinding_name_to_keystroke, CustomAction};
@@ -76,7 +71,6 @@ use crate::util::clipboard::clipboard_content_with_escaped_paths;
 use crate::util::color::{ContrastingColor, MinimumAllowedContrast};
 use crate::util::image::{resize_image, MAX_IMAGE_COUNT_FOR_QUERY, MAX_IMAGE_SIZE_BYTES};
 use crate::util::merge_ranges;
-use crate::{workspace::Workspace, BlocklistAIHistoryModel};
 use anyhow::Result;
 use core::f32;
 use std::path::Path;
@@ -153,20 +147,6 @@ pub enum AutosuggestionType {
     Command {
         was_intelligent_autosuggestion: bool,
     },
-    AgentModeQuery {
-        context_block_ids: Vec<BlockId>,
-        was_intelligent_autosuggestion: bool,
-    },
-}
-
-impl AutosuggestionType {
-    pub fn matches_input_type(&self, input_type: InputType) -> bool {
-        if input_type.is_ai() {
-            matches!(self, AutosuggestionType::AgentModeQuery { .. })
-        } else {
-            matches!(self, AutosuggestionType::Command { .. })
-        }
-    }
 }
 
 impl fmt::Display for AutosuggestionLocation {
@@ -1856,13 +1836,6 @@ pub struct EditorView {
     show_autosuggestion_keybinding_hint: bool,
     show_autosuggestion_ignore_button: bool,
 
-
-
-
-
-
-    context_model: Option<ModelHandle<BlocklistAIContextModel>>,
-
     /// Options for attaching image context.
     /// Made public to allow terminal input to access image attachment state and limits.
     pub image_context_options: ImageContextOptions,
@@ -2870,7 +2843,6 @@ impl EditorView {
 
             baseline_position_computation_method: self.baseline_position_computation_method.clone(),
 
-
             editor_height_shrink_delay: self.editor_height_shrink_delay.clone(),
         }
     }
@@ -2930,13 +2902,6 @@ impl EditorView {
         }
     }
 
-    pub fn with_context_model(self, context_model: ModelHandle<BlocklistAIContextModel>) -> Self {
-        Self {
-            context_model: Some(context_model),
-            ..self
-        }
-    }
-
     /// Creates an [`EditorView`] with the initial text
     /// equal to `base_text` and with behaviour specified by `options`.
     #[cfg(test)]
@@ -2963,7 +2928,6 @@ impl EditorView {
                 }
             },
         );
-
 
         let editor_model = ctx.add_model(|ctx| {
             EditorModel::new(
@@ -3008,64 +2972,25 @@ impl EditorView {
 
         let ai_context_menu_state = if options.include_ai_context_menu {
             let ai_context_menu = ctx.add_typed_action_view(AIContextMenu::new);
-            ctx.subscribe_to_view(
-                &ai_context_menu,
-                |me, _, event: &AIContextMenuEvent, ctx| {
-                    let is_udi_enabled =
-                        InputSettings::as_ref(ctx).is_universal_developer_input_enabled(ctx);
-                    let current_input_mode = if me.is_ai_input {
-                        InputType::AI
-                    } else {
-                        InputType::Shell
-                    };
-                    match event {
-                        AIContextMenuEvent::Close {
-                            item_count,
-                            query_length,
-                        } => {
-                            send_telemetry_from_ctx!(
-                                TelemetryEvent::AtMenuInteracted {
-                                    action: "cancelled".to_string(),
-                                    item_count: *item_count,
-                                    query_length: Some(*query_length),
-                                    is_udi_enabled,
-                                    current_input_mode,
-                                },
-                                ctx
-                            );
-
-                            ctx.emit(Event::SetAIContextMenuOpen(false));
-                            ctx.focus_self();
-                            ctx.notify();
-                        }
-                        AIContextMenuEvent::ResultAccepted {
-                            action,
-                            item_count,
-                            query_length,
-                        } => {
-                            send_telemetry_from_ctx!(
-                                TelemetryEvent::AtMenuInteracted {
-                                    action: "item_selected".to_string(),
-                                    item_count: *item_count,
-                                    query_length: Some(*query_length),
-                                    is_udi_enabled,
-                                    current_input_mode,
-                                },
-                                ctx
-                            );
-
-                            ctx.emit(Event::AcceptAIContextMenuItem(action.clone()));
-                            ctx.focus_self();
-                            ctx.notify();
-                        }
-                        AIContextMenuEvent::CategorySelected { category } => {
-                            ctx.emit(Event::SelectAIContextMenuCategory(*category));
-                            ctx.focus_self();
-                            ctx.notify();
-                        }
+            ctx.subscribe_to_view(&ai_context_menu, |_, _, event: &AIContextMenuEvent, ctx| {
+                match event {
+                    AIContextMenuEvent::Close => {
+                        ctx.emit(Event::SetAIContextMenuOpen(false));
+                        ctx.focus_self();
+                        ctx.notify();
                     }
-                },
-            );
+                    AIContextMenuEvent::ResultAccepted { action } => {
+                        ctx.emit(Event::AcceptAIContextMenuItem(action.clone()));
+                        ctx.focus_self();
+                        ctx.notify();
+                    }
+                    AIContextMenuEvent::CategorySelected { category } => {
+                        ctx.emit(Event::SelectAIContextMenuCategory(*category));
+                        ctx.focus_self();
+                        ctx.notify();
+                    }
+                }
+            });
 
             Some(AIContextMenuState {
                 at_context_menu_button_mouse_handle: Default::default(),
@@ -3131,7 +3056,6 @@ impl EditorView {
                 .show_autosuggestion_ignore_button,
             is_ai_input: false,
             convert_newline_to_space: options.convert_newline_to_space,
-            context_model: None,
             image_context_options: ImageContextOptions::Disabled,
             image_context_button_mouse_handle: Default::default(),
             ai_context_menu_state,
@@ -3408,27 +3332,9 @@ impl EditorView {
         }
     }
 
-    /// Clears any existing autosuggestions (intelligent or not) that weren't for the current input_type.
-    /// If there's an empty buffer, populates the input with an intelligent autosuggestion for the input_type.
-    pub fn maybe_populate_intelligent_autosuggestion(
-        &mut self,
-        input_type: InputType,
-        ctx: &mut ViewContext<Self>,
-    ) {
-        // If our existing autosuggestion is not meant for the current input type, clear it.
-        if self
-            .autosuggestion_state
-            .as_ref()
-            .is_some_and(|state| !state.autosuggestion_type.matches_input_type(input_type))
-        {
-            self.clear_autosuggestion(ctx);
-        }
-        if input_type.is_ai() {
-            // The server does not return AI query suggestions currently.
-            // If we switched to AI input, clear the next command state.
-            // This way when switching back to shell input, there should be no next command suggestion populated.
-            self.clear_next_command_state(ctx);
-        } else if let Some(command) = self
+    /// Populates the input with an intelligent command suggestion.
+    pub fn maybe_populate_intelligent_autosuggestion(&mut self, ctx: &mut ViewContext<Self>) {
+        if let Some(command) = self
             .next_command_state(ctx)
             .command_suggestion()
             .map(|command| command.to_owned())
@@ -3607,7 +3513,6 @@ impl EditorView {
         interaction_state: InteractionState,
         ctx: &mut ViewContext<Self>,
     ) {
-
         self.editor_model.update(ctx, |model, _| {
             model.set_interaction_state(interaction_state);
         });
@@ -4233,7 +4138,6 @@ impl EditorView {
     /// Clears editor buffer if the vim mode allows for it, but does not
     /// clear the undo/redo stack.
     pub fn handle_ctrl_c(&mut self, ctx: &mut ViewContext<Self>) {
-
         #[cfg(windows)]
         // On Windows, if there is selected text, users expect ctrl-c to copy.
         if !self.selected_text(ctx).is_empty() {
@@ -4245,68 +4149,16 @@ impl EditorView {
             return;
         }
 
-        let terminal_view = ctx
-            .windows()
-            .active_window()
-            .and_then(|active_window| {
-                ctx
-                    // Need to get the workspace info since we don't have access to the terminal view
-                    // from the ClearBuffer action.
-                    .views_of_type::<Workspace>(active_window)
-                    .and_then(|views| views.first().cloned())
-            })
-            .and_then(|workspace| {
-                workspace
-                    .as_ref(ctx)
-                    .active_tab_pane_group()
-                    .as_ref(ctx)
-                    .active_session_view(ctx)
-            });
-
-        // If an agent is responding, we don't want ctrl+c to clear the persistent input.
-        let is_agent_responding = terminal_view
-            .as_ref()
-            .and_then(|terminal_view| {
-                BlocklistAIHistoryModel::as_ref(ctx).active_conversation(terminal_view.id())
-            })
-            .is_some_and(|conversation| {
-                conversation.status().is_in_progress() && conversation.exchange_count() > 0
-            });
-
-        // If there is a pending passive ai block, we don't want ctrl+c to clear the buffer.
-        let is_pending_passive_ai_block = terminal_view.is_some_and(|terminal_view| {
-            let terminal_model = terminal_view.as_ref(ctx).model.lock();
-            terminal_model
-                .block_list()
-                .last_non_hidden_ai_block_handle(ctx)
-                .is_some_and(|ai_block| {
-                    let block = ai_block.as_ref(ctx);
-                    // Ctrl+c should dismiss the passive ai block only if the keybindings for the block are not hidden.
-                    let is_pending_code_diff = block.find_undismissed_code_diff(ctx).is_some();
-                    let is_pending_suggested_prompt = block
-                        .pending_unit_test_suggestion(ctx)
-                        .is_some_and(|suggested_prompt| {
-                            !suggested_prompt.as_ref(ctx).is_keybindings_hidden()
-                        });
-                    block.is_passive_conversation(ctx)
-                        && (is_pending_code_diff || is_pending_suggested_prompt)
-                })
-        });
-
         let mut cleared_buffer_len = 0;
-        if (!self.vim_mode_enabled(ctx)
+        if !self.vim_mode_enabled(ctx)
             || self
                 .vim_mode(ctx)
-                .is_some_and(|vim_mode| matches![vim_mode, VimMode::Normal | VimMode::Insert]))
-            && !is_agent_responding
-            && !is_pending_passive_ai_block
+                .is_some_and(|vim_mode| matches![vim_mode, VimMode::Normal | VimMode::Insert])
         {
             cleared_buffer_len = self.buffer_size(ctx).as_usize();
             self.clear_buffer(ctx);
         }
-        if !is_agent_responding || !is_pending_passive_ai_block {
-            self.vim_interrupt(ctx);
-        }
+        self.vim_interrupt(ctx);
 
         ctx.emit(Event::CtrlC { cleared_buffer_len });
     }
@@ -5134,16 +4986,6 @@ impl EditorView {
             return;
         }
 
-        let is_udi_enabled = InputSettings::as_ref(ctx).is_universal_developer_input_enabled(ctx);
-
-        send_telemetry_from_ctx!(
-            TelemetryEvent::AttachedImagesToAgentModeQuery {
-                num_images: pending_images.len(),
-                is_udi_enabled,
-            },
-            ctx
-        );
-
         self.process_attached_images_future_handle = Some(ctx.spawn(
             async move {
                 let mut processed_pending_images = vec![];
@@ -5151,8 +4993,6 @@ impl EditorView {
                 let mut num_unprocessed_images: usize = 0;
 
                 for image in pending_images {
-                    let is_figma = is_figma_png(&image.data);
-
                     let resized_image_bytes = match resize_image(&image.data) {
                         Ok(resized_image_bytes) => resized_image_bytes,
                         Err(err) => {
@@ -5167,13 +5007,10 @@ impl EditorView {
                         continue;
                     }
 
-                    let base64_str = general_purpose::STANDARD.encode(&resized_image_bytes);
-
-                    processed_pending_images.push(ImageContext {
-                        data: base64_str,
+                    processed_pending_images.push(AttachedImage {
+                        data: resized_image_bytes,
                         mime_type: image.mime_type,
                         file_name: image.file_name,
-                        is_figma,
                     });
                 }
 
@@ -5231,11 +5068,7 @@ impl EditorView {
                     });
                 }
 
-                if let Some(context_model) = &this.context_model {
-                    context_model.update(ctx, |context_model, ctx| {
-                        context_model.append_pending_images(pending_images, ctx);
-                    });
-                }
+                ctx.emit(Event::AttachedImages(pending_images));
 
                 ctx.emit(Event::ProcessingAttachedImages(false));
             },
@@ -5246,28 +5079,9 @@ impl EditorView {
 
     /// Stores non-image files selected via the file picker into the pending files context.
     fn process_non_image_files(&mut self, file_paths: Vec<String>, ctx: &mut ViewContext<Self>) {
-        let attachments: Vec<PendingAttachment> = file_paths
-            .iter()
-            .filter_map(|path_str| {
-                let path = std::path::Path::new(path_str);
-                let file_name = path
-                    .file_name()
-                    .and_then(|n| n.to_str())
-                    .map(|s| s.to_string())?;
-                let mime_type = from_path(path).first_or_octet_stream().to_string();
-                Some(PendingAttachment::File(PendingFile {
-                    file_name,
-                    file_path: path.to_path_buf(),
-                    mime_type,
-                }))
-            })
-            .collect();
-
-        if let Some(context_model) = &self.context_model {
-            context_model.update(ctx, |context_model, ctx| {
-                context_model.append_pending_attachments(attachments, ctx);
-            });
-        }
+        ctx.emit(Event::AttachedFiles(
+            file_paths.into_iter().map(PathBuf::from).collect(),
+        ));
     }
 
     /// Alternate path to Self::user_insert for when Vim mode is enabled. Forwards character
@@ -8067,7 +7881,7 @@ impl EditorView {
     fn render_controls(&self, ctx: &AppContext) -> Option<Box<dyn Element>> {
         let input_settings = InputSettings::as_ref(ctx);
         let is_universal_input_enabled = input_settings.is_universal_developer_input_enabled(ctx);
-        let is_any_ai_enabled = AISettings::as_ref(ctx).is_any_ai_enabled(ctx);
+        let is_any_ai_enabled = AISettings::as_ref(ctx).is_any_ai_enabled();
         let should_show_image = !FeatureFlag::AgentView.is_enabled()
             && self.image_context_options.should_show_button()
             && !is_universal_input_enabled;
@@ -8127,7 +7941,6 @@ impl EditorView {
                 .finish(),
             );
         }
-
 
         Some(controls.finish())
     }
@@ -8242,6 +8055,8 @@ pub enum Event {
     AcceptAIContextMenuItem(AIContextMenuSearchableAction),
     SelectAIContextMenuCategory(AIContextMenuCategory),
     ProcessingAttachedImages(bool),
+    AttachedImages(Vec<AttachedImage>),
+    AttachedFiles(Vec<PathBuf>),
     /// Request parent to process image file paths from drag-and-drop
     DroppedImageFiles(Vec<String>),
     IgnoreAutosuggestion {
@@ -8537,7 +8352,6 @@ impl View for EditorView {
             self.next_command_state(ctx).is_cycling(),
             ctx,
         );
-
 
         let hoverable = Hoverable::new(self.hover_handle.clone(), |_state| editor_element.finish())
             .with_cursor(Cursor::IBeam)

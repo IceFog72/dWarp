@@ -8,7 +8,7 @@ use warpui::elements::{
     ParentElement, ParentOffsetBounds, Radius, Stack,
 };
 
-use crate::ai::agent::conversation::ConversationStatus;
+use crate::terminal::cli_agent_sessions::CLIAgentSessionStatus;
 use crate::terminal::CLIAgent;
 use crate::themes::theme::Fill as ThemeFill;
 
@@ -35,15 +35,10 @@ pub(crate) enum IconWithStatusVariant {
     },
     /// A pre-built icon element on an overlay background.
     NeutralElement { icon_element: Box<dyn Element> },
-    /// An Oz agent icon on the theme background.
-    OzAgent {
-        status: Option<ConversationStatus>,
-        is_ambient: bool,
-    },
     /// A CLI agent icon on the agent's brand color background.
     CLIAgent {
         agent: CLIAgent,
-        status: Option<ConversationStatus>,
+        status: Option<CLIAgentSessionStatus>,
     },
 }
 
@@ -83,34 +78,6 @@ pub(crate) fn render_icon_with_status(
                 )))
                 .finish()
         }
-        IconWithStatusVariant::OzAgent { status, is_ambient } => {
-            let icon = if is_ambient {
-                WarpIcon::OzCloud
-            } else {
-                WarpIcon::Oz
-            };
-            let inner = ConstrainedBox::new(
-                icon.to_warpui_icon(theme.main_text_color(theme.background()))
-                    .finish(),
-            )
-            .with_width(sizing.icon_size)
-            .with_height(sizing.icon_size)
-            .finish();
-            let circle = Container::new(inner)
-                .with_uniform_padding(sizing.padding)
-                .with_background(theme.background())
-                .with_corner_radius(CornerRadius::with_all(Radius::Pixels(
-                    (sizing.icon_size + sizing.padding * 2.) / 2.,
-                )))
-                .finish();
-            render_with_optional_status_badge(
-                circle,
-                status.as_ref(),
-                sizing,
-                theme,
-                badge_ring_background,
-            )
-        }
         IconWithStatusVariant::CLIAgent { agent, status } => {
             let brand_color = agent
                 .brand_color()
@@ -148,7 +115,7 @@ pub(crate) fn render_icon_with_status(
 /// Adds a status badge with a cutout ring to the bottom-right of the circle.
 fn render_with_optional_status_badge(
     circle: Box<dyn Element>,
-    status: Option<&ConversationStatus>,
+    status: Option<&CLIAgentSessionStatus>,
     sizing: &IconWithStatusSizing,
     theme: &WarpTheme,
     badge_ring_background: WarpThemeFill,

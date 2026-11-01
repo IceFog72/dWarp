@@ -69,10 +69,6 @@ pub enum FeatureFlag {
     /// lib will use the user's history as a last-ditch effort to find a reasonable correction.
     CommandCorrectionsHistoryRule,
 
-    /// Used to gate an experiment we're doing on WarpDev ONLY
-    /// to get a sense of PTY throughput over time.
-    RecordPtyThroughput,
-
     /// Whether to fetch generic string objects from the server.
     FetchGenericStringObjects,
 
@@ -266,9 +262,6 @@ pub enum FeatureFlag {
     /// Enables prediction of Agent Mode queries.
     PredictAMQueries,
 
-    /// Enables full source code embedding of repos when using codebase context.
-    FullSourceCodeEmbedding,
-
     /// If enabled, command palette searches will use Tantivy search instead of the default fuzzy search.
     UseTantivySearch,
 
@@ -304,9 +297,6 @@ pub enum FeatureFlag {
     /// Enables cross-repo codebase context.
     CrossRepoContext,
 
-    /// Persist codebase indices to disk.
-    CodebaseIndexPersistence,
-
     /// Enables the AI context menu, or at-menu.
     AIContextMenuEnabled,
 
@@ -318,9 +308,6 @@ pub enum FeatureFlag {
 
     /// Enables the agent to decide whether to execute a command.
     AgentDecidesCommandExecution,
-
-    /// Show speed bump when enabling codebase indexing.
-    CodebaseIndexSpeedbump,
 
     /// Enables inline review comments on specific lines of code.
     ContextLineReviewComments,
@@ -891,9 +878,6 @@ pub const DOGFOOD_FLAGS: &[FeatureFlag] = &[
     // These are enabled via 100% experiment on prod warp-server,
     // but we need to enable here for dogfood builds.
     FeatureFlag::CrossRepoContext,
-    FeatureFlag::CodebaseIndexPersistence,
-    FeatureFlag::FullSourceCodeEmbedding,
-    FeatureFlag::CodebaseIndexSpeedbump,
     // End manually enabled Code features.
     FeatureFlag::DirectoryTabColors,
     FeatureFlag::EditableMarkdownMermaid,

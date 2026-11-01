@@ -108,10 +108,6 @@ impl CrashRecoveryProcess {
                     "Failed to render a frame {NUM_DRAW_ERRORS_BEFORE_EXITING} times in a row; exiting..."
                 );
 
-            // Uninitialize sentry (ensuring any remaining events get flushed) before hard exiting.
-            #[cfg(feature = "crash_reporting")]
-            crate::crash_reporting::uninit_sentry();
-
             std::process::exit(1);
         }
     }
@@ -223,7 +219,6 @@ impl CrashRecovery {
                 let user_preferences = ctx.private_user_preferences();
                 let launch_mode = crate::LaunchMode::App {
                     args: warp_cli::AppArgs::default(),
-                    api_key: None,
                 };
                 crate::crash_recovery::CrashRecovery::new(&launch_mode, user_preferences)
             })

@@ -1,13 +1,15 @@
 use std::borrow::Cow;
 use std::sync::Arc;
 
-use crate::ai::agent::ProgrammingLanguage;
-use crate::ai::blocklist::code_block::{render_runnable_code_snippet, CodeSnippetButtonHandles};
 use crate::appearance::Appearance;
 use crate::terminal::model::terminal_model::SubshellInitializationInfo;
 use crate::terminal::shell::{Shell, ShellType};
 use crate::ui_components::blended_colors;
 use crate::ui_components::icons::Icon as UiIcon;
+use crate::ui_components::inline_action::code_block::{
+    render_runnable_code_snippet, CodeSnippetButtonHandles,
+};
+use crate::ui_components::inline_action::ProgrammingLanguage;
 use crate::workspace::WorkspaceAction;
 use channel_versions::overrides::TargetOS;
 use parking_lot::RwLock;

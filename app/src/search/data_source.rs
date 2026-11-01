@@ -29,14 +29,6 @@ lazy_static! {
         primary_text: "prompts:",
         aliases: vec!["p:"]
     };
-    static ref NOTEBOOKS_FILTER_ATOM: FilterAtom = FilterAtom {
-        primary_text: "notebooks:",
-        aliases: vec!["n:"]
-    };
-    static ref PLANS_FILTER_ATOM: FilterAtom = FilterAtom {
-        primary_text: "plans:",
-        aliases: vec![]
-    };
     static ref NATURAL_LANGUAGE_FILTER_ATOM: FilterAtom = FilterAtom {
         primary_text: "#",
         aliases: vec![]
@@ -45,24 +37,12 @@ lazy_static! {
         primary_text: "actions:",
         aliases: vec![]
     };
-    static ref DRIVE_FILTER_ATOM: FilterAtom = FilterAtom {
-        primary_text: "drive:",
-        aliases: vec![]
-    };
     static ref SESSIONS_FILTER_ATOM: FilterAtom = FilterAtom {
         primary_text: "sessions:",
         aliases: vec![]
     };
-    static ref CONVERSATIONS_FILTER_ATOM: FilterAtom = FilterAtom {
-        primary_text: "conversations:",
-        aliases: vec![]
-    };
     static ref LAUNCH_CONFIG_FILTER_ATOM: FilterAtom = FilterAtom {
         primary_text: "launch_configs:",
-        aliases: vec![]
-    };
-    static ref ENV_VARS_FILTER_ATOM: FilterAtom = FilterAtom {
-        primary_text: "env_vars:",
         aliases: vec![]
     };
     static ref AI_PROMPTS_FILTER_ATOM: FilterAtom = FilterAtom {
@@ -156,12 +136,6 @@ pub enum QueryFilter {
     /// Only include agent mode workflows (prompts) from WorkflowsDataSource.
     AgentModeWorkflows,
 
-    /// Only include results from NotebooksDataSource.
-    Notebooks,
-
-    /// Only include results from PlansDataSource.
-    Plans,
-
     /// Only include the Natural Language (AI) command search result.
     NaturalLanguage,
 
@@ -171,20 +145,8 @@ pub enum QueryFilter {
     /// Filter results for open sessions.
     Sessions,
 
-    /// Filter results for all conversations.
-    Conversations,
-
-    /// Filter results for only historical conversations. Used in the "View All" palette on new tabs
-    HistoricalConversations,
-
     /// Filter results for launch configurations.
     LaunchConfigurations,
-
-    /// Filter for objects in Warp Drive
-    Drive,
-
-    /// Filter results for environment variables.
-    EnvironmentVariables,
 
     /// Filter results for historical AI history.
     PromptHistory,
@@ -217,15 +179,6 @@ pub enum QueryFilter {
 
     /// Filter results for skills (used for browsing skills).
     Skills,
-
-    /// Filter results for base agent models in the inline model selector.
-    BaseModels,
-
-    /// Filter results for full terminal use (CLI) models in the inline model selector.
-    FullTerminalUseModels,
-
-    /// Include only conversations whose most recent directory matches the session's current working directory.
-    CurrentDirectoryConversations,
 }
 
 impl QueryFilter {
@@ -243,21 +196,11 @@ impl QueryFilter {
             QueryFilter::AgentModeWorkflows => {
                 crate::t!("search-filter-placeholder-agent-mode-workflows")
             }
-            QueryFilter::Notebooks => crate::t!("search-filter-placeholder-notebooks"),
-            QueryFilter::Plans => crate::t!("search-filter-placeholder-plans"),
             QueryFilter::NaturalLanguage => crate::t!("search-filter-placeholder-natural-language"),
             QueryFilter::Actions => crate::t!("search-filter-placeholder-actions"),
             QueryFilter::Sessions => crate::t!("search-filter-placeholder-sessions"),
-            QueryFilter::Conversations => crate::t!("search-filter-placeholder-conversations"),
-            QueryFilter::HistoricalConversations => {
-                crate::t!("search-filter-placeholder-historical-conversations")
-            }
             QueryFilter::LaunchConfigurations => {
                 crate::t!("search-filter-placeholder-launch-configurations")
-            }
-            QueryFilter::Drive => crate::t!("search-filter-placeholder-drive"),
-            QueryFilter::EnvironmentVariables => {
-                crate::t!("search-filter-placeholder-environment-variables")
             }
             QueryFilter::PromptHistory => crate::t!("search-filter-placeholder-prompt-history"),
             QueryFilter::Files => crate::t!("search-filter-placeholder-files"),
@@ -272,13 +215,6 @@ impl QueryFilter {
                 crate::t!("search-filter-placeholder-static-slash-commands")
             }
             QueryFilter::Skills => crate::t!("search-filter-placeholder-skills"),
-            QueryFilter::BaseModels => crate::t!("search-filter-placeholder-base-models"),
-            QueryFilter::FullTerminalUseModels => {
-                crate::t!("search-filter-placeholder-full-terminal-use-models")
-            }
-            QueryFilter::CurrentDirectoryConversations => {
-                crate::t!("search-filter-placeholder-current-directory-conversations")
-            }
         }
     }
 
@@ -288,15 +224,10 @@ impl QueryFilter {
             QueryFilter::History => &HISTORY_FILTER_ATOM,
             QueryFilter::Workflows => &WORKFLOWS_FILTER_ATOM,
             QueryFilter::AgentModeWorkflows => &AGENT_MODE_WORKFLOWS_FILTER_ATOM,
-            QueryFilter::Notebooks => &NOTEBOOKS_FILTER_ATOM,
-            QueryFilter::Plans => &PLANS_FILTER_ATOM,
             QueryFilter::NaturalLanguage => &NATURAL_LANGUAGE_FILTER_ATOM,
             QueryFilter::Actions => &ACTIONS_FILTER_ATOM,
             QueryFilter::Sessions => &SESSIONS_FILTER_ATOM,
-            QueryFilter::Conversations => &CONVERSATIONS_FILTER_ATOM,
             QueryFilter::LaunchConfigurations => &LAUNCH_CONFIG_FILTER_ATOM,
-            QueryFilter::Drive => &DRIVE_FILTER_ATOM,
-            QueryFilter::EnvironmentVariables => &ENV_VARS_FILTER_ATOM,
             QueryFilter::PromptHistory => &AI_PROMPTS_FILTER_ATOM,
             QueryFilter::Files => &FILES_FILTER_ATOM,
             QueryFilter::Commands => &COMMANDS_FILTER_ATOM,
@@ -307,11 +238,7 @@ impl QueryFilter {
             QueryFilter::SshServers => &SSH_SERVERS_FILTER_ATOM,
             QueryFilter::DiffSets => &DIFFSETS_FILTER_ATOM,
             QueryFilter::StaticSlashCommands => &STATIC_SLASH_COMMANDS_FILTER_ATOM,
-            QueryFilter::HistoricalConversations => &NO_FILTER_ATOM,
             QueryFilter::Skills => &NO_FILTER_ATOM,
-            QueryFilter::BaseModels => &NO_FILTER_ATOM,
-            QueryFilter::FullTerminalUseModels => &NO_FILTER_ATOM,
-            QueryFilter::CurrentDirectoryConversations => &NO_FILTER_ATOM,
         }
     }
 
@@ -323,18 +250,11 @@ impl QueryFilter {
             QueryFilter::AgentModeWorkflows => {
                 crate::t!("search-filter-display-agent-mode-workflows")
             }
-            QueryFilter::Notebooks => crate::t!("search-filter-display-notebooks"),
-            QueryFilter::Plans => crate::t!("search-filter-display-plans"),
             QueryFilter::NaturalLanguage => crate::t!("search-filter-display-natural-language"),
             QueryFilter::Actions => crate::t!("search-filter-display-actions"),
             QueryFilter::Sessions => crate::t!("search-filter-display-sessions"),
-            QueryFilter::Conversations => crate::t!("search-filter-display-conversations"),
             QueryFilter::LaunchConfigurations => {
                 crate::t!("search-filter-display-launch-configurations")
-            }
-            QueryFilter::Drive => crate::t!("search-filter-display-drive"),
-            QueryFilter::EnvironmentVariables => {
-                crate::t!("search-filter-display-environment-variables")
             }
             QueryFilter::PromptHistory => crate::t!("search-filter-display-prompt-history"),
             QueryFilter::Files => crate::t!("search-filter-display-files"),
@@ -348,17 +268,7 @@ impl QueryFilter {
             QueryFilter::StaticSlashCommands => {
                 crate::t!("search-filter-display-static-slash-commands")
             }
-            QueryFilter::HistoricalConversations => {
-                crate::t!("search-filter-display-historical-conversations")
-            }
             QueryFilter::Skills => crate::t!("search-filter-display-skills"),
-            QueryFilter::BaseModels => crate::t!("search-filter-display-base-models"),
-            QueryFilter::FullTerminalUseModels => {
-                crate::t!("search-filter-display-full-terminal-use-models")
-            }
-            QueryFilter::CurrentDirectoryConversations => {
-                crate::t!("search-filter-display-current-directory-conversations")
-            }
         }
     }
 
@@ -367,8 +277,6 @@ impl QueryFilter {
         match self {
             QueryFilter::History => Some("bundled/svg/history.svg"),
             QueryFilter::Workflows => Some("bundled/svg/workflow.svg"),
-            QueryFilter::Notebooks => Some("bundled/svg/notebook.svg"),
-            QueryFilter::Plans => Some("bundled/svg/compass-3.svg"),
             QueryFilter::NaturalLanguage => {
                 if !FeatureFlag::AgentMode.is_enabled() {
                     Some(Icon::AiAssistant.into())
@@ -378,12 +286,7 @@ impl QueryFilter {
             }
             QueryFilter::Actions => None,
             QueryFilter::Sessions => Some("bundled/svg/terminal-input.svg"),
-            QueryFilter::Conversations | QueryFilter::HistoricalConversations => {
-                Some("bundled/svg/conversation.svg")
-            }
             QueryFilter::LaunchConfigurations => Some("bundled/svg/navigation.svg"),
-            QueryFilter::Drive => Some("bundled/svg/warp-drive.svg"),
-            QueryFilter::EnvironmentVariables => Some("bundled/svg/env-var-collection.svg"),
             QueryFilter::AgentModeWorkflows | QueryFilter::PromptHistory => {
                 Some(Icon::Prompt.into())
             }
@@ -397,9 +300,6 @@ impl QueryFilter {
             QueryFilter::DiffSets => Some("bundled/svg/diff.svg"),
             QueryFilter::StaticSlashCommands => None,
             QueryFilter::Skills => None,
-            QueryFilter::BaseModels => None,
-            QueryFilter::FullTerminalUseModels => None,
-            QueryFilter::CurrentDirectoryConversations => None,
         }
     }
 }

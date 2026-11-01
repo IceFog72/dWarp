@@ -8,7 +8,7 @@ use pathfinder_geometry::vector::vec2f;
 use serde::{Deserialize, Serialize};
 use std::cmp::max;
 mod package_installers;
-pub(crate) use history::UpArrowHistoryConfig;
+
 pub use view::Event;
 pub use view::TerminalView;
 pub use warp_terminal::shell::{self, ShellLaunchData};
@@ -57,7 +57,6 @@ pub mod mock_terminal_manager;
 pub mod model;
 pub mod model_events;
 pub mod platform;
-pub mod profile_model_selector;
 pub mod prompt;
 pub mod prompt_render_helper;
 pub mod recorder;
@@ -84,6 +83,7 @@ mod writeable_pty;
 pub mod wsl;
 
 pub mod cli_agent;
+pub(crate) mod cli_agent_input;
 pub use cli_agent::CLIAgent;
 pub(crate) mod cli_agent_sessions;
 
@@ -94,10 +94,7 @@ pub use terminal_manager::TerminalManager;
 
 pub use block_list_settings::*;
 pub use secret_regex_updater::CustomSecretRegexUpdater;
-pub use view::{
-    CANCEL_COMMAND_KEYBINDING, TOGGLE_AUTOEXECUTE_MODE_KEYBINDING,
-    TOGGLE_HIDE_CLI_RESPONSES_KEYBINDING, TOGGLE_QUEUE_NEXT_PROMPT_KEYBINDING,
-};
+pub use view::CANCEL_COMMAND_KEYBINDING;
 
 pub use shell_launch_state::ShellLaunchState;
 

@@ -215,7 +215,6 @@ pub struct EditorElement {
     editor_decorator_elements: EditorDecoratorElements,
     local_selection_data: LocalDrawableSelectionData,
     remote_selections_data: HashMap<ReplicaId, RemoteDrawableSelectionData>,
-
 }
 
 impl EditorElement {
@@ -1483,7 +1482,6 @@ impl EditorElement {
             ])
             .finish()
     }
-
 
     /// Takes into account whether or not we're in Vim mode to determine the cursor type.
     fn get_cursor_type(&self) -> CursorDisplayType {

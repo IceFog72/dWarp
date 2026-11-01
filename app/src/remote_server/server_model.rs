@@ -19,11 +19,10 @@ use warp_util::file::FileId;
 use super::proto::{
     client_message, delete_file_response, run_command_response, server_message,
     write_file_response, Abort, Authenticate, ClientMessage, DeleteFile, DeleteFileResponse,
-    DeleteFileSuccess, ErrorCode, ErrorResponse, FailedFileRead, FileContextProto,
-    FileOperationError, Initialize, InitializeResponse, NavigatedToDirectory,
-    NavigatedToDirectoryResponse, ReadFileContextResponse, RunCommandError, RunCommandErrorCode,
-    RunCommandRequest, RunCommandResponse, RunCommandSuccess, ServerMessage, SessionBootstrapped,
-    WriteFile, WriteFileResponse, WriteFileSuccess,
+    DeleteFileSuccess, ErrorCode, ErrorResponse, FileOperationError, Initialize,
+    InitializeResponse, NavigatedToDirectory, NavigatedToDirectoryResponse, RunCommandError,
+    RunCommandErrorCode, RunCommandRequest, RunCommandResponse, RunCommandSuccess, ServerMessage,
+    SessionBootstrapped, WriteFile, WriteFileResponse, WriteFileSuccess,
 };
 
 /// How long the daemon waits with no connections before exiting.
@@ -32,8 +31,6 @@ pub const GRACE_PERIOD: std::time::Duration = std::time::Duration::from_secs(10 
 /// Unique identifier for a connected proxy session in daemon mode.
 pub type ConnectionId = uuid::Uuid;
 use super::protocol::RequestId;
-use crate::ai::agent::FileLocations;
-use crate::ai::blocklist::{read_local_file_context, ReadFileContextResult};
 use crate::terminal::model::session::command_executor::{
     ExecuteCommandOptions, LocalCommandExecutor,
 };
@@ -415,8 +412,12 @@ impl ServerModel {
             Some(client_message::Message::DeleteFile(msg)) => {
                 self.handle_delete_file(msg, &request_id, conn_id, ctx)
             }
-            Some(client_message::Message::ReadFileContext(msg)) => {
-                self.handle_read_file_context(msg, &request_id, conn_id, ctx)
+            // File-context reads served the removed Warp agent.
+            Some(client_message::Message::ReadFileContext(_)) => {
+                HandlerOutcome::Sync(server_message::Message::Error(ErrorResponse {
+                    code: ErrorCode::InvalidRequest.into(),
+                    message: "ReadFileContext is not supported".to_string(),
+                }))
             }
             None => {
                 log::warn!(
@@ -991,122 +992,6 @@ impl ServerModel {
 
         // Response sent asynchronously via the event subscription.
         HandlerOutcome::Async(None)
-    }
-
-    /// Handles `ReadFileContext` by spawning an async batch file read on the
-    /// background executor. Returns `HandlerOutcome::Async` with the spawned
-    /// handle so the request can be cancelled via `Abort`.
-    fn handle_read_file_context(
-        &mut self,
-        msg: super::proto::ReadFileContextRequest,
-        request_id: &RequestId,
-        conn_id: ConnectionId,
-        ctx: &mut ModelContext<Self>,
-    ) -> HandlerOutcome {
-        log::info!(
-            "Handling ReadFileContext ({} files, request_id={request_id})",
-            msg.files.len()
-        );
-
-        let max_file_bytes = msg.max_file_bytes.map(|b| b as usize);
-        let max_batch_bytes = msg.max_batch_bytes.map(|b| b as usize);
-        let file_locations: Vec<FileLocations> = msg
-            .files
-            .into_iter()
-            .map(|f| FileLocations {
-                name: f.path,
-                lines: f
-                    .line_ranges
-                    .into_iter()
-                    .map(|r| r.start as usize..r.end as usize)
-                    .collect(),
-            })
-            .collect();
-        let request_id_for_response = request_id.clone();
-
-        let handle = self.spawn_request_handler(
-            request_id.clone(),
-            async move {
-                read_local_file_context(
-                    &file_locations,
-                    None,
-                    None,
-                    max_file_bytes,
-                    max_batch_bytes,
-                )
-                .await
-            },
-            move |me, result: anyhow::Result<ReadFileContextResult>, _ctx| {
-                let response = match result {
-                    Ok(result) => file_context_result_to_proto(result),
-                    Err(err) => ReadFileContextResponse {
-                        file_contexts: vec![],
-                        failed_files: vec![FailedFileRead {
-                            path: String::new(),
-                            error: Some(FileOperationError {
-                                message: format!("{err:#}"),
-                            }),
-                        }],
-                    },
-                };
-                me.send_server_message(
-                    Some(conn_id),
-                    Some(&request_id_for_response),
-                    server_message::Message::ReadFileContextResponse(response),
-                );
-            },
-            ctx,
-        );
-
-        HandlerOutcome::Async(Some(handle))
-    }
-}
-
-/// Converts a [`ReadFileContextResult`] into its protobuf equivalent.
-fn file_context_result_to_proto(result: ReadFileContextResult) -> ReadFileContextResponse {
-    use crate::ai::agent::AnyFileContent;
-
-    let file_contexts = result
-        .file_contexts
-        .into_iter()
-        .map(|fc| {
-            let content = match fc.content {
-                AnyFileContent::StringContent(text) => {
-                    super::proto::file_context_proto::Content::TextContent(text)
-                }
-                AnyFileContent::BinaryContent(bytes) => {
-                    super::proto::file_context_proto::Content::BinaryContent(bytes)
-                }
-            };
-            let last_modified_epoch_millis = fc
-                .last_modified
-                .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
-                .map(|d| d.as_millis() as u64);
-            FileContextProto {
-                file_name: fc.file_name,
-                content: Some(content),
-                line_range_start: fc.line_range.as_ref().map(|r| r.start as u32),
-                line_range_end: fc.line_range.as_ref().map(|r| r.end as u32),
-                last_modified_epoch_millis,
-                line_count: fc.line_count as u32,
-            }
-        })
-        .collect();
-
-    let failed_files = result
-        .missing_files
-        .into_iter()
-        .map(|path| FailedFileRead {
-            path,
-            error: Some(FileOperationError {
-                message: "File not found or could not be read".to_string(),
-            }),
-        })
-        .collect();
-
-    ReadFileContextResponse {
-        file_contexts,
-        failed_files,
     }
 }
 

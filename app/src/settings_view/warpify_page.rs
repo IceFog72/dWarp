@@ -1,5 +1,3 @@
-use std::cell::RefCell;
-use std::collections::HashMap;
 use std::fmt::Display;
 
 use markdown_parser::{FormattedText, FormattedTextFragment, FormattedTextLine};
@@ -20,23 +18,18 @@ use warpui::{
     ViewContext, ViewHandle,
 };
 
-use crate::terminal::warpify::settings::{
-    EnableSshWarpification, SshExtensionInstallMode, SshExtensionInstallModeSetting,
-    UseSshTmuxWrapper, WarpifySettingsChangedEvent,
-};
+use crate::terminal::warpify::settings::{SshExtensionInstallMode, WarpifySettingsChangedEvent};
 use crate::ui_components::blended_colors;
 use crate::{
     appearance::Appearance,
-    report_if_error, send_telemetry_from_ctx,
-    server::telemetry::TelemetryEvent,
+    report_if_error,
     terminal::warpify::settings::WarpifySettings,
     view_components::{SubmittableTextInput, SubmittableTextInputEvent},
 };
 
 use super::settings_page::{
-    render_body_item, render_dropdown_item, render_page_title, AdditionalInfo, Category,
-    LocalOnlyIconState, MatchData, PageType, SettingsPageEvent, SettingsWidget, ToggleState,
-    HEADER_FONT_SIZE, HEADER_PADDING,
+    render_body_item, render_dropdown_item, render_page_title, AdditionalInfo, Category, MatchData,
+    PageType, SettingsPageEvent, SettingsWidget, ToggleState, HEADER_FONT_SIZE, HEADER_PADDING,
 };
 use super::SettingsSection;
 use super::{
@@ -250,8 +243,6 @@ impl WarpifyPageView {
                 WarpifySettings::handle(ctx).update(ctx, |warpify_settings, ctx| {
                     warpify_settings.add_subshell_command(new_command, ctx);
                 });
-
-                send_telemetry_from_ctx!(TelemetryEvent::AddAddedSubshellCommand, ctx);
             }
             SubmittableTextInputEvent::Escape => ctx.emit(SettingsPageEvent::FocusModal),
         }
@@ -268,8 +259,6 @@ impl WarpifyPageView {
                 WarpifySettings::handle(ctx).update(ctx, |warpify_settings, ctx| {
                     warpify_settings.denylist_subshell_command(new_command, ctx);
                 });
-
-                send_telemetry_from_ctx!(TelemetryEvent::AddDenylistedSubshellCommand, ctx);
             }
             SubmittableTextInputEvent::Escape => ctx.emit(SettingsPageEvent::FocusModal),
         }
@@ -286,29 +275,24 @@ impl WarpifyPageView {
                 WarpifySettings::handle(ctx).update(ctx, |warpify_settings, ctx| {
                     warpify_settings.denylist_ssh_host(new_command, ctx);
                 });
-
-                send_telemetry_from_ctx!(TelemetryEvent::AddDenylistedSshTmuxWrapperHost, ctx);
             }
             SubmittableTextInputEvent::Escape => ctx.emit(SettingsPageEvent::FocusModal),
         }
     }
 
     fn remove_denylisted_command(&self, index: usize, ctx: &mut ViewContext<Self>) {
-        send_telemetry_from_ctx!(TelemetryEvent::RemoveDenylistedSubshellCommand, ctx);
         WarpifySettings::handle(ctx).update(ctx, |warpify, ctx| {
             warpify.remove_denylisted_subshell_command(index, ctx)
         });
     }
 
     fn remove_added_command(&self, index: usize, ctx: &mut ViewContext<Self>) {
-        send_telemetry_from_ctx!(TelemetryEvent::RemoveAddedSubshellCommand, ctx);
         WarpifySettings::handle(ctx).update(ctx, |warpify, ctx| {
             warpify.remove_added_subshell_command(index, ctx)
         });
     }
 
     fn remove_denylisted_ssh_host(&self, index: usize, ctx: &mut ViewContext<Self>) {
-        send_telemetry_from_ctx!(TelemetryEvent::RemoveDenylistedSshTmuxWrapperHost, ctx);
         WarpifySettings::handle(ctx).update(ctx, |warpify, ctx| {
             warpify.remove_denylisted_ssh_host(index, ctx)
         });
@@ -448,12 +432,6 @@ impl TypedActionView for WarpifyPageView {
                     report_if_error!(ssh_settings
                         .enable_ssh_warpification
                         .toggle_and_save_value(ctx));
-                    send_telemetry_from_ctx!(
-                        TelemetryEvent::ToggleSshWarpification {
-                            enabled: *ssh_settings.enable_ssh_warpification.value(),
-                        },
-                        ctx
-                    );
                 });
                 let enabled = *WarpifySettings::as_ref(ctx)
                     .enable_ssh_warpification
@@ -470,12 +448,6 @@ impl TypedActionView for WarpifyPageView {
             ToggleTmuxWarpification => {
                 WarpifySettings::handle(ctx).update(ctx, |ssh_settings, ctx| {
                     report_if_error!(ssh_settings.use_ssh_tmux_wrapper.toggle_and_save_value(ctx));
-                    send_telemetry_from_ctx!(
-                        TelemetryEvent::ToggleSshTmuxWrapper {
-                            enabled: *ssh_settings.use_ssh_tmux_wrapper.value(),
-                        },
-                        ctx
-                    );
                 });
             }
             SetSshExtensionInstallMode(mode) => {
@@ -483,12 +455,6 @@ impl TypedActionView for WarpifyPageView {
                     report_if_error!(warpify_settings
                         .ssh_extension_install_mode
                         .set_value(*mode, ctx));
-                    send_telemetry_from_ctx!(
-                        TelemetryEvent::SetSshExtensionInstallMode {
-                            mode: mode.display_name(),
-                        },
-                        ctx
-                    );
                 });
             }
             WarpifyPageAction::RemoveDenylistedSshHost(index) => {
@@ -655,7 +621,6 @@ struct SSHWidget {
     tmux_warpification_switch_state: SwitchStateHandle,
     enable_ssh_warpification_switch_state: SwitchStateHandle,
     additional_info_mouse_state: MouseStateHandle,
-    local_only_icon_tooltip_states: RefCell<HashMap<String, MouseStateHandle>>,
 }
 
 impl SettingsWidget for SSHWidget {
@@ -691,12 +656,6 @@ impl SettingsWidget for SSHWidget {
                 render_body_item::<WarpifyPageAction>(
                     crate::t!("settings-warpify-enable-ssh"),
                     None,
-                    LocalOnlyIconState::for_setting(
-                        EnableSshWarpification::storage_key(),
-                        EnableSshWarpification::sync_to_cloud(),
-                        &mut self.local_only_icon_tooltip_states.borrow_mut(),
-                        app,
-                    ),
                     ToggleState::Enabled,
                     appearance,
                     ui_builder
@@ -730,12 +689,6 @@ impl SettingsWidget for SSHWidget {
                         &install_ssh_label,
                         Some(&install_ssh_desc),
                         None,
-                        LocalOnlyIconState::for_setting(
-                            SshExtensionInstallModeSetting::storage_key(),
-                            SshExtensionInstallModeSetting::sync_to_cloud(),
-                            &mut self.local_only_icon_tooltip_states.borrow_mut(),
-                            app,
-                        ),
                         label_color_override,
                         &view.ssh_extension_install_mode_dropdown,
                     ))
@@ -761,12 +714,6 @@ impl SettingsWidget for SSHWidget {
                         secondary_text: None,
                         tooltip_override_text: None,
                     }),
-                    LocalOnlyIconState::for_setting(
-                        UseSshTmuxWrapper::storage_key(),
-                        UseSshTmuxWrapper::sync_to_cloud(),
-                        &mut self.local_only_icon_tooltip_states.borrow_mut(),
-                        app,
-                    ),
                     enable_ssh_warpification.into(),
                     appearance,
                     ui_builder

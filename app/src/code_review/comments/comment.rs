@@ -1,6 +1,6 @@
 use crate::{
-    ai::agent::{CurrentHead, DiffBase},
     code::editor::{line::EditorLineLocation, EditorReviewComment},
+    code_review::agent_review::{CurrentHead, DiffBase},
 };
 use chrono::{DateTime, Local};
 use std::fmt::{Display, Formatter};

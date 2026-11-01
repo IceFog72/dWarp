@@ -15,7 +15,7 @@ pub use main_page::{ResourceCenterMainEvent, ResourceCenterMainView};
 mod keybindings_page;
 pub use keybindings_page::KeybindingsView;
 mod section_views;
-pub use section_views::{ChangelogSectionView, ContentSectionView, FeatureSectionView};
+pub use section_views::{ContentSectionView, FeatureSectionView};
 pub mod sections;
 mod view;
 use serde::{Deserialize, Serialize};
@@ -90,9 +90,8 @@ pub enum TipAction {
     AiCommandSearch,
     SaveNewLaunchConfig,
     WarpAI,
-    // This toggles Warp Drive rather than opening it. This enum can't directly be
-    // renamed because we serialize it into the welcome tips.
-    OpenWarpDrive,
+    #[serde(alias = "OpenWarpDrive")]
+    ToggleLeftPanel,
     Changelog,
     // Note that this item has been deprecated from the UI and is not in any section.
     // We are leaving it in this enum to ensure that we don't re-use `Workflows` as a
@@ -112,7 +111,7 @@ impl TipAction {
             TipAction::ThemePicker => "workspace:show_theme_chooser",
             TipAction::SaveNewLaunchConfig => "workspace:open_launch_config_save_modal",
             TipAction::WarpAI => "workspace:toggle_ai_assistant",
-            TipAction::OpenWarpDrive => "workspace:toggle_left_panel",
+            TipAction::ToggleLeftPanel => "workspace:toggle_left_panel",
             // Slash commands are also registered as editable bindings, so callers can look them up here
             // the same way they do regular app actions.
             TipAction::Changelog => "/changelog",
@@ -176,7 +175,6 @@ pub struct ContentItem {
 pub enum Section {
     Feature(FeatureSectionData),
     Content(ContentSectionData),
-    Changelog(),
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]

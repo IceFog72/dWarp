@@ -20,7 +20,6 @@ use crate::code_review::git_status_update::{GitRepoStatusModel, GitStatusMetadat
 #[cfg(windows)]
 use crate::system::SystemInfo;
 use crate::{
-    auth::{auth_manager::AuthManager, AuthStateProvider},
     context_chips::{
         context_chip::{ChipFingerprintInput, Environment},
         prompt::Prompt,
@@ -29,7 +28,7 @@ use crate::{
     features::FeatureFlag,
     menu::MenuItem,
     server::{
-        server_api::ServerApiProvider, telemetry::context_provider::AppTelemetryContextProvider,
+        server_api::ServerApiProvider, telemetry::context_provider::NoopTelemetryContextProvider,
     },
     settings::WarpPromptSeparator,
     terminal::{
@@ -249,13 +248,11 @@ fn test_shell_chip_is_disabled_when_required_executable_is_missing() {
             )
         });
         app.add_singleton_model(|_| ServerApiProvider::new_for_test());
-        app.add_singleton_model(|_| AuthStateProvider::new_for_test());
-        app.add_singleton_model(AppTelemetryContextProvider::new_context_provider);
-        app.add_singleton_model(AuthManager::new_for_test);
+
+        app.add_singleton_model(NoopTelemetryContextProvider::new_context_provider);
         app.add_singleton_model(|_| crate::settings::manager::SettingsManager::default());
         crate::settings::InputSettings::register(&mut app);
         app.update(crate::settings::AISettings::register_and_subscribe_to_events);
-        app.add_singleton_model(crate::workspaces::user_workspaces::UserWorkspaces::default_mock);
         #[cfg(windows)]
         app.add_singleton_model(SystemInfo::new);
 
@@ -266,7 +263,6 @@ fn test_shell_chip_is_disabled_when_required_executable_is_missing() {
                 SessionInfo::new_for_test().with_id(session_id),
                 "test command".to_string(),
                 vec![],
-                None,
                 ctx,
             );
             sessions
@@ -423,13 +419,11 @@ fn test_github_pr_chip_is_disabled_when_github_cli_is_missing() {
             )
         });
         app.add_singleton_model(|_| ServerApiProvider::new_for_test());
-        app.add_singleton_model(|_| AuthStateProvider::new_for_test());
-        app.add_singleton_model(AppTelemetryContextProvider::new_context_provider);
-        app.add_singleton_model(AuthManager::new_for_test);
+
+        app.add_singleton_model(NoopTelemetryContextProvider::new_context_provider);
         app.add_singleton_model(|_| crate::settings::manager::SettingsManager::default());
         crate::settings::InputSettings::register(&mut app);
         app.update(crate::settings::AISettings::register_and_subscribe_to_events);
-        app.add_singleton_model(crate::workspaces::user_workspaces::UserWorkspaces::default_mock);
         #[cfg(windows)]
         app.add_singleton_model(SystemInfo::new);
 
@@ -440,7 +434,6 @@ fn test_github_pr_chip_is_disabled_when_github_cli_is_missing() {
                 SessionInfo::new_for_test().with_id(session_id),
                 "test command".to_string(),
                 vec![],
-                None,
                 ctx,
             );
             sessions
@@ -509,13 +502,11 @@ fn test_github_pr_chip_empty_success_does_not_set_failure_suppression() {
             )
         });
         app.add_singleton_model(|_| ServerApiProvider::new_for_test());
-        app.add_singleton_model(|_| AuthStateProvider::new_for_test());
-        app.add_singleton_model(AppTelemetryContextProvider::new_context_provider);
-        app.add_singleton_model(AuthManager::new_for_test);
+
+        app.add_singleton_model(NoopTelemetryContextProvider::new_context_provider);
         app.add_singleton_model(|_| crate::settings::manager::SettingsManager::default());
         crate::settings::InputSettings::register(&mut app);
         app.update(crate::settings::AISettings::register_and_subscribe_to_events);
-        app.add_singleton_model(crate::workspaces::user_workspaces::UserWorkspaces::default_mock);
         #[cfg(windows)]
         app.add_singleton_model(SystemInfo::new);
 
@@ -529,7 +520,6 @@ fn test_github_pr_chip_empty_success_does_not_set_failure_suppression() {
                 SessionInfo::new_for_test().with_id(session_id),
                 "test command".to_string(),
                 vec![],
-                None,
                 ctx,
             );
             sessions
@@ -603,13 +593,11 @@ fn test_github_pr_chip_revisiting_empty_result_directory_reruns_and_clears_previ
             )
         });
         app.add_singleton_model(|_| ServerApiProvider::new_for_test());
-        app.add_singleton_model(|_| AuthStateProvider::new_for_test());
-        app.add_singleton_model(AppTelemetryContextProvider::new_context_provider);
-        app.add_singleton_model(AuthManager::new_for_test);
+
+        app.add_singleton_model(NoopTelemetryContextProvider::new_context_provider);
         app.add_singleton_model(|_| crate::settings::manager::SettingsManager::default());
         crate::settings::InputSettings::register(&mut app);
         app.update(crate::settings::AISettings::register_and_subscribe_to_events);
-        app.add_singleton_model(crate::workspaces::user_workspaces::UserWorkspaces::default_mock);
         #[cfg(windows)]
         app.add_singleton_model(SystemInfo::new);
 
@@ -625,7 +613,6 @@ fn test_github_pr_chip_revisiting_empty_result_directory_reruns_and_clears_previ
                 SessionInfo::new_for_test().with_id(session_id),
                 "test command".to_string(),
                 vec![],
-                None,
                 ctx,
             );
             sessions
@@ -744,13 +731,11 @@ fn test_github_pr_chip_revisiting_failed_directory_uses_failure_suppression() {
             )
         });
         app.add_singleton_model(|_| ServerApiProvider::new_for_test());
-        app.add_singleton_model(|_| AuthStateProvider::new_for_test());
-        app.add_singleton_model(AppTelemetryContextProvider::new_context_provider);
-        app.add_singleton_model(AuthManager::new_for_test);
+
+        app.add_singleton_model(NoopTelemetryContextProvider::new_context_provider);
         app.add_singleton_model(|_| crate::settings::manager::SettingsManager::default());
         crate::settings::InputSettings::register(&mut app);
         app.update(crate::settings::AISettings::register_and_subscribe_to_events);
-        app.add_singleton_model(crate::workspaces::user_workspaces::UserWorkspaces::default_mock);
         #[cfg(windows)]
         app.add_singleton_model(SystemInfo::new);
 
@@ -765,7 +750,6 @@ fn test_github_pr_chip_revisiting_failed_directory_uses_failure_suppression() {
                 SessionInfo::new_for_test().with_id(session_id),
                 "test command".to_string(),
                 vec![],
-                None,
                 ctx,
             );
             sessions
@@ -887,13 +871,11 @@ fn test_github_pr_chip_transient_failure_retries_with_same_fingerprint() {
             )
         });
         app.add_singleton_model(|_| ServerApiProvider::new_for_test());
-        app.add_singleton_model(|_| AuthStateProvider::new_for_test());
-        app.add_singleton_model(AppTelemetryContextProvider::new_context_provider);
-        app.add_singleton_model(AuthManager::new_for_test);
+
+        app.add_singleton_model(NoopTelemetryContextProvider::new_context_provider);
         app.add_singleton_model(|_| crate::settings::manager::SettingsManager::default());
         crate::settings::InputSettings::register(&mut app);
         app.update(crate::settings::AISettings::register_and_subscribe_to_events);
-        app.add_singleton_model(crate::workspaces::user_workspaces::UserWorkspaces::default_mock);
         #[cfg(windows)]
         app.add_singleton_model(SystemInfo::new);
 
@@ -911,7 +893,6 @@ fn test_github_pr_chip_transient_failure_retries_with_same_fingerprint() {
                 SessionInfo::new_for_test().with_id(session_id),
                 "test command".to_string(),
                 vec![],
-                None,
                 ctx,
             );
             sessions
@@ -1050,15 +1031,13 @@ fn test_disabling_chips() {
             )
         });
         app.add_singleton_model(|_| ServerApiProvider::new_for_test());
-        app.add_singleton_model(|_| AuthStateProvider::new_for_test());
-        app.add_singleton_model(AppTelemetryContextProvider::new_context_provider);
-        app.add_singleton_model(AuthManager::new_for_test);
+
+        app.add_singleton_model(NoopTelemetryContextProvider::new_context_provider);
 
         // Register required singleton models to fix the singleton model error
         app.add_singleton_model(|_| crate::settings::manager::SettingsManager::default());
         crate::settings::InputSettings::register(&mut app);
         app.update(crate::settings::AISettings::register_and_subscribe_to_events);
-        app.add_singleton_model(crate::workspaces::user_workspaces::UserWorkspaces::default_mock);
         #[cfg(windows)]
         app.add_singleton_model(SystemInfo::new);
 
@@ -1070,7 +1049,6 @@ fn test_disabling_chips() {
                 SessionInfo::new_for_test().with_id(session_id),
                 "test command".to_string(),
                 vec![],
-                None,
                 ctx,
             );
             sessions

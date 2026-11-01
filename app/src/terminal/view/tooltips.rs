@@ -165,48 +165,6 @@ impl TerminalView {
                         detail: None,
                     });
                 }
-                SecretTooltip::RichContent {
-                    tooltip,
-                    is_agent_mode,
-                } => {
-                    let tooltip_info = tooltip;
-                    // Position the tooltip above the first cell in the secret.
-                    element_id = tooltip_info.position_id.to_owned();
-                    is_agent_conversation = *is_agent_mode;
-
-                    if matches!(get_secret_obfuscation_mode(app), ObfuscateSecrets::Yes) {
-                        let is_obfuscated = tooltip_info.is_obfuscated;
-
-                        if is_obfuscated {
-                            links.push(GridTooltipLink {
-                                text: "Reveal secret".to_string(),
-                                action: TerminalAction::ToggleRichContentSecret {
-                                    rich_content_tooltip_info: tooltip_info.clone(),
-                                    show_secret: true,
-                                },
-                                mouse_state: self.mouse_states.toggle_secrets_tooltip.clone(),
-                                detail: None,
-                            });
-                        } else {
-                            links.push(GridTooltipLink {
-                                text: "Hide secret".to_string(),
-                                action: TerminalAction::ToggleRichContentSecret {
-                                    rich_content_tooltip_info: tooltip_info.clone(),
-                                    show_secret: false,
-                                },
-                                mouse_state: self.mouse_states.toggle_secrets_tooltip.clone(),
-                                detail: None,
-                            })
-                        }
-                    }
-
-                    links.push(GridTooltipLink {
-                        text: "Copy secret".to_string(),
-                        action: TerminalAction::CopyRichContentSecret(tooltip_info.clone()),
-                        mouse_state: self.mouse_states.copy_secrets_tooltip.clone(),
-                        detail: None,
-                    });
-                }
             }
         }
 
@@ -298,7 +256,6 @@ impl TerminalView {
                         .secret_from_handle(tooltip)
                         .map(|secret| secret.secret_level())
                 }
-                SecretTooltip::RichContent { tooltip, .. } => Some(tooltip.secret_level),
             }
         });
 
@@ -314,7 +271,7 @@ impl TerminalView {
             (_, _, _) => TooltipRedaction::NoRedaction,
         };
         stack.add_positioned_overlay_child(
-            render_tooltip(links, redaction, appearance, app),
+            render_tooltip(links, redaction, appearance),
             OffsetPositioning::offset_from_save_position_element(
                 element_id,
                 // Add a small buffer between the tooltip and the top of the cell.
@@ -331,7 +288,6 @@ fn render_tooltip(
     tooltip_links: impl IntoIterator<Item = GridTooltipLink>,
     redaction: TooltipRedaction,
     appearance: &Appearance,
-    app: &AppContext,
 ) -> Box<dyn Element> {
     // Convert GridTooltipLink to shared TooltipLink
     let shared_links = tooltip_links.into_iter().map(|link| {
@@ -347,7 +303,7 @@ fn render_tooltip(
     });
 
     let tooltip_content =
-        crate::util::tooltips::render_tooltip(shared_links, redaction, appearance, app);
+        crate::util::tooltips::render_tooltip(shared_links, redaction, appearance);
 
     Dismiss::new(tooltip_content)
         .on_dismiss(|ctx, _app| {

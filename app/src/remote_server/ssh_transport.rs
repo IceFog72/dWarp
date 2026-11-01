@@ -191,28 +191,8 @@ impl RemoteTransport for SshTransport {
     }
 
     fn install_binary(&self) -> Pin<Box<dyn Future<Output = Result<(), String>> + Send>> {
-        let socket_path = self.socket_path.clone();
-        Box::pin(async move {
-            let script = remote_server::setup::install_script();
-            log::info!(
-                "Installing remote server binary to {}",
-                remote_server::setup::remote_server_binary()
-            );
-            match remote_server::ssh::run_ssh_script(
-                &socket_path,
-                &script,
-                remote_server::setup::INSTALL_TIMEOUT,
-            )
-            .await
-            {
-                Ok(output) if output.status.success() => Ok(()),
-                Ok(output) => {
-                    let code = output.status.code().unwrap_or(-1);
-                    let stderr = String::from_utf8_lossy(&output.stderr);
-                    Err(format!("install script failed (exit {code}): {stderr}"))
-                }
-                Err(e) => Err(format!("{e:#}")),
-            }
+        Box::pin(async {
+            Err("Deploy the OpenWarp remote server with script/deploy_remote_server before connecting.".to_owned())
         })
     }
 

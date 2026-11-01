@@ -3,38 +3,25 @@ use core::fmt::{self, Display};
 use itertools::Itertools as _;
 use pathfinder_color::ColorU;
 use std::borrow::Cow;
-use std::collections::HashMap;
 
 use super::{
     about_page::AboutPageView,
     ai_page::{AISettingsPageAction, AISettingsPageView},
     appearance_page::AppearanceSettingsPageView,
     code_page::CodeSettingsPageView,
-    environments_page::EnvironmentsPageView,
     features_page::FeaturesPageView,
     keybindings::KeybindingsView,
-    main_page::MainSettingsPageView,
-    mcp_servers_page::MCPServersSettingsPageView,
-    privacy_page::PrivacyPageView,
-    referrals_page::ReferralsPageView,
-    show_blocks_view::ShowBlocksView,
-    teams_page::TeamsPageView,
-    warp_drive_page::WarpDriveSettingsPageView,
     warpify_page::WarpifyPageView,
     SettingsSection,
 };
 use crate::{
     appearance::Appearance,
-    settings::CloudPreferencesSettings,
     themes::theme::Fill,
     ui_components::icons::Icon,
     view_components::{Dropdown, SubmittableTextInput},
 };
 use settings::Setting;
-use warp_core::{
-    settings::SyncToCloud,
-    ui::{color::blend::Blend, theme::color::internal_colors},
-};
+use warp_core::ui::{color::blend::Blend, theme::color::internal_colors};
 use warpui::{
     elements::{
         new_scrollable::{ClippedAxisConfiguration, DualAxisConfig, SingleAxisConfig},
@@ -102,51 +89,27 @@ pub trait SettingsPageMeta {
 /// It is required to allow for SettingsPage struct be put in the collection (ie. vector).
 #[derive(Clone)]
 pub enum SettingsPageViewHandle {
-    Main(ViewHandle<MainSettingsPageView>),
     Appearance(ViewHandle<AppearanceSettingsPageView>),
     Features(ViewHandle<FeaturesPageView>),
-    SharedBlocks(ViewHandle<ShowBlocksView>),
     Keybindings(ViewHandle<KeybindingsView>),
     About(ViewHandle<AboutPageView>),
     Code(ViewHandle<CodeSettingsPageView>),
-    Teams(ViewHandle<TeamsPageView>),
-    OzCloudAPIKeys(ViewHandle<super::platform_page::PlatformPageView>),
-    Privacy(ViewHandle<PrivacyPageView>),
     Warpify(ViewHandle<WarpifyPageView>),
-    Referrals(ViewHandle<ReferralsPageView>),
     AI(ViewHandle<AISettingsPageView>),
-    CloudEnvironments(ViewHandle<EnvironmentsPageView>),
-    MCPServers(ViewHandle<MCPServersSettingsPageView>),
-    WarpDrive(ViewHandle<WarpDriveSettingsPageView>),
 }
 
 impl SettingsPageViewHandle {
     pub fn child_view(&self) -> Box<dyn Element> {
         use SettingsPageViewHandle::*;
         match self {
-            Main(view_handle) => ChildView::new(view_handle).finish(),
             Appearance(view_handle) => ChildView::new(view_handle).finish(),
             Features(view_handle) => ChildView::new(view_handle).finish(),
-            SharedBlocks(view_handle) => ChildView::new(view_handle).finish(),
             Keybindings(view_handle) => ChildView::new(view_handle).finish(),
             About(view_handle) => ChildView::new(view_handle).finish(),
             Code(view_handle) => ChildView::new(view_handle).finish(),
-            Teams(view_handle) => ChildView::new(view_handle).finish(),
-            OzCloudAPIKeys(view_handle) => ChildView::new(view_handle).finish(),
-            Privacy(view_handle) => ChildView::new(view_handle).finish(),
             Warpify(view_handle) => ChildView::new(view_handle).finish(),
-            Referrals(view_handle) => ChildView::new(view_handle).finish(),
             AI(view_handle) => ChildView::new(view_handle).finish(),
-            CloudEnvironments(view_handle) => ChildView::new(view_handle).finish(),
-            MCPServers(view_handle) => ChildView::new(view_handle).finish(),
-            WarpDrive(view_handle) => ChildView::new(view_handle).finish(),
         }
-    }
-}
-
-impl From<ViewHandle<MCPServersSettingsPageView>> for SettingsPageViewHandle {
-    fn from(view_handle: ViewHandle<MCPServersSettingsPageView>) -> Self {
-        SettingsPageViewHandle::MCPServers(view_handle)
     }
 }
 
@@ -239,9 +202,8 @@ pub fn render_customer_type_badge(appearance: &Appearance, text: String) -> Box<
 pub fn render_sub_header(
     appearance: &Appearance,
     text_name: impl Into<Cow<'static, str>>,
-    local_only_icon_state: Option<LocalOnlyIconState>,
 ) -> Box<dyn Element> {
-    let mut sub_header = Flex::row()
+    let sub_header = Flex::row()
         .with_cross_axis_alignment(CrossAxisAlignment::Start)
         .with_child(
             Shrinkable::new(
@@ -252,21 +214,7 @@ pub fn render_sub_header(
             )
             .finish(),
         );
-    if let Some(LocalOnlyIconState::Visible {
-        mouse_state,
-        custom_tooltip,
-    }) = local_only_icon_state
-    {
-        sub_header.add_child(
-            Container::new(render_local_only_icon(
-                appearance,
-                mouse_state,
-                custom_tooltip,
-            ))
-            .with_padding_top(3.)
-            .finish(),
-        );
-    }
+
     sub_header.finish()
 }
 
@@ -317,9 +265,8 @@ pub fn render_sub_header_with_description(
 pub fn render_sub_sub_header(
     appearance: &Appearance,
     text_name: impl Into<Cow<'static, str>>,
-    local_only_icon_state: Option<LocalOnlyIconState>,
 ) -> Box<dyn Element> {
-    let mut sub_sub_header = Flex::row().with_child(
+    let sub_sub_header = Flex::row().with_child(
         Container::new(
             Align::new(
                 Text::new_inline(text_name, appearance.ui_font_family(), CONTENT_FONT_SIZE)
@@ -333,17 +280,7 @@ pub fn render_sub_sub_header(
         .with_padding_bottom(4.)
         .finish(),
     );
-    if let Some(LocalOnlyIconState::Visible {
-        mouse_state,
-        custom_tooltip,
-    }) = local_only_icon_state
-    {
-        sub_sub_header.add_child(render_local_only_icon(
-            appearance,
-            mouse_state.clone(),
-            custom_tooltip,
-        ));
-    }
+
     sub_sub_header.finish()
 }
 
@@ -487,61 +424,6 @@ impl From<bool> for ToggleState {
     }
 }
 
-/// Whether to show an icon indicating a setting is not cloud-synced
-#[derive(Default, Clone)]
-pub enum LocalOnlyIconState {
-    #[default]
-    Hidden,
-    Visible {
-        mouse_state: MouseStateHandle,
-        custom_tooltip: Option<String>,
-    },
-}
-
-impl LocalOnlyIconState {
-    /// Creates a `LocalOnlyIconState` for a given setting.
-    ///
-    /// This function determines whether to show an icon indicating that a setting
-    /// is not cloud-synced based on the `SyncToCloud` value of the setting.
-    ///
-    /// # Arguments
-    ///
-    /// * `storage_key` - A string slice that holds the storage key for the setting.
-    /// * `sync_to_cloud` - The `SyncToCloud` value for the setting.
-    /// * `mouse_states` - A mutable reference to a `HashMap` storing `MouseStateHandle`s.
-    ///
-    /// # Returns
-    ///
-    /// Returns a `LocalOnlyIconState` enum variant:
-    /// - `LocalOnlyIconState::Visible` with a `MouseStateHandle` if the setting is never synced to cloud.
-    /// - `LocalOnlyIconState::Hidden` if the setting is synced to cloud.
-    pub fn for_setting(
-        storage_key: &str,
-        sync_to_cloud: SyncToCloud,
-        mouse_states: &mut HashMap<String, MouseStateHandle>,
-        app: &AppContext,
-    ) -> Self {
-        if !*CloudPreferencesSettings::as_ref(app).settings_sync_enabled {
-            // Only show the local-only icon if settings sync is enabled.
-            return Self::Hidden;
-        }
-
-        match sync_to_cloud {
-            SyncToCloud::Never => {
-                let mouse_state = mouse_states
-                    .entry(storage_key.to_string())
-                    .or_default()
-                    .clone();
-                Self::Visible {
-                    mouse_state,
-                    custom_tooltip: None,
-                }
-            }
-            _ => Self::Hidden,
-        }
-    }
-}
-
 pub fn render_info_icon<T: Clone + Action>(
     appearance: &Appearance,
     additional_info: AdditionalInfo<T>,
@@ -569,32 +451,11 @@ pub fn render_info_icon<T: Clone + Action>(
         .finish()
 }
 
-pub fn render_local_only_icon(
-    appearance: &Appearance,
-    mouse_state: MouseStateHandle,
-    custom_tooltip: Option<String>,
-) -> Box<dyn Element> {
-    let info_button = appearance
-        .ui_builder()
-        .local_only_icon_with_tooltip(
-            13.,
-            custom_tooltip.unwrap_or_else(|| crate::t!("settings-page-local-only-icon-tooltip")),
-            mouse_state.clone(),
-        )
-        .finish();
-
-    Container::new(info_button)
-        .with_margin_left(4.)
-        // Since the icon is smaller than the font, we need some margin to be in alignment.
-        .with_margin_top(1.5)
-        .finish()
-}
-
 pub fn render_body_item_label<T: Clone + Action>(
     label_text: String,
     label_color_override: Option<Fill>,
     additional_info: Option<AdditionalInfo<T>>,
-    local_only_icon_state: LocalOnlyIconState,
+
     toggle_state: ToggleState,
     appearance: &Appearance,
 ) -> Box<dyn Element> {
@@ -603,7 +464,6 @@ pub fn render_body_item_label<T: Clone + Action>(
         None,
         label_color_override,
         additional_info,
-        local_only_icon_state,
         toggle_state,
         appearance,
     )
@@ -614,7 +474,7 @@ pub fn render_body_item_label_with_icon<T: Clone + Action>(
     icon: Icon,
     label_color_override: Option<Fill>,
     additional_info: Option<AdditionalInfo<T>>,
-    local_only_icon_state: LocalOnlyIconState,
+
     toggle_state: ToggleState,
     appearance: &Appearance,
 ) -> Box<dyn Element> {
@@ -623,7 +483,6 @@ pub fn render_body_item_label_with_icon<T: Clone + Action>(
         Some(icon),
         label_color_override,
         additional_info,
-        local_only_icon_state,
         toggle_state,
         appearance,
     )
@@ -634,7 +493,7 @@ pub fn render_body_item_label_internal<T: Clone + Action>(
     label_icon: Option<Icon>,
     label_color_override: Option<Fill>,
     additional_info: Option<AdditionalInfo<T>>,
-    local_only_icon_state: LocalOnlyIconState,
+
     toggle_state: ToggleState,
     appearance: &Appearance,
 ) -> Box<dyn Element> {
@@ -696,35 +555,11 @@ pub fn render_body_item_label_internal<T: Clone + Action>(
             .with_cross_axis_alignment(CrossAxisAlignment::Center)
             .with_child(label)
             .with_child(render_info_icon(appearance, additional_info));
-        if let LocalOnlyIconState::Visible {
-            mouse_state,
-            custom_tooltip,
-        } = local_only_icon_state
-        {
-            row.add_child(render_local_only_icon(
-                appearance,
-                mouse_state,
-                custom_tooltip,
-            ));
-        }
+
         if let Some(child) = secondary_text_child {
             row.add_child(child);
         }
         row.finish()
-    } else if let LocalOnlyIconState::Visible {
-        mouse_state,
-        custom_tooltip,
-    } = local_only_icon_state
-    {
-        Flex::row()
-            .with_cross_axis_alignment(CrossAxisAlignment::Center)
-            .with_child(label)
-            .with_child(render_local_only_icon(
-                appearance,
-                mouse_state,
-                custom_tooltip,
-            ))
-            .finish()
     } else {
         label
     }
@@ -750,21 +585,14 @@ pub fn render_page_title(text: &str, size: f32, appearance: &Appearance) -> Box<
 pub fn render_body_item<T: Clone + Action>(
     label_text: String,
     additional_info: Option<AdditionalInfo<T>>,
-    local_only_icon_state: LocalOnlyIconState,
+
     toggle_state: ToggleState,
     appearance: &Appearance,
     child_element: Box<dyn Element>,
     description_text: Option<String>,
 ) -> Box<dyn Element> {
     build_toggle_element(
-        render_body_item_label(
-            label_text,
-            None,
-            additional_info,
-            local_only_icon_state,
-            toggle_state,
-            appearance,
-        ),
+        render_body_item_label(label_text, None, additional_info, toggle_state, appearance),
         child_element,
         appearance,
         description_text,
@@ -832,7 +660,7 @@ pub fn build_toggle_element(
 pub fn render_dropdown_item_label(
     label_text: String,
     secondary_text: Option<String>,
-    local_only_icon_state: LocalOnlyIconState,
+
     color_override: Option<Fill>,
     appearance: &Appearance,
 ) -> Box<dyn Element> {
@@ -872,23 +700,7 @@ pub fn render_dropdown_item_label(
         label
     };
 
-    if let LocalOnlyIconState::Visible {
-        mouse_state,
-        custom_tooltip,
-    } = local_only_icon_state
-    {
-        Flex::row()
-            .with_cross_axis_alignment(CrossAxisAlignment::Start)
-            .with_child(Shrinkable::new(1.0, label).finish())
-            .with_child(render_local_only_icon(
-                appearance,
-                mouse_state,
-                custom_tooltip,
-            ))
-            .finish()
-    } else {
-        label
-    }
+    label
 }
 
 pub(crate) fn render_dropdown_item<T: Clone + Action>(
@@ -896,7 +708,7 @@ pub(crate) fn render_dropdown_item<T: Clone + Action>(
     label: &str,
     secondary_text: Option<&str>,
     dropdown_subtext: Option<Box<dyn Element>>,
-    local_only_icon_state: LocalOnlyIconState,
+
     color_override: Option<Fill>,
     handle: &ViewHandle<Dropdown<T>>,
 ) -> Box<dyn Element> {
@@ -905,7 +717,6 @@ pub(crate) fn render_dropdown_item<T: Clone + Action>(
     let dropdown_item_label = Align::new(render_dropdown_item_label(
         label.to_string(),
         secondary_text.map(|secondary_text| secondary_text.to_string()),
-        local_only_icon_state,
         color_override,
         appearance,
     ))
@@ -1676,7 +1487,7 @@ impl<V: warpui::View> PageType<V> {
                                 subtitle,
                             ));
                         } else {
-                            page.add_child(render_sub_header(appearance, category.title, None));
+                            page.add_child(render_sub_header(appearance, category.title));
                         }
                     }
                     for widget in &category.widgets {

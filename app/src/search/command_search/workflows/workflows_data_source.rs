@@ -12,7 +12,7 @@ use crate::workflows::workflow::Workflow;
 use crate::workflows::{WorkflowSource, WorkflowType};
 use warpui::SingletonEntity;
 
-use super::{WorkflowIdentity, WorkflowSearchItem};
+use super::WorkflowSearchItem;
 use crate::search::command_search::searcher::CommandSearchItemAction;
 use crate::search::data_source::{Query, QueryResult};
 use crate::search::mixer::{DataSourceRunErrorWrapper, SyncDataSource};
@@ -101,9 +101,7 @@ impl SyncDataSource for WorkflowsDataSource {
                         FuzzyMatchWorkflowResult::try_match(query_str, &workflow, "").map(
                             |match_result| {
                                 WorkflowSearchItem {
-                                    identity: WorkflowIdentity::Local(Box::new(
-                                        WorkflowType::Local(workflow),
-                                    )),
+                                    workflow: Box::new(WorkflowType::Local(workflow)),
                                     source,
                                     fuzzy_matched_workflow: match_result,
                                 }

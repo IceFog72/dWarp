@@ -12,10 +12,6 @@ pub struct ChannelConfig {
     /// The name of the file to which logs should be written.
     pub logfile_name: Cow<'static, str>,
 
-    /// Configuration for talking to Warp's servers.
-    pub server_config: WarpServerConfig,
-    /// Configuration for Oz/ambient agents.
-    pub oz_config: OzConfig,
     /// Configuration for telemetry sending, or [`None`] if telemetry should be
     /// disabled for this build.
     pub telemetry_config: Option<TelemetryConfig>,
@@ -25,50 +21,6 @@ pub struct ChannelConfig {
     pub crash_reporting_config: Option<CrashReportingConfig>,
     /// Configuration for statically-bundled MCP OAuth credentials.
     pub mcp_static_config: Option<McpStaticConfig>,
-}
-
-#[derive(Debug, Deserialize, Serialize)]
-pub struct WarpServerConfig {
-    /// The root URL for the standard server pool.
-    pub server_root_url: Cow<'static, str>,
-    /// The URL for the RTC server, which serves real-time updates for Warp Drive objects.
-    pub rtc_server_url: Cow<'static, str>,
-    /// The URL for the session sharing server, or [`None`] if session sharing is not
-    /// supported.
-    pub session_sharing_server_url: Option<Cow<'static, str>>,
-    /// The API key to use when making requests to Firebase Authentication endpoints.
-    pub firebase_auth_api_key: Cow<'static, str>,
-}
-
-impl WarpServerConfig {
-    pub fn production() -> Self {
-        Self {
-            server_root_url: "https://app.warp.dev".into(),
-            rtc_server_url: "wss://rtc.app.warp.dev/graphql/v2".into(),
-            session_sharing_server_url: Some("wss://sessions.app.warp.dev".into()),
-            firebase_auth_api_key: "AIzaSyBdy3O3S9hrdayLJxJ7mriBR4qgUaUygAs".into(),
-        }
-    }
-}
-
-#[derive(Debug, Deserialize, Serialize)]
-pub struct OzConfig {
-    /// Root URL for the Oz (ambient agent management) dashboard.
-    pub oz_root_url: Cow<'static, str>,
-
-    /// URL to use as the audience when issuing workload identity tokens. If [`None`], falls back
-    /// to [`WarpServerConfig::server_root_url`]. This exists so the audience is not overridden
-    /// when a custom server root URL is provided (e.g. an ngrok URL for local development).
-    pub workload_audience_url: Option<Cow<'static, str>>,
-}
-
-impl OzConfig {
-    pub fn production() -> Self {
-        Self {
-            oz_root_url: "https://oz.warp.dev".into(),
-            workload_audience_url: None,
-        }
-    }
 }
 
 #[derive(Debug, Deserialize, Serialize)]

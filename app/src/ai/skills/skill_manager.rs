@@ -1,6 +1,5 @@
 #[path = "file_watchers/mod.rs"]
 mod file_watchers;
-use crate::ai::mcp::{McpIntegration, TemplatableMCPServerManager};
 pub use file_watchers::{extract_skill_parent_directory, SkillWatcher, SkillWatcherEvent};
 
 use std::{
@@ -26,19 +25,14 @@ use warpui::{AppContext, Entity, ModelContext, ModelHandle, SingletonEntity};
 pub enum BundledSkillActivation {
     /// Always active.
     Always,
-    /// Active only when a specific MCP server is running.
-    RequiresMcp(McpIntegration),
     /// Active only when a specific file exists on disk.
     RequiresFile(PathBuf),
 }
 
 impl BundledSkillActivation {
-    pub fn is_enabled(&self, ctx: &AppContext) -> bool {
+    pub fn is_enabled(&self) -> bool {
         match self {
             Self::Always => true,
-            Self::RequiresMcp(integration) => {
-                TemplatableMCPServerManager::as_ref(ctx).is_mcp_server_running(*integration)
-            }
             Self::RequiresFile(path) => path.exists(),
         }
     }
@@ -98,9 +92,6 @@ impl SkillManager {
         if FeatureFlag::BundledSkills.is_enabled() {
             ctx.spawn(Self::load_bundled_skills(), |me, result, _| {
                 me.bundled_skills = result;
-            });
-            ctx.spawn(Self::load_figma_skills(), |me, figma_skills, _| {
-                me.bundled_skills.extend(figma_skills);
             });
         }
 
@@ -188,7 +179,7 @@ impl SkillManager {
             skills.extend(
                 self.bundled_skills
                     .iter()
-                    .filter(|(_, bundled)| bundled.activation.is_enabled(ctx))
+                    .filter(|(_, bundled)| bundled.activation.is_enabled())
                     .map(|(id, bundled)| {
                         SkillDescriptor::new_bundled(
                             id.clone(),
@@ -336,12 +327,6 @@ impl SkillManager {
         }
     }
 
-    /// Returns a bundled skill by ID only if its activation condition is met.
-    pub fn active_bundled_skill(&self, id: &str, ctx: &AppContext) -> Option<&ParsedSkill> {
-        let bundled = self.bundled_skills.get(id)?;
-        bundled.activation.is_enabled(ctx).then_some(&bundled.skill)
-    }
-
     fn handle_skill_watcher_event(&mut self, event: SkillWatcherEvent) {
         match event {
             SkillWatcherEvent::SkillsAdded { skills } => {
@@ -439,29 +424,6 @@ impl SkillManager {
             .collect()
     }
 
-    /// Load Figma-specific bundled skills from the `figma/` subdirectory.
-    async fn load_figma_skills() -> HashMap<String, BundledSkill> {
-        let Some(resources_dir) = warp_core::paths::bundled_resources_dir() else {
-            return HashMap::new();
-        };
-        let figma_skills_dir = resources_dir
-            .join("bundled")
-            .join("mcp_skills")
-            .join("figma");
-        read_bundled_skills(&figma_skills_dir)
-            .await
-            .into_iter()
-            .map(|(id, skill)| {
-                let bundled = BundledSkill {
-                    skill,
-                    activation: BundledSkillActivation::RequiresMcp(McpIntegration::Figma),
-                    icon: Icon::Figma,
-                };
-                (id, bundled)
-            })
-            .collect()
-    }
-
     /// Adds a skill to the skill manager for testing purposes.
     #[cfg(test)]
     pub fn add_skill_for_testing(&mut self, skill: ParsedSkill) {
@@ -523,17 +485,12 @@ async fn read_bundled_skills(skills_dir: &Path) -> HashMap<String, ParsedSkill> 
 /// Builds the context map for bundled skill variable substitution.
 ///
 /// Supported variables:
-/// - `{{warp_server_url}}` - The server root URL (e.g., `https://api.warp.dev`)
 /// - `{{warp_cli_binary_name}}` - The CLI binary name (e.g., `warp` or `warp-cli`)
 /// - `{{warp_url_scheme}}` - The URL scheme (e.g., `warp`, `warpdev`, `warppreview`)
 /// - `{{settings_schema_path}}` - Path to the bundled JSON settings schema
 /// - `{{settings_file_path}}` - Path to the user's settings TOML file
 fn build_bundled_skill_context() -> HashMap<String, String> {
     let mut context: HashMap<String, String> = [
-        (
-            "warp_server_url".to_owned(),
-            ChannelState::server_root_url().into_owned(),
-        ),
         (
             "warp_cli_binary_name".to_owned(),
             ChannelState::channel().cli_command_name().to_owned(),

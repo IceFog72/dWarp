@@ -4,28 +4,18 @@
 //! UX, as well as small UX configurations.
 
 use std::collections::HashMap;
-use std::path::PathBuf;
 
 use indexmap::IndexMap;
 
-use crate::ai::request_usage_model::RequestLimitInfo;
-use crate::auth::AuthStateProvider;
 use crate::report_if_error;
 use crate::terminal::CLIAgent;
-use crate::workspaces::user_workspaces::UserWorkspaces;
-use cfg_if::cfg_if;
-use chrono::{DateTime, Utc};
-use lazy_static::lazy_static;
 use regex::Regex;
-use warpui::{
-    AppContext, Entity, ModelContext, SingletonEntity, UpdateModel,
-};
+use warpui::{AppContext, Entity, ModelContext, SingletonEntity, UpdateModel};
 
 use settings::{
     define_settings_group, RespectUserSyncSetting, Setting, SupportedPlatforms, SyncToCloud,
 };
 use warp_core::execution_mode::AppExecutionMode;
-use warp_core::features::FeatureFlag;
 
 use serde::{de::Deserializer, Deserialize, Serialize};
 use strum_macros::EnumIter;
@@ -110,16 +100,9 @@ pub enum DefaultSessionMode {
     /// New sessions start in the terminal mode (default).
     #[default]
     Terminal,
-    /// New sessions start in agent view.
-    Agent,
-    /// New sessions start in cloud (ambient) agent mode.
-    CloudAgent,
     /// New sessions open a user-defined tab config.
     /// The specific config is identified by the companion `default_tab_config_path` setting.
     TabConfig,
-    /// New sessions open in a local Docker sandbox.
-    /// Requires the `LocalDockerSandbox` feature flag; falls back to `Terminal` when disabled.
-    DockerSandbox,
 }
 
 settings::macros::implement_setting_for_enum!(
@@ -137,313 +120,11 @@ impl DefaultSessionMode {
     pub fn display_name(&self) -> &'static str {
         match self {
             DefaultSessionMode::Terminal => "Terminal",
-            DefaultSessionMode::Agent => "Agent",
-            DefaultSessionMode::CloudAgent => "Cloud Oz",
             DefaultSessionMode::TabConfig => "Tab Config",
-            DefaultSessionMode::DockerSandbox => "Local Docker Sandbox",
         }
     }
 }
 
-/// Controls how agent thinking/reasoning traces are displayed after streaming.
-#[derive(
-    Default,
-    Debug,
-    serde::Serialize,
-    serde::Deserialize,
-    PartialEq,
-    Copy,
-    Clone,
-    EnumIter,
-    schemars::JsonSchema,
-    settings_value::SettingsValue,
-)]
-#[schemars(
-    description = "Controls how agent thinking is displayed after streaming.",
-    rename_all = "snake_case"
-)]
-pub enum ThinkingDisplayMode {
-    /// Show reasoning blocks while streaming, then collapse them when complete (default).
-    #[default]
-    ShowAndCollapse,
-    /// Always keep reasoning blocks expanded, even after streaming finishes.
-    AlwaysShow,
-    /// Never show reasoning blocks.
-    NeverShow,
-}
-
-settings::macros::implement_setting_for_enum!(
-    ThinkingDisplayMode,
-    AISettings,
-    SupportedPlatforms::ALL,
-    SyncToCloud::Globally(RespectUserSyncSetting::Yes),
-    private: false,
-    toml_path: "agents.warp_agent.other.thinking_display_mode",
-    description: "Controls how agent thinking traces are displayed after streaming.",
-);
-
-impl ThinkingDisplayMode {
-    /// Display name for the settings dropdown.
-    pub fn display_name(&self) -> &'static str {
-        match self {
-            ThinkingDisplayMode::ShowAndCollapse => "Show & collapse",
-            ThinkingDisplayMode::AlwaysShow => "Always show",
-            ThinkingDisplayMode::NeverShow => "Never show",
-        }
-    }
-
-    pub fn command_palette_description(&self) -> String {
-        match self {
-            ThinkingDisplayMode::ShowAndCollapse => {
-                crate::t!("agent-thinking-display-show-collapse")
-            }
-            ThinkingDisplayMode::AlwaysShow => crate::t!("agent-thinking-display-always-show"),
-            ThinkingDisplayMode::NeverShow => crate::t!("agent-thinking-display-never-show"),
-        }
-    }
-
-    pub fn should_render(&self) -> bool {
-        !matches!(self, ThinkingDisplayMode::NeverShow)
-    }
-
-    pub fn should_keep_expanded(&self) -> bool {
-        matches!(self, ThinkingDisplayMode::AlwaysShow)
-    }
-}
-
-/// Tracks the state of the quota reset banner
-#[derive(
-    Debug,
-    Serialize,
-    Deserialize,
-    Clone,
-    PartialEq,
-    Default,
-    schemars::JsonSchema,
-    settings_value::SettingsValue,
-)]
-#[schemars(description = "State of the quota reset banner.")]
-pub struct BannerState {
-    #[serde(default)]
-    #[schemars(description = "Whether the banner has been dismissed.")]
-    pub dismissed: bool,
-}
-
-/// Tracks information about a single billing cycle for AI request usage
-#[derive(
-    Debug,
-    Serialize,
-    Deserialize,
-    Clone,
-    PartialEq,
-    schemars::JsonSchema,
-    settings_value::SettingsValue,
-)]
-#[schemars(description = "Information about a single billing cycle.")]
-pub struct CycleInfo {
-    /// End date of the billing cycle
-    #[schemars(description = "End date of the billing cycle.")]
-    pub end_date: DateTime<Utc>,
-    /// Whether the quota was exceeded in this cycle
-    #[schemars(description = "Whether the usage quota was exceeded in this cycle.")]
-    pub was_quota_exceeded: bool,
-    /// State of the quota reset banner
-    #[schemars(description = "State of the quota reset banner for this cycle.")]
-    pub banner_state: BannerState,
-}
-
-#[derive(
-    Debug,
-    Serialize,
-    Deserialize,
-    Clone,
-    Default,
-    PartialEq,
-    schemars::JsonSchema,
-    settings_value::SettingsValue,
-)]
-#[schemars(description = "AI usage quota information across billing cycles.")]
-pub struct AIRequestQuotaInfo {
-    /// History of billing cycles and their usage.
-    ///
-    /// Note that these are only populated going forward from when this setting
-    /// was introduced.
-    #[schemars(description = "History of billing cycles and their quota usage.")]
-    pub cycle_history: Vec<CycleInfo>,
-}
-
-#[derive(
-    Debug,
-    Serialize,
-    Deserialize,
-    Clone,
-    Copy,
-    Default,
-    PartialEq,
-    EnumIter,
-    schemars::JsonSchema,
-    settings_value::SettingsValue,
-)]
-#[schemars(
-    description = "File read permission level for the agent.",
-    rename_all = "snake_case"
-)]
-pub enum AgentModeCodingPermissionsType {
-    /// Agent Mode must ask for explicit permission for any type of file read.
-    #[default]
-    AlwaysAskBeforeReading,
-    /// Agent Mode can always read files without explicit consent.
-    AlwaysAllowReading,
-    /// Agent Mode can only read certain files without explicit consent.
-    ///
-    /// The specific filepaths are backed by the
-    /// [`AISettings::agent_mode_coding_file_read_allowlist`] setting.
-    AllowReadingSpecificFiles,
-}
-
-/// Predicate types to match commands that can be executed by Agent Mode.
-#[derive(Debug, Serialize, Deserialize, Clone)]
-enum AgentModeCommandExecutionPredicateType {
-    /// A regex with start (`^`) and end (`$`) anchors.
-    ///
-    /// We want regex rules to apply to the entire cmd string so we anchor them
-    /// (there isn't any efficient way to apply to the entire cmd string at match-time).
-    #[serde(with = "serde_regex")]
-    AnchoredRegex(Regex),
-}
-
-impl AgentModeCommandExecutionPredicateType {
-    fn new_regex(regex: &str) -> Result<Self, regex::Error> {
-        // Redundant anchors aren't a problem so we can unconditionally add them.
-        let anchored_regex = Regex::new(&format!("^{regex}$"))?;
-        Ok(Self::AnchoredRegex(anchored_regex))
-    }
-
-    fn matches(&self, cmd: &str) -> bool {
-        match self {
-            Self::AnchoredRegex(regex) => regex.is_match(cmd),
-        }
-    }
-}
-
-impl PartialEq for AgentModeCommandExecutionPredicateType {
-    fn eq(&self, other: &Self) -> bool {
-        match (self, other) {
-            (Self::AnchoredRegex(a), Self::AnchoredRegex(b)) => {
-                // Indexing should be safe since they're guaranteed to have at least
-                // the anchors around them.
-                let a_unanchored = &a.as_str()[1..a.as_str().len() - 1];
-                let b_unanchored = &b.as_str()[1..b.as_str().len() - 1];
-                a_unanchored == b_unanchored
-            }
-        }
-    }
-}
-
-impl std::fmt::Display for AgentModeCommandExecutionPredicateType {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Self::AnchoredRegex(regex) => {
-                write!(f, "{}", &regex.as_str()[1..regex.as_str().len() - 1])
-            }
-        }
-    }
-}
-
-/// A wrapper around [`AgentModeCommandExecutionPredicateType`] to enforce
-/// the use of the provided constructors rather than direct construction of the variants.
-#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
-#[serde(transparent)]
-pub struct AgentModeCommandExecutionPredicate(AgentModeCommandExecutionPredicateType);
-
-impl schemars::JsonSchema for AgentModeCommandExecutionPredicate {
-    fn schema_name() -> std::borrow::Cow<'static, str> {
-        std::borrow::Cow::Borrowed("AgentModeCommandExecutionPredicate")
-    }
-
-    fn json_schema(gen: &mut schemars::SchemaGenerator) -> schemars::Schema {
-        // In the settings file, predicates are serialized as plain regex strings.
-        gen.subschema_for::<String>()
-    }
-}
-
-impl AgentModeCommandExecutionPredicate {
-    pub fn new_regex(regex: &str) -> Result<Self, regex::Error> {
-        Ok(Self(AgentModeCommandExecutionPredicateType::new_regex(
-            regex,
-        )?))
-    }
-
-    pub fn matches(&self, cmd: &str) -> bool {
-        self.0.matches(cmd)
-    }
-}
-
-impl std::fmt::Display for AgentModeCommandExecutionPredicate {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.0)
-    }
-}
-
-impl settings_value::SettingsValue for AgentModeCommandExecutionPredicate {
-    fn to_file_value(&self) -> serde_json::Value {
-        serde_json::Value::String(self.to_string())
-    }
-
-    fn from_file_value(value: &serde_json::Value) -> Option<Self> {
-        value.as_str().and_then(|s| Self::new_regex(s).ok())
-    }
-}
-
-lazy_static! {
-    // Matches optional args / options for a top-level command.
-    static ref OPTIONAL_ARGS_REGEX: Regex = Regex::new(r"(\s.*)?").expect("Can parse optional args regex");
-}
-
-cfg_if! {
-    // Compiling the regexes for the default command execution allowlist/denylist can be slow
-    // in an unoptimized build, so we use empty lists in unit tests.
-    if #[cfg(test)] {
-        lazy_static! {
-            pub static ref DEFAULT_COMMAND_EXECUTION_ALLOWLIST: Vec<AgentModeCommandExecutionPredicate> = vec![];
-            pub static ref DEFAULT_COMMAND_EXECUTION_DENYLIST: Vec<AgentModeCommandExecutionPredicate> = vec![];
-        }
-    } else {
-        lazy_static! {
-            pub static ref DEFAULT_COMMAND_EXECUTION_ALLOWLIST: Vec<AgentModeCommandExecutionPredicate> = vec![
-                AgentModeCommandExecutionPredicate::new_regex(&format!("cat{}", OPTIONAL_ARGS_REGEX.as_str())).expect("Can parse default cat rule into regex"),
-                AgentModeCommandExecutionPredicate::new_regex(&format!("echo{}", OPTIONAL_ARGS_REGEX.as_str())).expect("Can parse default echo rule into regex"),
-                AgentModeCommandExecutionPredicate::new_regex("find .*").expect("Can parse default find rule into regex"),
-                AgentModeCommandExecutionPredicate::new_regex(&format!("grep{}", OPTIONAL_ARGS_REGEX.as_str())).expect("Can parse default grep rule into regex"),
-                AgentModeCommandExecutionPredicate::new_regex(&format!("ls{}", OPTIONAL_ARGS_REGEX.as_str())).expect("Can parse default ls rule into regex"),
-                AgentModeCommandExecutionPredicate::new_regex("which .*").expect("Can parse default which rule into regex"),
-            ];
-
-            pub static ref DEFAULT_COMMAND_EXECUTION_DENYLIST: Vec<AgentModeCommandExecutionPredicate> = vec![
-                AgentModeCommandExecutionPredicate::new_regex(&format!("bash{}", OPTIONAL_ARGS_REGEX.as_str())).expect("Can parse default bash rule into regex"),
-                AgentModeCommandExecutionPredicate::new_regex(&format!("fish{}", OPTIONAL_ARGS_REGEX.as_str())).expect("Can parse default fish rule into regex"),
-                AgentModeCommandExecutionPredicate::new_regex(&format!("pwsh{}", OPTIONAL_ARGS_REGEX.as_str())).expect("Can parse default pwsh rule into regex"),
-                AgentModeCommandExecutionPredicate::new_regex(&format!("sh{}", OPTIONAL_ARGS_REGEX.as_str())).expect("Can parse default sh rule into regex"),
-                AgentModeCommandExecutionPredicate::new_regex(&format!("zsh{}", OPTIONAL_ARGS_REGEX.as_str())).expect("Can parse default zsh rule into regex"),
-                AgentModeCommandExecutionPredicate::new_regex(&format!("curl{}", OPTIONAL_ARGS_REGEX.as_str())).expect("Can parse default curl rule into regex"),
-                AgentModeCommandExecutionPredicate::new_regex(&format!("eval{}", OPTIONAL_ARGS_REGEX.as_str())).expect("Can parse default eval rule into regex"),
-                AgentModeCommandExecutionPredicate::new_regex(&format!("exec{}", OPTIONAL_ARGS_REGEX.as_str())).expect("Can parse default exec rule into regex"),
-                AgentModeCommandExecutionPredicate::new_regex(&format!("source{}", OPTIONAL_ARGS_REGEX.as_str())).expect("Can parse default source rule into regex"),
-                AgentModeCommandExecutionPredicate::new_regex(&format!("wget{}", OPTIONAL_ARGS_REGEX.as_str())).expect("Can parse default wget rule into regex"),
-                AgentModeCommandExecutionPredicate::new_regex(&format!("dig{}", OPTIONAL_ARGS_REGEX.as_str())).expect("Can parse default dig rule into regex"),
-                AgentModeCommandExecutionPredicate::new_regex(&format!("nslookup{}", OPTIONAL_ARGS_REGEX.as_str())).expect("Can parse default nslookup rule into regex"),
-                AgentModeCommandExecutionPredicate::new_regex(&format!("host{}", OPTIONAL_ARGS_REGEX.as_str())).expect("Can parse default host rule into regex"),
-                AgentModeCommandExecutionPredicate::new_regex(&format!("ssh{}", OPTIONAL_ARGS_REGEX.as_str())).expect("Can parse default ssh rule into regex"),
-                AgentModeCommandExecutionPredicate::new_regex(&format!("scp{}", OPTIONAL_ARGS_REGEX.as_str())).expect("Can parse default scp rule into regex"),
-                AgentModeCommandExecutionPredicate::new_regex(&format!("rsync{}", OPTIONAL_ARGS_REGEX.as_str())).expect("Can parse default rsync rule into regex"),
-                AgentModeCommandExecutionPredicate::new_regex(&format!("telnet{}", OPTIONAL_ARGS_REGEX.as_str())).expect("Can parse default telnet rule into regex"),
-                AgentModeCommandExecutionPredicate::new_regex(&format!("rm{}", OPTIONAL_ARGS_REGEX.as_str())).expect("Can parse default rm rule into regex"),
-            ];
-        }
-    }
-}
-
-/// Maps custom toolbar command regex patterns to CLI agent names.
 // ---------------------------------------------------------------------------
 // 自定义 Agent 提供商配置(进程内 Provider)
 // ---------------------------------------------------------------------------
@@ -968,44 +649,6 @@ define_settings_group!(AISettings, settings: [
         toml_path: "agents.warp_agent.active_ai.enabled",
         description: "Controls whether proactive AI features like suggestions are enabled.",
     },
-    // This field should not be referenced directly to lookup autodetection enablement -- use the
-    // `is_ai_autodetection_enabled()` getter.
-    ai_autodetection_enabled_internal: AIAutoDetectionEnabled {
-        type: bool,
-        default: true,
-        supported_platforms: SupportedPlatforms::ALL,
-        sync_to_cloud: SyncToCloud::Globally(RespectUserSyncSetting::Yes),
-        private: false,
-        toml_path: "agents.warp_agent.input.ai_auto_detection_enabled",
-        description: "Controls whether AI automatically detects natural language input.",
-    },
-    // This field should not be referenced directly -- use the
-    // `is_nld_in_terminal_enabled()` getter.
-    // Controls whether natural language detection is enabled in the terminal input.
-    //
-    // This is only used when `FeatureFlag::AgentView` is enabled.
-    nld_in_terminal_enabled_internal: NLDInTerminalEnabled {
-        // openWarp:NLD in terminal 默认开。HeuristicClassifier 命中 CJK / 自然语言时
-        // 自动切到 AI 输入,这是 openWarp 中文用户能直接在终端写中文当 prompt 的前提。
-        // 上游默认 false 是因为 cloud 路线下用户先进 AgentView 全屏,在 terminal mode
-        // 不期望自动切换;openWarp 没有 cloud 全屏入口,terminal 即主输入区。
-        type: bool,
-        default: true,
-        supported_platforms: SupportedPlatforms::ALL,
-        sync_to_cloud: SyncToCloud::Globally(RespectUserSyncSetting::Yes),
-        private: false,
-        toml_path: "agents.warp_agent.input.nld_in_terminal_enabled",
-        description: "Controls whether natural language detection is enabled in the terminal input.",
-    },
-    autodetection_command_denylist: AICommandDenylist {
-        type: String,
-        default: String::new(),
-        supported_platforms: SupportedPlatforms::ALL,
-        sync_to_cloud: SyncToCloud::Globally(RespectUserSyncSetting::Yes),
-        private: false,
-        toml_path: "agents.warp_agent.input.ai_command_denylist",
-        description: "Commands to exclude from AI natural language autodetection.",
-    },
     // This field should not be referenced directly to lookup intelligent autosuggestion enablement
     // -- use the `is_intelligent_autosuggestions_enabled()` getter.
     intelligent_autosuggestions_enabled_internal: IntelligentAutosuggestionsEnabled {
@@ -1017,194 +660,7 @@ define_settings_group!(AISettings, settings: [
         toml_path: "agents.warp_agent.active_ai.intelligent_autosuggestions_enabled",
         description: "Controls whether AI-powered intelligent autosuggestions are enabled.",
     }
-    // This field should not be referenced directly to lookup Prompt Suggestions
-    // enablement -- use the `is_prompt_suggestions_enabled()` getter.
-    // Note that AgentModeQuerySuggestionsEnabled is a legacy name (the feature was initially named Agent
-    // Mode Query Suggestions), however, we do not want to change the name of the setting key to avoid
-    // breaking existing user settings.
-    prompt_suggestions_enabled_internal: AgentModeQuerySuggestionsEnabled {
-        type: bool,
-        default: true, // TODO(advait): revisit this when launched to stable
-        supported_platforms: SupportedPlatforms::ALL,
-        sync_to_cloud: SyncToCloud::Globally(RespectUserSyncSetting::Yes),
-        private: false,
-        toml_path: "agents.warp_agent.active_ai.agent_mode_query_suggestions_enabled",
-        description: "Controls whether prompt suggestions are shown in agent mode.",
-    }
 
-    // This field should not be referenced directly to lookup Code Suggestions
-    // enablement -- use the `is_code_suggestions_enabled()` getter.
-    code_suggestions_enabled_internal: CodeSuggestionsEnabled {
-        type: bool,
-        default: true,
-        supported_platforms: SupportedPlatforms::ALL,
-        sync_to_cloud: SyncToCloud::Globally(RespectUserSyncSetting::Yes),
-        private: false,
-        toml_path: "agents.warp_agent.active_ai.code_suggestions_enabled",
-        description: "Controls whether AI code suggestions are enabled.",
-    }
-    // This field should not be referenced directly to lookup natural language autosuggestions
-    // enablement -- use the `is_natural_language_autosuggestions_enabled()` getter.
-    // This feature refers to ghosted text for AI input queries.
-    natural_language_autosuggestions_enabled_internal: NaturalLanguageAutosuggestionsEnabled {
-        type: bool,
-        default: true,
-        supported_platforms: SupportedPlatforms::ALL,
-        sync_to_cloud: SyncToCloud::Globally(RespectUserSyncSetting::Yes),
-        private: false,
-        toml_path: "agents.warp_agent.active_ai.natural_language_autosuggestions_enabled",
-        description: "Controls whether ghosted text autosuggestions are shown for AI input queries.",
-        feature_flag: FeatureFlag::PredictAMQueries,
-    }
-    // This field should not be referenced directly to lookup shared block title generations
-    // enablement -- use the `is_shared_block_title_generation_enabled()` getter.
-    // This feature refers to the auto title generation when the user opens the shared block dialog.
-    shared_block_title_generation_enabled_internal: SharedBlockTitleGenerationEnabled {
-        type: bool,
-        default: true,
-        supported_platforms: SupportedPlatforms::ALL,
-        sync_to_cloud: SyncToCloud::Globally(RespectUserSyncSetting::Yes),
-        private: false,
-        toml_path: "agents.warp_agent.active_ai.shared_block_title_generation_enabled",
-        description: "Controls whether titles are auto-generated when sharing blocks.",
-    }
-    // This field should not be referenced directly to lookup Rule Suggestions
-    // enablement -- use the `is_rule_suggestions_enabled()` getter.
-    rule_suggestions_enabled_internal: RuleSuggestionsEnabled {
-        type: bool,
-        default: true,
-        supported_platforms: SupportedPlatforms::ALL,
-        sync_to_cloud: SyncToCloud::Globally(RespectUserSyncSetting::Yes),
-        private: false,
-        toml_path: "agents.warp_agent.active_ai.rule_suggestions_enabled",
-        description: "Controls whether the agent suggests rules to save after responses.",
-        feature_flag: FeatureFlag::SuggestedRules,
-    }
-    // The number of times the user has entered Agent Mode.
-    // Not a user-visible setting.
-    entered_agent_mode_num_times: EnteredAgentModeNumTimes {
-        type: usize,
-        default: 0,
-        supported_platforms: SupportedPlatforms::ALL,
-        sync_to_cloud: SyncToCloud::Globally(RespectUserSyncSetting::Yes),
-        private: true,
-    },
-    // Predicates that Agent Mode can use to decide if it can execute
-    // a command without explicit user consent.
-    //
-    // Prefer [`BlocklistAIPermissions::can_autoexecute_command`] to
-    // interpret this allowlist.
-    agent_mode_command_execution_allowlist: AgentModeCommandExecutionAllowlist {
-        type: Vec<AgentModeCommandExecutionPredicate>,
-        default: DEFAULT_COMMAND_EXECUTION_ALLOWLIST.clone(),
-        supported_platforms: SupportedPlatforms::ALL,
-        sync_to_cloud: SyncToCloud::Globally(RespectUserSyncSetting::Yes),
-        private: false,
-        toml_path: "agents.profiles.agent_mode_command_execution_allowlist",
-        description: "Commands that the agent can execute without explicit permission.",
-    },
-    // Predicates that Agent Mode can use to decide if a command must
-    // be executed by the user.
-    //
-    // Prefer [`BlocklistAIPermissions::can_autoexecute_command`] to
-    // interpret this denylist.
-    agent_mode_command_execution_denylist: AgentModeCommandExecutionDenylist {
-        type: Vec<AgentModeCommandExecutionPredicate>,
-        default: DEFAULT_COMMAND_EXECUTION_DENYLIST.clone(),
-        supported_platforms: SupportedPlatforms::ALL,
-        sync_to_cloud: SyncToCloud::Globally(RespectUserSyncSetting::Yes),
-        private: false,
-        toml_path: "agents.profiles.agent_mode_command_execution_denylist",
-        description: "Commands that the agent must always ask before executing.",
-    },
-    // Enabled iff Agent Mode can execute readonly commands without explicit user consent.
-    //
-    // Prefer [`BlocklistAIPermissions::can_autoexecute_command`] to
-    // interpret this setting.
-    agent_mode_execute_read_only_commands: AgentModeExecuteReadonlyCommands {
-        type: bool,
-        default: false,
-        supported_platforms: SupportedPlatforms::ALL,
-        sync_to_cloud: SyncToCloud::Globally(RespectUserSyncSetting::Yes),
-        private: false,
-        toml_path: "agents.profiles.agent_mode_execute_readonly_commands",
-        description: "Whether the agent can auto-execute read-only commands without asking.",
-    },
-    // Determines coding permissions that Agent Mode has.
-    // Note that if Agent Mode has permissions to execute readonly commands,
-    // that automatically gives Agent Mode the ability to also _read_ files for coding
-    // tasks, including codebase search.
-    //
-    // Prefer [`BlocklistAIPermissions::can_read_file`] to interpret this setting.
-    agent_mode_coding_permissions: AgentModeCodingPermissions {
-        type: AgentModeCodingPermissionsType,
-        default: AgentModeCodingPermissionsType::default(),
-        supported_platforms: SupportedPlatforms::ALL,
-        sync_to_cloud: SyncToCloud::Globally(RespectUserSyncSetting::Yes),
-        private: false,
-        toml_path: "agents.profiles.agent_mode_coding_permissions",
-        description: "The file read permission level for the agent.",
-    }
-    // Specific filepaths that Agent Mode can read without asking for additional permissions.
-    // These should be persisted as absolute filepaths to avoid ambiguity.
-    //
-    // This is used in conjunction with [`AgentModeCodingPermissionsType::AllowReadingSpecificFiles`]
-    // but modelled as a separate setting because it is not cloud-synced.
-    //
-    // Prefer [`BlocklistAIPermissions::can_read_file`] to interpret this setting.
-    agent_mode_coding_file_read_allowlist: AgentModeCodingFileReadAllowlist {
-        type: Vec<PathBuf>,
-        default: vec![],
-        supported_platforms: SupportedPlatforms::ALL,
-        sync_to_cloud: SyncToCloud::Never,
-        private: false,
-        toml_path: "agents.profiles.agent_mode_coding_file_read_allowlist",
-        description: "File paths the agent can read without asking for permission.",
-    }
-    // Whether or not the profile-level command autoexecution speedbump has been shown.
-    //
-    // Not a user-visible setting - we model it as a setting so we can track how often
-    // it's shown across devices.
-    has_shown_agent_mode_profile_command_autoexecution_speedbump: HasShownAgentModeProfileCommandAutoexecutionSpeedbump {
-        type: bool,
-        default: false,
-        supported_platforms: SupportedPlatforms::ALL,
-        sync_to_cloud: SyncToCloud::Globally(RespectUserSyncSetting::Yes),
-        private: true,
-    }
-    // Whether or not we should show the speedbump for auto-executing readonly cmds.
-    //
-    // Not a user-visible settings - we model it as a setting so we can track how often
-    // it's shown across devices.
-    should_show_agent_mode_autoexecute_readonly_commands_speedbump: ShouldShowAgentModeModelExecuteReadonlyCommandsSpeedbump {
-        type: bool,
-        default: true,
-        supported_platforms: SupportedPlatforms::ALL,
-        sync_to_cloud: SyncToCloud::Globally(RespectUserSyncSetting::Yes),
-        private: true,
-    }
-    // Whether or not we should show the speedbump for auto-writing to the PTY.
-    //
-    // Not a user-visible settings - we model it as a setting so we can track how often
-    // it's shown across devices.
-    should_show_agent_mode_write_to_pty_speedbump: ShouldShowAgentModeWriteToPtySpeedbump {
-        type: bool,
-        default: true,
-        supported_platforms: SupportedPlatforms::ALL,
-        sync_to_cloud: SyncToCloud::Globally(RespectUserSyncSetting::Yes),
-        private: true,
-    }
-    // Whether or not we should show the speedbump for auto-reading files.
-    //
-    // Not a user-visible settings - we model it as a setting so we can track how often
-    // it's shown across devices.
-    should_show_agent_mode_autoread_files_speedbump: ShouldShowAgentModeCodingReadPermissionsNudge {
-        type: bool,
-        default: true,
-        supported_platforms: SupportedPlatforms::ALL,
-        sync_to_cloud: SyncToCloud::Globally(RespectUserSyncSetting::Yes),
-        private: true,
-    }
     // Whether to use locally loaded AWS credentials for Bedrock-enabled requests.
     aws_bedrock_credentials_enabled: AwsBedrockCredentialsEnabled {
         type: bool,
@@ -1258,159 +714,18 @@ define_settings_group!(AISettings, settings: [
         sync_to_cloud: SyncToCloud::Globally(RespectUserSyncSetting::Yes),
         private: true,
     }
-    // Whether or not the user wants agent mode requests to use their saved rules.
-    memory_enabled: MemoryEnabled {
-        type: bool,
-        default: true,
-        supported_platforms: SupportedPlatforms::ALL,
-        sync_to_cloud: SyncToCloud::Globally(RespectUserSyncSetting::Yes),
-        private: false,
-        toml_path: "agents.knowledge.rules_enabled",
-        description: "Whether the agent uses your saved rules during requests.",
-    }
-    // Whether warp drive context should be included in AI requests
-    warp_drive_context_enabled: WarpDriveContextEnabled {
-        type: bool,
-        default: true,
-        supported_platforms: SupportedPlatforms::ALL,
-        sync_to_cloud: SyncToCloud::Globally(RespectUserSyncSetting::Yes),
-        private: false,
-        toml_path: "agents.knowledge.warp_drive_context_enabled",
-        description: "Whether Warp Drive context is included in AI requests.",
-    }
 
-    // Whether the codebase speedbump banner has been permanently dismissed for a given repo path.
-    //
-    // Not a user-visible settings - we model it as a setting so we can track state.
-    codebase_index_speedbump_banner_dismissed_for_repo_paths: CodebaseIndexSpeedbumpBannerDismissedForRepoPaths {
-        type: Vec<PathBuf>,
-        default: vec![],
-        supported_platforms: SupportedPlatforms::ALL,
-        sync_to_cloud: SyncToCloud::Never,
-        private: true,
-    }
 
-    // Whether the agent mode setup banner has been shown for a given repo path.
-    // Once shown, it will not be shown again for that repo.
-    //
-    // Not a user-visible settings - we model it as a setting so we can track state.
-    agent_mode_setup_banner_shown_for_repo_paths: AgentModeSetupBannerShownForRepoPaths {
-        type: Vec<PathBuf>,
-        default: vec![],
-        supported_platforms: SupportedPlatforms::ALL,
-        sync_to_cloud: SyncToCloud::Never,
-        private: true,
-    }
 
-    // Whether the codebase speedbump banner has been globally dismissed ("Don't show again").
-    //
-    // Not a user-visible settings - we model it as a setting so we can track state.
-    codebase_index_speedbump_banner_globally_dismissed: CodebaseIndexSpeedbumpBannerGloballyDismissed {
-        type: bool,
-        default: false,
-        supported_platforms: SupportedPlatforms::ALL,
-        sync_to_cloud: SyncToCloud::Globally(RespectUserSyncSetting::Yes),
-        private: true,
-    }
 
-    // Information about AI request quotas and usage across billing cycles
-    ai_request_quota_info: AIRequestQuotaInfoSetting {
-        type: AIRequestQuotaInfo,
-        default: AIRequestQuotaInfo::default(),
-        supported_platforms: SupportedPlatforms::ALL,
-        sync_to_cloud: SyncToCloud::Globally(RespectUserSyncSetting::Yes),
-        private: true,
-    },
 
-    // Whether or not we should show the speedbump for showing code suggestion banners.
-    // This includes both passive code diffs and suggested prompts (passive unit tests).
-    //
-    // Not a user-visible settings - we model it as a setting so we can track if the speedbump has already been shown or not.
-    show_code_suggestion_speedbump: ShouldShowCodeSuggestionSpeedbump {
-        type: bool,
-        default: true,
-        supported_platforms: SupportedPlatforms::ALL,
-        sync_to_cloud: SyncToCloud::Globally(RespectUserSyncSetting::Yes),
-        private: true,
-    }
 
-    mcp_execution_path: MCPExecutionPath {
-        type: Option<String>,
-        default: None,
-        supported_platforms: SupportedPlatforms::ALL,
-        sync_to_cloud: SyncToCloud::Never,
-        private: true,
-    },
 
-    // This is not a user-visible setting - its merely a one-time flag to track if the agents 3 launch modal
-    // has been shown to the user.
-    //
-    // We model it as a setting so it's only shown once to a given user regardless of the number of
-    // devices they use.
-    did_check_to_trigger_agents_3_launch_modal: DidShowAgents3LaunchModal {
-        type: bool,
-        default: false,
-        supported_platforms: SupportedPlatforms::ALL,
-        sync_to_cloud: SyncToCloud::Globally(RespectUserSyncSetting::No),
-        private: true,
-    }
 
-    // This is not a user-visible setting - it's merely a one-time flag to track if the Oz launch modal
-    // has been shown to the user.
-    //
-    // We model it as a setting so it's only shown once to a given user regardless of the number of
-    // devices they use.
-    did_check_to_trigger_oz_launch_modal: DidShowOzLaunchModal {
-        type: bool,
-        default: false,
-        supported_platforms: SupportedPlatforms::ALL,
-        sync_to_cloud: SyncToCloud::Globally(RespectUserSyncSetting::No),
-        private: true,
-    }
 
-    // Used to determine whether the "What's new in Oz" section of the agent view
-    // zero state is expanded or collapsed by default.
-    should_expand_oz_updates: ShouldExpandOzUpdates {
-        type: bool,
-        default: false,
-        supported_platforms: SupportedPlatforms::ALL,
-        sync_to_cloud: SyncToCloud::Never,
-        private: true,
-    }
 
-    // Used to determine whether the "What's new in Oz" section of the agent view
-    // zero state is shown or hidden.
-    should_show_oz_updates_in_zero_state: ShouldShowOzUpdatesInZeroState {
-        type: bool,
-        default: true,
-        supported_platforms: SupportedPlatforms::ALL,
-        sync_to_cloud: SyncToCloud::Globally(RespectUserSyncSetting::Yes),
-        private: false,
-        toml_path: "agents.warp_agent.other.should_show_oz_updates_in_zero_state",
-        description: "Whether the \"What's new\" section is shown in the agent view.",
-    }
 
-    // Whether or not the user has enabled the ability to use Warp credits even when providing
-    // their own LLM provider API key.
-    can_use_warp_credits_with_byok: CanUseWarpCreditsWithByok {
-        type: bool,
-        default: false,
-        supported_platforms: SupportedPlatforms::ALL,
-        sync_to_cloud: SyncToCloud::Globally(RespectUserSyncSetting::Yes),
-        private: false,
-        toml_path: "cloud_platform.third_party_api_keys.can_use_warp_credits_with_byok",
-        description: "Whether Warp credits can be used even when providing your own API key.",
-    }
 
-    should_render_use_agent_footer_for_user_commands: ShouldRenderUseAgentToolbarForUserCommands {
-        type: bool,
-        default: true,
-        supported_platforms: SupportedPlatforms::ALL,
-        sync_to_cloud: SyncToCloud::Globally(RespectUserSyncSetting::Yes),
-        private: false,
-        toml_path: "agents.warp_agent.other.should_render_use_agent_toolbar_for_user_commands",
-        description: "Whether to show the \"Use Agent\" footer for terminal commands.",
-    }
 
     // Whether to render the CLI agent footer for commands like Claude, Codex, Gemini, etc.
     // This is independent of the "Use Agent" footer setting.
@@ -1477,55 +792,9 @@ define_settings_group!(AISettings, settings: [
         description: "Maps custom toolbar command patterns to specific CLI agents.",
     }
 
-    // This is not a user-visible setting - it tracks whether a paid user has dismissed the
-    // agent management help page by clicking "View Agents".
-    //
-    // When false and user is on a paid plan, the help page is shown.
-    // When true, the help page is hidden (user dismissed it).
-    // Free users never see the help page by default regardless of this setting.
-    did_dismiss_cloud_setup_guide: DidDismissAgentManagementHelpPage {
-        type: bool,
-        default: false,
-        supported_platforms: SupportedPlatforms::ALL,
-        sync_to_cloud: SyncToCloud::Globally(RespectUserSyncSetting::Yes),
-        private: true,
-    }
 
-    // This is not a user-visible setting - it tracks whether the FTU model picker callout
-    // has been shown to the user. We set this to `true` as soon as the callout is first
-    // displayed (not when it's dismissed), so it never re-appears.
-    //
-    // Note: this setting was originally named "dismissed" but we now use it to mean "shown".
-    // We kept the same setting key so that users who already dismissed the callout on an
-    // older client don't see it again.
-    ftu_model_callout_dismissed: FtuModelCalloutDismissed {
-        type: bool,
-        default: false,
-        supported_platforms: SupportedPlatforms::ALL,
-        sync_to_cloud: SyncToCloud::Globally(RespectUserSyncSetting::Yes),
-        private: true,
-    }
 
-    // Tracks whether we've done the one-time auto-open of the conversation list for discoverability.
-    // Once set to true, the conversation list visibility will be restored from workspace state.
-    has_auto_opened_conversation_list: HasAutoOpenedConversationList {
-        type: bool,
-        default: false,
-        supported_platforms: SupportedPlatforms::ALL,
-        sync_to_cloud: SyncToCloud::Globally(RespectUserSyncSetting::Yes),
-        private: true,
-    }
 
-    // Whether the ambient agent trial widget has been dismissed by the user.
-    //
-    // Not a user-visible setting - we model it as a setting so we can track state.
-    ambient_agent_trial_widget_dismissed: AmbientAgentTrialWidgetDismissed {
-        type: bool,
-        default: false,
-        supported_platforms: SupportedPlatforms::ALL,
-        sync_to_cloud: SyncToCloud::Globally(RespectUserSyncSetting::Yes),
-        private: true,
-    }
 
     // The raw stored default mode for new sessions. Use `default_session_mode()` to retrieve the
     // effective value, which is gated on AI availability.
@@ -1543,72 +812,11 @@ define_settings_group!(AISettings, settings: [
         toml_path: "general.default_tab_config_path",
     }
 
-    // Whether computer use is enabled for cloud agent conversations started from the Warp app.
-    // This setting is only used when the AI autonomy setting is AlwaysAsk or not set.
-    cloud_agent_computer_use_enabled: CloudAgentComputerUseEnabled {
-        type: bool,
-        default: warp_core::channel::ChannelState::channel().is_dogfood(),
-        supported_platforms: SupportedPlatforms::DESKTOP,
-        sync_to_cloud: SyncToCloud::Globally(RespectUserSyncSetting::Yes),
-        private: false,
-        toml_path: "agents.warp_agent.other.cloud_agent_computer_use_enabled",
-        description: "Whether computer use is enabled for cloud agent conversations.",
-    }
 
-    // Whether multi-agent orchestration is enabled. When enabled, the agent can
-    // spawn and coordinate parallel sub-agents via StartAgent / SendMessageToAgent
-    // tools. This setting is only effective when FeatureFlag::Orchestration is also
-    // enabled.
-    orchestration_enabled: OrchestrationEnabled {
-        type: bool,
-        default: true,
-        supported_platforms: SupportedPlatforms::DESKTOP,
-        sync_to_cloud: SyncToCloud::Globally(RespectUserSyncSetting::Yes),
-        private: false,
-        toml_path: "agents.warp_agent.other.orchestration_enabled",
-        description: "Whether multi-agent orchestration is enabled.",
-        feature_flag: FeatureFlag::Orchestration,
-    }
 
-    // Whether file-based MCP servers from third-party AI tools (e.g. Claude, Codex) should
-    // be automatically detected and spawned. Warp-native config files (.warp/.mcp.json) are
-    // always detected and spawned, regardless of this setting.
-    file_based_mcp_enabled: FileBasedMcpEnabled {
-        type: bool,
-        default: false,
-        supported_platforms: SupportedPlatforms::DESKTOP,
-        sync_to_cloud: SyncToCloud::Globally(RespectUserSyncSetting::Yes),
-        private: false,
-        toml_path: "agents.mcp_servers.file_based_mcp_enabled",
-        description: "Whether third-party file-based MCP servers are automatically detected.",
-    }
 
-    // Controls how agent thinking/reasoning traces are displayed.
-    thinking_display_mode: ThinkingDisplayMode,
 
-    // Whether agent-executed shell commands should be included in command history
-    // (up-arrow, Ctrl-R search, inline history menu).
-    // When false, commands run by the AI agent are excluded from history.
-    include_agent_commands_in_history: IncludeAgentCommandsInHistory {
-        type: bool,
-        default: false,
-        supported_platforms: SupportedPlatforms::ALL,
-        sync_to_cloud: SyncToCloud::Globally(RespectUserSyncSetting::Yes),
-        private: false,
-        toml_path: "agents.warp_agent.input.include_agent_commands_in_history",
-        description: "Whether agent-executed commands are included in command history.",
-    }
 
-    // Controls whether the conversation history view appears in the tools panel.
-    show_conversation_history: ShowConversationHistory {
-        type: bool,
-        default: true,
-        supported_platforms: SupportedPlatforms::ALL,
-        sync_to_cloud: SyncToCloud::Globally(RespectUserSyncSetting::Yes),
-        private: false,
-        toml_path: "agents.warp_agent.other.show_conversation_history",
-        description: "Whether conversation history appears in the tools panel.",
-    }
 
 
     // Controls whether agent notifications (mailbox button, toasts, notification items) are shown.
@@ -1658,88 +866,12 @@ define_settings_group!(AISettings, settings: [
         description: "User-configured custom Agent providers (OpenAI-compatible).",
     }
 
-    // OpenWarp BYOP 本地会话压缩 — 1:1 对齐 opencode `Config.compaction.auto`。
-    // true 时按 token-overflow 自动触发摘要;false 仅手动 /compact /compact-and 触发。
-    byop_compaction_auto: ByopCompactionAuto {
-        type: bool,
-        default: true,
-        supported_platforms: SupportedPlatforms::ALL,
-        sync_to_cloud: SyncToCloud::Globally(RespectUserSyncSetting::Yes),
-        private: false,
-        toml_path: "agents.byop_compaction.auto",
-        description: "Enable BYOP automatic conversation compaction on context overflow.",
-    }
 
-    // OpenWarp BYOP 本地会话压缩 — 1:1 对齐 opencode `Config.compaction.prune`。
-    // true 时每次 LLM 请求前清旧 tool output(替换为占位符)。
-    byop_compaction_prune: ByopCompactionPrune {
-        type: bool,
-        default: true,
-        supported_platforms: SupportedPlatforms::ALL,
-        sync_to_cloud: SyncToCloud::Globally(RespectUserSyncSetting::Yes),
-        private: false,
-        toml_path: "agents.byop_compaction.prune",
-        description: "Auto-prune older tool outputs to free BYOP context.",
-    }
 
-    // OpenWarp BYOP 本地会话压缩 — 1:1 对齐 opencode `Config.compaction.tail_turns`(默认 2)。
-    // 保留最近 N 个 user turn 作 tail,前面的进入 head 给摘要 LLM。0 关闭压缩。
-    byop_compaction_tail_turns: ByopCompactionTailTurns {
-        type: u32,
-        default: 2u32,
-        supported_platforms: SupportedPlatforms::ALL,
-        sync_to_cloud: SyncToCloud::Globally(RespectUserSyncSetting::Yes),
-        private: false,
-        toml_path: "agents.byop_compaction.tail_turns",
-        description: "Number of recent user turns to keep verbatim during compaction.",
-    }
 
-    // OpenWarp BYOP 本地会话压缩 — 1:1 对齐 `Config.compaction.preserve_recent_tokens`。
-    // 0 = 自动按公式算(min(MAX=8000, max(MIN=2000, usable * 0.25)));> 0 强制覆盖。
-    byop_compaction_preserve_recent_tokens: ByopCompactionPreserveRecentTokens {
-        type: u32,
-        default: 0u32,
-        supported_platforms: SupportedPlatforms::ALL,
-        sync_to_cloud: SyncToCloud::Globally(RespectUserSyncSetting::Yes),
-        private: false,
-        toml_path: "agents.byop_compaction.preserve_recent_tokens",
-        description: "Override the recent-tokens preservation budget (0 = auto).",
-    }
 
-    // OpenWarp BYOP 本地会话压缩 — 1:1 对齐 `Config.compaction.reserved`。
-    // overflow 判定时 usable = input_limit - reserved。0 = 自动按 min(20_000, max_output) 算。
-    byop_compaction_reserved: ByopCompactionReserved {
-        type: u32,
-        default: 0u32,
-        supported_platforms: SupportedPlatforms::ALL,
-        sync_to_cloud: SyncToCloud::Globally(RespectUserSyncSetting::Yes),
-        private: false,
-        toml_path: "agents.byop_compaction.reserved",
-        description: "Reserved buffer tokens for compaction overflow check (0 = auto).",
-    }
 
-    // OpenWarp BYOP 本地会话压缩 — 摘要专用模型(可选)。
-    // 设置后:摘要 LLM 调用走这个 provider+model 而非当前 conversation 模型。
-    // 留空两个字段 = 用 conversation 当前模型。
-    byop_compaction_model_provider_id: ByopCompactionModelProviderId {
-        type: String,
-        default: String::new(),
-        supported_platforms: SupportedPlatforms::ALL,
-        sync_to_cloud: SyncToCloud::Globally(RespectUserSyncSetting::Yes),
-        private: false,
-        toml_path: "agents.byop_compaction.model.provider_id",
-        description: "Optional dedicated provider id for compaction LLM calls.",
-    }
 
-    byop_compaction_model_id: ByopCompactionModelId {
-        type: String,
-        default: String::new(),
-        supported_platforms: SupportedPlatforms::ALL,
-        sync_to_cloud: SyncToCloud::Globally(RespectUserSyncSetting::Yes),
-        private: false,
-        toml_path: "agents.byop_compaction.model.model_id",
-        description: "Optional dedicated model id for compaction LLM calls.",
-    }
 
     // OpenWarp BYOP 模型 + 思考深度持久化(picker 切换后立即写入,新 tab/重启沿用)。
     // 模型用 LLMId 字符串形式;空串 = 没有 last_used,落回 profile 默认。
@@ -1785,56 +917,12 @@ impl AISettings {
         });
     }
 
-    pub fn is_ai_disabled_due_to_remote_session_org_policy(&self, app: &AppContext) -> bool {
-        let contains_remote_blocks = FocusedTerminalInfo::as_ref(app).contains_any_remote_blocks();
-
-        let contains_restored_remote_blocks =
-            FocusedTerminalInfo::as_ref(app).contains_any_restored_remote_blocks();
-
-        let is_ai_allowed_in_remote_sessions =
-            UserWorkspaces::as_ref(app).is_ai_allowed_in_remote_sessions();
-
-        if is_ai_allowed_in_remote_sessions {
-            return false;
-        }
-
-        contains_remote_blocks || contains_restored_remote_blocks
-    }
-
-    pub fn is_any_ai_enabled(&self, app: &AppContext) -> bool {
-        // Disable AI for anonymous and logged-out users.
-        let is_anonymous_or_logged_out = AuthStateProvider::as_ref(app)
-            .get()
-            .is_anonymous_or_logged_out();
-
+    pub fn is_any_ai_enabled(&self) -> bool {
         *self.is_any_ai_enabled
-            && !is_anonymous_or_logged_out
-            && !self.is_ai_disabled_due_to_remote_session_org_policy(app)
     }
 
-    pub fn default_session_mode(&self, app: &AppContext) -> DefaultSessionMode {
-        let mode = *self.default_session_mode_internal.value();
-        match mode {
-            // Terminal and TabConfig don't require AI.
-            DefaultSessionMode::Terminal | DefaultSessionMode::TabConfig => mode,
-            // Agent and CloudAgent require AI to be enabled.
-            DefaultSessionMode::Agent | DefaultSessionMode::CloudAgent => {
-                if self.is_any_ai_enabled(app) {
-                    mode
-                } else {
-                    DefaultSessionMode::Terminal
-                }
-            }
-            // DockerSandbox is gated on its feature flag; fall back to Terminal
-            // when disabled so a stale stored value doesn't wedge the user.
-            DefaultSessionMode::DockerSandbox => {
-                if FeatureFlag::LocalDockerSandbox.is_enabled() {
-                    mode
-                } else {
-                    DefaultSessionMode::Terminal
-                }
-            }
-        }
+    pub fn default_session_mode(&self) -> DefaultSessionMode {
+        *self.default_session_mode_internal.value()
     }
 
     /// Returns the stored default tab config path (only meaningful when mode is `TabConfig`).
@@ -1861,239 +949,13 @@ impl AISettings {
     }
 
     pub fn is_active_ai_enabled(&self, app: &warpui::AppContext) -> bool {
-        self.is_any_ai_enabled(app)
+        self.is_any_ai_enabled()
             && *self.is_active_ai_enabled_internal
             && AppExecutionMode::as_ref(app).allows_active_ai()
     }
 
-    pub fn is_prompt_suggestions_enabled(&self, app: &warpui::AppContext) -> bool {
-        self.is_active_ai_enabled(app) && *self.prompt_suggestions_enabled_internal
-    }
-
-    pub fn is_rule_suggestions_enabled(&self, app: &warpui::AppContext) -> bool {
-        self.is_active_ai_enabled(app) && *self.rule_suggestions_enabled_internal
-    }
-
-    pub fn is_code_suggestions_enabled(&self, app: &warpui::AppContext) -> bool {
-        self.is_active_ai_enabled(app) && *self.code_suggestions_enabled_internal
-    }
-
-    pub fn is_natural_language_autosuggestions_enabled(&self, app: &warpui::AppContext) -> bool {
-        self.is_active_ai_enabled(app) && *self.natural_language_autosuggestions_enabled_internal
-    }
-
-    pub fn is_shared_block_title_generation_enabled(&self, app: &warpui::AppContext) -> bool {
-        self.is_active_ai_enabled(app) && *self.shared_block_title_generation_enabled_internal
-    }
-
     pub fn is_intelligent_autosuggestions_enabled(&self, app: &warpui::AppContext) -> bool {
         self.is_active_ai_enabled(app) && *self.intelligent_autosuggestions_enabled_internal
-    }
-
-    /// Returns `true` if input autodetection is enabled.
-    ///
-    /// If `FeatureFlag::AgentView` is enabled, this specifically gates NLD enablement in the agent
-    /// view only.
-    pub fn is_ai_autodetection_enabled(&self, app: &warpui::AppContext) -> bool {
-        self.is_any_ai_enabled(app) && *self.ai_autodetection_enabled_internal
-    }
-
-    /// Returns `true` if NLD is enabled in the terminal.
-    ///
-    /// This is only used when `FeatureFlag::AgentView` is enabled.
-    /// If the user has not explicitly set this setting, it defaults to the value of
-    /// `ai_autodetection_enabled_internal`.
-    pub fn is_nld_in_terminal_enabled(&self, app: &warpui::AppContext) -> bool {
-        self.is_any_ai_enabled(app) && *self.nld_in_terminal_enabled_internal
-    }
-
-    pub fn is_memory_enabled(&self, app: &warpui::AppContext) -> bool {
-        self.is_any_ai_enabled(app) && *self.memory_enabled
-    }
-
-    pub fn is_warp_drive_context_enabled(&self, app: &warpui::AppContext) -> bool {
-        self.is_any_ai_enabled(app) && *self.warp_drive_context_enabled
-    }
-
-    pub fn is_file_based_mcp_enabled(&self, app: &warpui::AppContext) -> bool {
-        if !FeatureFlag::FileBasedMcp.is_enabled() || !self.is_any_ai_enabled(app) {
-            return false;
-        }
-        // NOTE: we intentionally do not force-enable this in Cloud Mode. Previously
-        // we auto-spawned file-based MCPs in autonomous execution, but that bypassed
-        // the user's explicit opt-in and let any MCP config checked into a repo run
-        // arbitrary commands as part of a cloud agent run. Respecting the toggle
-        // closes that attack surface; cloud agents that need project-scoped MCP
-        // servers should surface an explicit, auditable opt-in. A more robust
-        // solution (e.g. per-environment allowlisting, signed configs) should be
-        // explored in the future.
-        *self.file_based_mcp_enabled
-    }
-
-    pub fn is_orchestration_enabled(&self, app: &warpui::AppContext) -> bool {
-        FeatureFlag::Orchestration.is_enabled()
-            && self.is_any_ai_enabled(app)
-            && *self.orchestration_enabled
-    }
-
-    /// Determines whether a quota reset banner should be displayed to the user.
-    ///
-    /// The banner should be shown if the most recent completed billing cycle had
-    /// quota exceeded and the banner was not manually dismissed.
-    pub fn should_display_quota_reset_banner(&self) -> bool {
-        let quota_info = &self.ai_request_quota_info;
-
-        let most_recent_completed_cycle = quota_info
-            .cycle_history
-            .iter()
-            .rev()
-            .find(|cycle| cycle.end_date < Utc::now());
-
-        if let Some(cycle) = most_recent_completed_cycle {
-            if cycle.was_quota_exceeded && !cycle.banner_state.dismissed {
-                return true;
-            }
-        }
-
-        false
-    }
-
-    /// Marks the banner as dismissed for all completed cycles.
-    pub fn mark_quota_banner_as_dismissed(&mut self, ctx: &mut ModelContext<Self>) {
-        let mut cycle_history = self.ai_request_quota_info.cycle_history.clone();
-
-        for cycle in cycle_history.iter_mut() {
-            if cycle.end_date < Utc::now() {
-                cycle.banner_state.dismissed = true;
-            }
-        }
-
-        report_if_error!(self
-            .ai_request_quota_info
-            .set_value(AIRequestQuotaInfo { cycle_history }, ctx));
-    }
-
-    /// Updates the quota info based on the latest RequestLimitInfo.
-    ///
-    /// This method finds or creates the appropriate CycleInfo based on the
-    /// request_limit_info's next refresh time and updates its fields accordingly.
-    pub fn update_quota_info(
-        &mut self,
-        request_limit_info: &RequestLimitInfo,
-        ctx: &mut ModelContext<Self>,
-    ) {
-        // Convert ServerTimestamp to DateTime<Utc>
-        let next_refresh_time = request_limit_info.next_refresh_time.utc();
-        let now = Utc::now();
-
-        // Check if request_limit_info has unlimited requests
-        let is_quota_exceeded = !request_limit_info.is_unlimited
-            && request_limit_info.num_requests_used_since_refresh >= request_limit_info.limit;
-
-        let mut cycle_history = self.ai_request_quota_info.cycle_history.clone();
-
-        // Track if we updated an existing cycle
-        let mut updated_existing_cycle = false;
-
-        // Find or create a cycle that matches the current period
-        if let Some(current_cycle) = cycle_history.last_mut() {
-            if now <= current_cycle.end_date {
-                // Update existing cycle
-                current_cycle.was_quota_exceeded = is_quota_exceeded;
-                updated_existing_cycle = true;
-            }
-        }
-
-        // Only create a new cycle if we didn't update an existing one
-        if !updated_existing_cycle {
-            // Create a new cycle
-            let new_cycle = CycleInfo {
-                end_date: next_refresh_time,
-                was_quota_exceeded: is_quota_exceeded,
-                banner_state: BannerState::default(),
-            };
-
-            cycle_history.push(new_cycle);
-        }
-
-        report_if_error!(self
-            .ai_request_quota_info
-            .set_value(AIRequestQuotaInfo { cycle_history }, ctx));
-    }
-
-    pub fn is_command_denylist_editable(&self, app: &AppContext) -> bool {
-        let set_by_workspace = UserWorkspaces::as_ref(app)
-            .ai_autonomy_settings()
-            .has_override_for_execute_commands_denylist();
-
-        self.is_any_ai_enabled(app) && !set_by_workspace
-    }
-
-    pub fn is_command_allowlist_editable(&self, app: &AppContext) -> bool {
-        let set_by_workspace = UserWorkspaces::as_ref(app)
-            .ai_autonomy_settings()
-            .has_override_for_execute_commands_allowlist();
-
-        self.is_any_ai_enabled(app) && !set_by_workspace
-    }
-
-    pub fn is_directory_allowlist_editable(&self, app: &AppContext) -> bool {
-        let set_by_workspace = UserWorkspaces::as_ref(app)
-            .ai_autonomy_settings()
-            .has_override_for_read_files_allowlist();
-
-        self.is_any_ai_enabled(app) && !set_by_workspace
-    }
-
-    pub fn is_execute_commands_permissions_editable(&self, app: &AppContext) -> bool {
-        let set_by_workspace = UserWorkspaces::as_ref(app)
-            .ai_autonomy_settings()
-            .has_override_for_execute_commands();
-
-        self.is_any_ai_enabled(app) && !set_by_workspace
-    }
-
-    pub fn is_write_to_pty_permissions_editable(&self, app: &AppContext) -> bool {
-        let set_by_workspace = UserWorkspaces::as_ref(app)
-            .ai_autonomy_settings()
-            .has_override_for_write_to_pty();
-        self.is_any_ai_enabled(app) && !set_by_workspace
-    }
-
-    pub fn is_computer_use_permissions_editable(&self, app: &AppContext) -> bool {
-        let set_by_workspace = UserWorkspaces::as_ref(app)
-            .ai_autonomy_settings()
-            .has_override_for_computer_use();
-        self.is_any_ai_enabled(app) && !set_by_workspace
-    }
-
-    pub fn is_read_files_permissions_editable(&self, app: &AppContext) -> bool {
-        let set_by_workspace = UserWorkspaces::as_ref(app)
-            .ai_autonomy_settings()
-            .has_override_for_read_files();
-
-        self.is_any_ai_enabled(app) && !set_by_workspace
-    }
-
-    pub fn is_code_diffs_permissions_editable(&self, app: &AppContext) -> bool {
-        let set_by_workspace = UserWorkspaces::as_ref(app)
-            .ai_autonomy_settings()
-            .has_override_for_code_diffs();
-
-        self.is_any_ai_enabled(app) && !set_by_workspace
-    }
-
-    pub fn is_ask_user_question_permissions_editable(&self, app: &AppContext) -> bool {
-        self.is_any_ai_enabled(app)
-    }
-
-    pub fn is_mcp_permission_editable(&self, app: &AppContext) -> bool {
-        // TODO: Allow workspace overrides on MCP permissions.
-        self.is_any_ai_enabled(app)
-    }
-
-    pub fn show_code_suggestion_speedbump(&self, app: &AppContext) -> bool {
-        self.is_any_ai_enabled(app) && *self.show_code_suggestion_speedbump
     }
 
     pub fn add_cli_agent_footer_enabled_command(

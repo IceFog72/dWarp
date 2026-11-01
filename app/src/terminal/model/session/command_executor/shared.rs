@@ -1,4 +1,5 @@
 use async_channel::Sender;
+use warp_util::path::ShellFamily;
 
 use crate::terminal::{
     model::{
@@ -45,4 +46,33 @@ pub fn shell_escape_single_quotes(command: &str, shell_type: ShellType) -> Strin
             command.replace('\'', r#"'"'"'"#)
         }
     }
+}
+
+/// Serializes `name=value` assignments so they can be prefixed to a command run in `shell_type`.
+pub fn serialize_variables_for_shell<'s, I: IntoIterator<Item = (&'s str, &'s str)>>(
+    pairs: I,
+    shell_type: ShellType,
+) -> String {
+    // Prefix, separator between name and value, and postfix of each assignment.
+    let (prefix, separator, postfix) = match shell_type {
+        // Warp doesn't support newlines in fish so we can't use env syntax
+        ShellType::Fish => ("set -x ", " ", ";"),
+        ShellType::Bash | ShellType::Zsh => ("", "=", ""),
+        ShellType::PowerShell => ("$env:", " = ", ";"),
+    };
+    let shell_family = ShellFamily::from(shell_type);
+    pairs
+        .into_iter()
+        .map(|(name, value)| {
+            let value = match shell_family {
+                ShellFamily::Posix => shell_family.escape(value).into_owned(),
+                ShellFamily::PowerShell => format!("'{}'", value.replace('\'', "''")),
+            };
+            format!(
+                "{prefix}{}{separator}{value}{postfix}",
+                shell_family.escape(name)
+            )
+        })
+        .collect::<Vec<_>>()
+        .join(" ")
 }

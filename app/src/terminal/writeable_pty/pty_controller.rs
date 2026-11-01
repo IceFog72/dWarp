@@ -6,7 +6,6 @@ use thiserror::Error;
 use warpui::r#async::block_on;
 use warpui::{Entity, ModelContext, ModelHandle, SingletonEntity};
 
-use crate::ai::agent::AIAgentPtyWriteMode;
 use crate::terminal::input::CommandExecutionSource;
 use crate::terminal::model::completions::ShellCompletion;
 use crate::terminal::model::session::{
@@ -52,12 +51,6 @@ enum PtyWrite {
     Bytes {
         /// The bytes to be written.
         bytes: Cow<'static, [u8]>,
-    },
-    AgentInput {
-        /// The bytes to be written.
-        bytes: Cow<'static, [u8]>,
-        /// The `mode` for the agent's write.
-        mode: AIAgentPtyWriteMode,
     },
     TmuxCommand(TmuxCommand),
     RunNativeShellCompletions(NativeShellCompletionsState),
@@ -548,18 +541,10 @@ impl<T: EventLoopSender> PtyController<T> {
 
             // Explicitly start the block now that the command is executed.
             match source {
-                CommandExecutionSource::AI { metadata } => {
-                    model.start_command_execution_with_ai_metadata(metadata)
+                CommandExecutionSource::SharedSession { participant_id, .. } => {
+                    model.start_command_execution_for_shared_session(participant_id)
                 }
-                CommandExecutionSource::SharedSession {
-                    participant_id,
-                    ai_metadata,
-                    ..
-                } => model.start_command_execution_for_shared_session(participant_id, ai_metadata),
                 CommandExecutionSource::User => model.start_command_execution(),
-                CommandExecutionSource::EnvVarCollection { metadata } => {
-                    model.start_command_execution_from_env_var_collection(metadata)
-                }
             }
 
             // Ensure that the `TerminalModel` doesn't interpret any of the PTY output from the
@@ -613,22 +598,6 @@ impl<T: EventLoopSender> PtyController<T> {
         }
     }
 
-    /// Writes agent input to the PTY.
-    pub fn write_agent_bytes<B: Into<Cow<'static, [u8]>>>(
-        &mut self,
-        bytes: B,
-        mode: &AIAgentPtyWriteMode,
-        ctx: &mut ModelContext<Self>,
-    ) {
-        self.send_write_to_event_loop(
-            PtyWrite::AgentInput {
-                bytes: bytes.into(),
-                mode: *mode,
-            },
-            ctx,
-        );
-    }
-
     /// Writes user input to the PTY.
     ///
     /// This should only be called for non-command input (e.g. input that should be passed through
@@ -672,11 +641,6 @@ impl<T: EventLoopSender> PtyController<T> {
                 on_write_fn,
                 false,
             ),
-            PtyWrite::AgentInput { bytes, mode } => {
-                let decorated_bytes =
-                    mode.decorate_bytes(bytes.into_owned(), self.is_bracketed_paste_enabled);
-                (decorated_bytes.into(), false, None, false)
-            }
             PtyWrite::Bytes { bytes } => (bytes, false, None, false),
             PtyWrite::TmuxCommand(command) => {
                 let command = command.get_command_string();

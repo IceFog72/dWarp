@@ -1,9 +1,3 @@
-#[cfg(not(target_family = "wasm"))]
-use crate::server::server_api::{ServerApiEvent, ServerApiProvider};
-#[cfg(not(target_family = "wasm"))]
-use remote_server::manager::RemoteServerManager;
-#[cfg(not(target_family = "wasm"))]
-use warpui::SingletonEntity;
 // Re-export everything from the `remote_server` crate so existing
 // `crate::remote_server::*` imports in `app` continue to work.
 pub use remote_server::*;
@@ -86,18 +80,4 @@ pub(super) fn run_daemon_app(
         ctx.add_singleton_model(server_model_init);
     })?;
     Ok(())
-}
-
-/// Forwards app auth-token rotation events to the remote-server manager.
-#[cfg(not(target_family = "wasm"))]
-pub fn wire_auth_token_rotation(ctx: &mut warpui::AppContext) {
-    let server_api = ServerApiProvider::handle(ctx);
-    let manager = RemoteServerManager::handle(ctx);
-    ctx.subscribe_to_model(&server_api, move |_, event, ctx| {
-        if let ServerApiEvent::AccessTokenRefreshed { token } = event {
-            manager.update(ctx, |manager, _| {
-                manager.rotate_auth_token(token.clone());
-            });
-        }
-    });
 }

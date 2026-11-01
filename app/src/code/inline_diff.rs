@@ -1,7 +1,5 @@
 use std::rc::Rc;
 
-#[cfg(not(target_family = "wasm"))]
-use crate::ai::blocklist::inline_action::code_diff_view::DiffSessionType;
 use ai::diff_validation::DiffType;
 #[cfg(not(target_family = "wasm"))]
 use warp_files::{FileModel, FileModelEvent};
@@ -21,6 +19,12 @@ use super::editor::view::{CodeEditorEvent, CodeEditorView};
 use super::editor::NavBarBehavior;
 use super::DiffResult;
 use crate::editor::InteractionState;
+use warp_core::HostId;
+
+pub enum DiffSessionType {
+    Local,
+    Remote(HostId),
+}
 
 pub enum InlineDiffViewEvent {
     DiffStatusUpdated,

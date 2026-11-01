@@ -9,7 +9,6 @@ use crate::terminal::event::{
 
 use crate::terminal::ClipboardType;
 use async_channel::Receiver;
-use instant::Instant;
 use std::sync::Arc;
 
 use crate::remote_server::manager::RemoteServerManager;
@@ -20,7 +19,7 @@ use super::event::SshLoginStatus;
 use super::model::ansi::{FinishUpdateValue, WarpificationUnavailableReason};
 use super::model::block::BlockId;
 use super::model::completions::ShellCompletion;
-use super::model::terminal_model::{ExitReason, TmuxControlModeContext, TmuxInstallationState};
+use super::model::terminal_model::{ExitReason, TmuxInstallationState};
 use super::model::tmux::commands::TmuxCommand;
 use super::{
     event::BootstrappedEvent,
@@ -32,7 +31,6 @@ use super::{
 };
 use crate::features::FeatureFlag;
 use crate::terminal::shell::ShellType;
-use crate::{send_telemetry_from_ctx, TelemetryEvent};
 
 /// Model that dispatches events that have been emitted by the [`crate::terminal::TerminalModel`],
 /// allowing other models/views to subscribe to `TerminalModel` events like it would any other
@@ -184,27 +182,7 @@ impl ModelEventDispatcher {
             Event::Handler(HandlerEvent::EndTmuxControlMode) => {
                 ModelEvent::Handler(AnsiHandlerEvent::EndTmuxControlMode)
             }
-            Event::Handler(HandlerEvent::TmuxControlModeReady {
-                primary_pane,
-                context,
-            }) => {
-                {
-                    if let Some(TmuxControlModeContext::WarpInitiatedForSsh(control_mode)) = context
-                    {
-                        let duration_ms = Instant::now()
-                            .duration_since(control_mode.start_time)
-                            .as_millis()
-                            // Clip large durations to u64::MAX
-                            .min(u64::MAX as u128) as u64;
-                        send_telemetry_from_ctx!(
-                            TelemetryEvent::SshTmuxWarpificationSuccess {
-                                duration_ms,
-                                tmux_installation: control_mode.tmux_installation,
-                            },
-                            ctx
-                        );
-                    }
-                }
+            Event::Handler(HandlerEvent::TmuxControlModeReady { primary_pane, .. }) => {
                 ModelEvent::Handler(AnsiHandlerEvent::TmuxControlModeReady { primary_pane })
             }
             Event::Handler(HandlerEvent::RunTmuxCommand(command)) => {
@@ -293,9 +271,6 @@ impl ModelEventDispatcher {
                 image_protocol,
             },
             Event::BootstrapPrecmdDone => ModelEvent::BootstrapPrecmdDone,
-            Event::AgentTaggedInChanged { is_tagged_in } => {
-                ModelEvent::AgentTaggedInChanged { is_tagged_in }
-            }
             Event::PluggableNotification { title, body } => {
                 ModelEvent::PluggableNotification { title, body }
             }
@@ -320,7 +295,7 @@ impl ModelEventDispatcher {
             session_info,
             spawning_command,
             restored_block_commands,
-            rcfiles_duration_seconds,
+            ..
         } = event;
 
         let (is_legacy_ssh, session_id, shell_type_name, shell_path) = (
@@ -338,7 +313,6 @@ impl ModelEventDispatcher {
                 *session_info,
                 spawning_command,
                 restored_block_commands,
-                rcfiles_duration_seconds,
                 ctx,
             );
         });

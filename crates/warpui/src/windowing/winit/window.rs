@@ -785,7 +785,6 @@ impl CpuBackend {
     }
 }
 
-
 pub(super) const DEFAULT_TITLEBAR_HEIGHT: f32 = 35.0;
 
 /// A one-shot callback invoked with a captured frame. See [`platform::WindowContext::request_frame_capture`].
@@ -882,9 +881,7 @@ impl Window {
                     context,
                     surface,
                     size,
-                    glyph_cache: crate::rendering::cpu::CpuGlyphCache::new(
-                        GlyphConfig::default(),
-                    ),
+                    glyph_cache: crate::rendering::cpu::CpuGlyphCache::new(GlyphConfig::default()),
                     last_presented_scene: None,
                     perf_window_started: instant::Instant::now(),
                     perf_presents: 0,
@@ -916,7 +913,6 @@ impl Window {
         enable_decorations_if_needed(&window, &resources.adapter.get_info());
 
         let renderer = Renderer::new(&resources, GlyphConfig::default());
-
 
         self.inner.replace(Some(Inner {
             window,

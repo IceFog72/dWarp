@@ -800,7 +800,7 @@ impl AgentProvidersWidget {
         appearance: &Appearance,
         app: &AppContext,
     ) -> Box<dyn Element> {
-        let is_any_ai_enabled = AISettings::as_ref(app).is_any_ai_enabled(app);
+        let is_any_ai_enabled = AISettings::as_ref(app).is_any_ai_enabled();
         let label_color = if is_any_ai_enabled {
             appearance.theme().active_ui_text_color()
         } else {
@@ -1315,7 +1315,7 @@ impl SettingsWidget for AgentProvidersWidget {
         appearance: &Appearance,
         app: &AppContext,
     ) -> Box<dyn Element> {
-        let is_any_ai_enabled = AISettings::as_ref(app).is_any_ai_enabled(app);
+        let is_any_ai_enabled = AISettings::as_ref(app).is_any_ai_enabled();
         let providers = AISettings::as_ref(app).agent_providers.value().clone();
 
         let title_node = build_sub_header(

@@ -343,28 +343,10 @@ pub static FORK_FROM: LazyLock<StaticCommand> = LazyLock::new(|| StaticCommand {
     argument: None,
 });
 
-pub static REMOTE_CONTROL: LazyLock<StaticCommand> = LazyLock::new(|| StaticCommand {
-    name: "/remote-control",
-    description: t_static!("slash-cmd-remote-control-desc"),
-    icon_path: "bundled/svg/phone-01.svg",
-    availability: Availability::AI_ENABLED,
-    auto_enter_ai_mode: false,
-    argument: None,
-});
-
 pub static CONVERSATIONS: LazyLock<StaticCommand> = LazyLock::new(|| StaticCommand {
     name: "/conversations",
     description: t_static!("slash-cmd-conversations-desc"),
     icon_path: "bundled/svg/conversation.svg",
-    availability: Availability::AI_ENABLED,
-    auto_enter_ai_mode: false,
-    argument: None,
-});
-
-pub static PROMPTS: LazyLock<StaticCommand> = LazyLock::new(|| StaticCommand {
-    name: "/prompts",
-    description: t_static!("slash-cmd-prompts-desc"),
-    icon_path: "bundled/svg/prompt.svg",
     availability: Availability::AI_ENABLED,
     auto_enter_ai_mode: false,
     argument: None,
@@ -489,18 +471,8 @@ fn all_commands() -> Vec<StaticCommand> {
         commands.push(CREATE_DOCKER_SANDBOX.clone());
     }
 
-    if FeatureFlag::CreatingSharedSessions.is_enabled()
-        && FeatureFlag::HOARemoteControl.is_enabled()
-    {
-        commands.push(REMOTE_CONTROL.clone());
-    }
-
     if FeatureFlag::Changelog.is_enabled() {
         commands.push(CHANGELOG.clone());
-    }
-
-    if FeatureFlag::AgentView.is_enabled() {
-        commands.push(PROMPTS.clone());
     }
 
     commands.push(OPEN_CODE_REVIEW.clone());

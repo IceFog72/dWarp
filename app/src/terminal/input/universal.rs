@@ -1,11 +1,9 @@
 use crate::{
-    ai::blocklist::InputType,
     appearance::Appearance,
     context_chips::spacing,
     features::FeatureFlag,
-    settings::{AppEditorSettings, InputModeSettings},
+    settings::AppEditorSettings,
     terminal::{
-        block_list_viewport::InputMode,
         input::{InputAction, InputDropTargetData},
         settings::TerminalSettings,
         view::TerminalAction,
@@ -54,39 +52,11 @@ impl Input {
         let vim_state = self.editor.as_ref(app).vim_state(app);
         let app_editor_settings = AppEditorSettings::as_ref(app);
         let show_vim_status = vim_state.is_some() && *app_editor_settings.vim_status_bar.value();
-        let input_mode = *InputModeSettings::as_ref(app).input_mode.value();
-
         // For Universal Developer Input, ignore compact mode setting
-        let is_compact_mode = false;
+
         let mut column = Flex::column();
 
-        if matches!(input_mode, InputMode::PinnedToBottom | InputMode::Waterfall) {
-            if let Some(banner) =
-                self.render_input_banner(appearance, app, input_mode, is_compact_mode)
-            {
-                column.add_child(
-                    Container::new(banner)
-                        .with_margin_top(spacing::UDI_CHIP_MARGIN)
-                        .finish(),
-                );
-            }
-        }
-
         column.add_child(prompt_row.finish());
-
-        let ai_input_model = self.ai_input_model.as_ref(app);
-
-        if FeatureFlag::ImageAsContext.is_enabled()
-            && matches!(ai_input_model.input_type(), InputType::AI)
-        {
-            if let Some(images) = self.render_attachment_chips(appearance) {
-                column.add_child(
-                    Container::new(images)
-                        .with_margin_top(spacing::UDI_CHIP_MARGIN)
-                        .finish(),
-                );
-            }
-        }
 
         let terminal_spacing = TerminalSettings::as_ref(app)
             .terminal_input_spacing(appearance.line_height_ratio(), app);
@@ -99,18 +69,6 @@ impl Input {
                 .finish(),
         );
         column.add_child(ChildView::new(&self.universal_developer_input_button_bar).finish());
-
-        if matches!(input_mode, InputMode::PinnedToTop) {
-            if let Some(banner) =
-                self.render_input_banner(appearance, app, input_mode, is_compact_mode)
-            {
-                column.add_child(
-                    Container::new(banner)
-                        .with_margin_bottom(spacing::UDI_CHIP_MARGIN)
-                        .finish(),
-                );
-            }
-        }
 
         if let Some(vim_state) = vim_state.as_ref() {
             if show_vim_status {
@@ -204,13 +162,7 @@ impl Input {
 
         let mut column = Flex::column();
 
-        if input_mode.is_pinned_to_top() {
-            column.add_child(input);
-            column.add_child(ChildView::new(&self.agent_status_view).finish());
-        } else {
-            column.add_child(ChildView::new(&self.agent_status_view).finish());
-            column.add_child(input);
-        }
+        column.add_child(input);
 
         SavePosition::new(column.finish(), &self.save_position_id()).finish()
     }

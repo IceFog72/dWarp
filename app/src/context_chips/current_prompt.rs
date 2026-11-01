@@ -1104,30 +1104,17 @@ impl CurrentPrompt {
 
     /// Chips whose values we should actively maintain in state.
     ///
-    /// When Agent View is enabled, the footer chips should not depend on prompt chip
-    /// customization/ordering/visibility, so we keep their backing values up to date even if they
-    /// are not present in the prompt configuration.
+    /// The CLI agent footer chips should not depend on prompt chip customization/ordering/visibility,
+    /// so we keep their backing values up to date even if they are not present in the prompt
+    /// configuration.
     fn chips_to_run(&self, ctx: &AppContext) -> Vec<ContextChipKind> {
         let mut chips = self.configured_chips(ctx);
-
-        if FeatureFlag::AgentView.is_enabled() {
-            let footer_chips = SessionSettings::as_ref(ctx)
-                .agent_footer_chip_selection
-                .all_chips();
-            for chip_kind in footer_chips {
-                if !chips.contains(&chip_kind) {
-                    chips.push(chip_kind);
-                }
-            }
-
-            // Also include chips configured for the CLI agent footer.
-            let cli_footer_chips = SessionSettings::as_ref(ctx)
-                .cli_agent_footer_chip_selection
-                .all_chips();
-            for chip_kind in cli_footer_chips {
-                if !chips.contains(&chip_kind) {
-                    chips.push(chip_kind);
-                }
+        let cli_footer_chips = SessionSettings::as_ref(ctx)
+            .cli_agent_footer_chip_selection
+            .all_chips();
+        for chip_kind in cli_footer_chips {
+            if !chips.contains(&chip_kind) {
+                chips.push(chip_kind);
             }
         }
 
@@ -1202,11 +1189,6 @@ impl CurrentPrompt {
             self.same_line_prompt_enabled =
                 session_settings.saved_prompt.same_line_prompt_enabled();
             self.separator = session_settings.saved_prompt.separator();
-        }
-
-        if let SessionSettingsChangedEvent::AgentToolbarChipSelectionSetting { .. } = event {
-            // Recompute which chips to run when the agent footer config changes.
-            self.update_states_with_new_context(ctx);
         }
 
         if let SessionSettingsChangedEvent::CLIAgentToolbarChipSelectionSetting { .. } = event {

@@ -43,7 +43,6 @@ use crate::{
     appearance::Appearance,
     completer::SessionAgnosticContext,
     debounce::debounce,
-    drive::workflows::arguments::ArgumentsState,
     editor::InteractionState,
     notebooks::{
         styles::block_footer_action_button,
@@ -61,6 +60,7 @@ use crate::{
         color::{ContrastingColor, MinimumAllowedContrast},
     },
     view_components::{Dropdown, DropdownItem},
+    workflows::arguments::ArgumentsState,
     workflows::{workflow::Workflow, WorkflowType},
     Assets,
 };

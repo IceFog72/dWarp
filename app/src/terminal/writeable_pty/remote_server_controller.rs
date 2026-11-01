@@ -1,5 +1,4 @@
-use crate::auth::auth_state::AuthStateProvider;
-use crate::remote_server::auth_context::server_api_auth_context;
+use crate::remote_server::auth_context::local_auth_context;
 use instant::Instant;
 use remote_server::auth::RemoteServerAuthContext;
 use settings::Setting;
@@ -12,14 +11,10 @@ use crate::terminal::warpify::settings::SshExtensionInstallMode;
 
 use crate::remote_server::manager::{RemoteServerManager, RemoteServerManagerEvent};
 use crate::remote_server::ssh_transport::SshTransport;
-use crate::server::server_api::ServerApiProvider;
 use crate::terminal::model::session::{IsLegacySSHSession, SessionInfo};
 use crate::terminal::model_events::{ModelEvent, ModelEventDispatcher};
 use crate::terminal::warpify::settings::WarpifySettings;
-use crate::{send_telemetry_from_ctx, TelemetryEvent};
-use remote_server::setup::{
-    PreinstallCheckResult, PreinstallStatus, RemoteLibc, RemotePlatform, UnsupportedReason,
-};
+use remote_server::setup::{PreinstallCheckResult, PreinstallStatus, RemoteLibc, RemotePlatform};
 
 use super::pty_controller::{EventLoopSender, PtyController};
 
@@ -92,10 +87,7 @@ impl<T: EventLoopSender> RemoteServerController<T> {
         model_event_dispatcher: ModelHandle<ModelEventDispatcher>,
         ctx: &mut ModelContext<Self>,
     ) -> Self {
-        let auth_context = Arc::new(server_api_auth_context(
-            AuthStateProvider::as_ref(ctx).get().clone(),
-            ServerApiProvider::as_ref(ctx).get_auth_client(),
-        ));
+        let auth_context = Arc::new(local_auth_context());
         ctx.subscribe_to_model(&model_event_dispatcher, |me, event, ctx| {
             if let ModelEvent::SshInitShell {
                 pending_session_info,
@@ -257,7 +249,6 @@ impl<T: EventLoopSender> RemoteServerController<T> {
                  ({:?}); falling back to legacy SSH",
                 check.status
             );
-            send_unsupported_telemetry(self.remote_platform.as_ref(), check, ctx);
             RemoteServerManager::handle(ctx).update(ctx, |mgr, ctx| {
                 mgr.mark_setup_unsupported(session_id, reason, ctx);
             });
@@ -381,11 +372,8 @@ impl<T: EventLoopSender> RemoteServerController<T> {
             return;
         }
 
-        let SshInitState::AwaitingConnect {
-            session_info,
-            setup_start,
-            ..
-        } = std::mem::replace(&mut self.state, SshInitState::Idle)
+        let SshInitState::AwaitingConnect { session_info, .. } =
+            std::mem::replace(&mut self.state, SshInitState::Idle)
         else {
             unreachable!("just matched AwaitingConnect above");
         };
@@ -394,35 +382,6 @@ impl<T: EventLoopSender> RemoteServerController<T> {
         // `client_for_session` will return `Some` when the session
         // subsequently initializes, so it picks `RemoteServerCommandExecutor`.
         self.flush_stashed_bootstrap(session_info, ctx);
-
-        let duration_ms = Instant::now()
-            .duration_since(setup_start)
-            .as_millis()
-            .min(u64::MAX as u128) as u64;
-        let (remote_os, remote_arch) = self
-            .remote_platform
-            .as_ref()
-            .map(|p| {
-                (
-                    Some(p.os.as_str().to_owned()),
-                    Some(p.arch.as_str().to_owned()),
-                )
-            })
-            .unwrap_or((None, None));
-        let remote_libc = self
-            .preinstall_check
-            .as_ref()
-            .map(|check| describe_libc(&check.libc));
-        send_telemetry_from_ctx!(
-            TelemetryEvent::RemoteServerSetupDuration {
-                duration_ms,
-                installed_binary: self.did_install,
-                remote_os,
-                remote_arch,
-                remote_libc,
-            },
-            ctx
-        );
     }
 
     /// Called when the remote server connection failed. Flushes the stashed
@@ -531,34 +490,4 @@ fn describe_libc(libc: &RemoteLibc) -> String {
         RemoteLibc::NonGlibc { name } => name.clone(),
         RemoteLibc::Unknown => "unknown".to_string(),
     }
-}
-
-fn send_unsupported_telemetry<T: EventLoopSender>(
-    remote_platform: Option<&RemotePlatform>,
-    check: &PreinstallCheckResult,
-    ctx: &mut ModelContext<RemoteServerController<T>>,
-) {
-    let (remote_os, remote_arch) = remote_platform
-        .map(|p| {
-            (
-                Some(p.os.as_str().to_owned()),
-                Some(p.arch.as_str().to_owned()),
-            )
-        })
-        .unwrap_or((None, None));
-    let required_glibc = match &check.status {
-        remote_server::setup::PreinstallStatus::Unsupported {
-            reason: UnsupportedReason::GlibcTooOld { required, .. },
-        } => required.to_string(),
-        _ => String::new(),
-    };
-    send_telemetry_from_ctx!(
-        TelemetryEvent::RemoteServerHostUnsupported {
-            remote_os,
-            remote_arch,
-            detected_libc: describe_libc(&check.libc),
-            required_glibc,
-        },
-        ctx
-    );
 }

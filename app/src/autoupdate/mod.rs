@@ -1,5 +1,3 @@
-mod changelog;
-mod channel_versions;
 pub(crate) mod github;
 #[cfg(target_os = "linux")]
 pub mod linux;
@@ -9,14 +7,9 @@ mod mac;
 mod windows;
 
 use crate::features::FeatureFlag;
-use crate::send_telemetry_sync_from_app_ctx;
 use crate::server::server_api::ServerApi;
-use crate::server::telemetry::TelemetryEvent;
 use crate::workspace::Workspace;
-use crate::{
-    channel::Channel, report_if_error, send_telemetry_from_ctx, server::datetime_ext::DateTimeExt,
-    ChannelState,
-};
+use crate::{channel::Channel, report_if_error, server::datetime_ext::DateTimeExt, ChannelState};
 use ::channel_versions::{ParsedVersion, VersionInfo};
 use anyhow::{anyhow, Context as _, Result};
 use chrono::{DateTime, FixedOffset, NaiveDate};
@@ -34,9 +27,6 @@ use warpui::{
     AppContext,
 };
 use warpui::{Entity, ModelContext, SingletonEntity, ViewContext};
-
-pub use self::changelog::get_current_changelog;
-use self::channel_versions::fetch_channel_versions;
 
 /// A successfully downloaded and unpacked target update.
 #[derive(Clone, Debug)]
@@ -245,7 +235,7 @@ impl AutoupdateState {
                 let update_id = new_update_id();
                 let channel = ChannelState::channel();
                 log::info!("Checking for update on channel {channel}. Update id is {update_id}");
-                let version = fetch_version(&channel, is_daily, &update_id, server_api)
+                let version = fetch_version(server_api)
                     .await
                     .context("Error checking for new version");
                 report_if_error!(version);
@@ -498,7 +488,6 @@ impl AutoupdateState {
                 })
             }
             Ok(DownloadReady::NeedsAuthorization) => {
-                send_telemetry_from_ctx!(TelemetryEvent::UnableToAutoUpdateToNewVersion, ctx);
                 self.stage = AutoupdateStage::UnableToUpdateToNewVersion { new_version };
                 Ok(UpdateReady::No)
             }
@@ -743,41 +732,10 @@ fn new_update_id() -> String {
         .collect()
 }
 
-/// Fetch the current version on the given channel.
-async fn fetch_version(
-    channel: &Channel,
-    is_daily: bool,
-    update_id: &str,
-    server_api: Arc<ServerApi>,
-) -> Result<VersionInfo> {
-    // openWarp 走 GitHub Releases(zerx-lab/warp),完全旁路 Warp 官方
-    // channel_versions / GCS。提前返回避免后续 fetch_channel_versions 必然失败。
-    if matches!(channel, Channel::Oss) {
-        let release = github::fetch_latest_release(server_api.http_client()).await?;
-        return Ok(VersionInfo::new(release.version().to_string()));
-    }
-
-    let versions = fetch_channel_versions(update_id, server_api.clone(), false, is_daily).await?;
-
-    let channel_version = match channel {
-        Channel::Stable => versions.stable,
-        Channel::Preview => versions.preview,
-        Channel::Dev => versions.dev,
-        Channel::Integration | Channel::Local | Channel::Oss => {
-            // These channels don't ship release artifacts, so there's no
-            // version to fetch. This branch is normally unreachable because
-            // `AutoupdateState::register` gates the poll loop on the
-            // `Autoupdate` feature flag, but builds (e.g. local wasm bundles)
-            // can end up with `Autoupdate` enabled while running on one of
-            // these channels. Return an error rather than panicking so the
-            // poll loop just logs and bails.
-            anyhow::bail!(
-                "Local, integration, and open-source channel binaries don't support autoupdate"
-            );
-        }
-    };
-    let version_info = channel_version.version_info();
-    Ok(version_info)
+/// Fetch the latest release of this fork.
+async fn fetch_version(server_api: Arc<ServerApi>) -> Result<VersionInfo> {
+    let release = github::fetch_latest_release(server_api.http_client()).await?;
+    Ok(VersionInfo::new(release.version().to_string()))
 }
 
 // This method is unimplemented on wasm, so we allow unused variables.
@@ -834,11 +792,7 @@ pub fn apply_update(
             // `spawn_child_if_necessary`. In either case, simply continue relaunching the app.
             Ok(ReadyForRelaunch::Yes)
         } else if #[cfg(target_os = "linux")] {
-            let AutoupdateStage::UpdateReady { update_id, .. } = &AutoupdateState::handle(_ctx).as_ref(_ctx).stage else {
-                anyhow::bail!("Trying to apply an update without AutoupdateState being UpdateReady!");
-            };
-            let update_id = update_id.clone();
-            linux::apply_update(_initiating_workspace, &update_id, _ctx)
+            linux::apply_update()
         } else {
             anyhow::bail!("Not implemented")
         }
@@ -867,7 +821,7 @@ pub fn initiate_relaunch_for_update(app: &mut AppContext) {
         } => {
             // There's a pending update, and we haven't finished applying it.
             let new_version = new_version.clone();
-            let new_version_string = new_version.version.clone();
+
             let update_id = update_id.clone();
 
             // First, record that we're applying an update.
@@ -892,14 +846,6 @@ pub fn initiate_relaunch_for_update(app: &mut AppContext) {
                     // finalize_update reports the error itself.
                     return;
                 }
-
-                // Report that we're attempting to relaunch for an update, so that we can track failed
-                // relaunches (e.g. if the update got corrupted). This is sent synchronously because
-                // the app is about to quit.
-                let event = TelemetryEvent::AutoupdateRelaunchAttempt {
-                    new_version: new_version_string,
-                };
-                send_telemetry_sync_from_app_ctx!(event, app);
 
                 // Request termination of the app.
                 app.terminate_app(TerminationMode::Cancellable, None);

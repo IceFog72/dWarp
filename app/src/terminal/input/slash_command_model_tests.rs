@@ -166,7 +166,6 @@ fn test_disabled_until_empty_buffer_ignores_non_slash_edits() {
         let input = terminal.read(&app, |terminal, _| terminal.input().clone());
 
         input.update(&mut app, |input, ctx| {
-            input.set_input_mode_natural_language_detection(ctx);
             input.user_insert("echo hello", ctx);
         });
         input.update(&mut app, |input, ctx| {
@@ -221,7 +220,6 @@ fn test_disabled_until_empty_buffer_reevaluates_when_slash_is_added_to_start() {
         });
 
         input.update(&mut app, |input, ctx| {
-            input.set_input_mode_natural_language_detection(ctx);
             input.user_insert("echo hello", ctx);
         });
         input.update(&mut app, |input, ctx| {
@@ -259,7 +257,6 @@ fn test_second_slash_in_command_token_sets_state_to_none() {
         let input = terminal.read(&app, |terminal, _| terminal.input().clone());
 
         input.update(&mut app, |input, ctx| {
-            input.set_input_mode_natural_language_detection(ctx);
             input.user_insert("/foo/bar", ctx);
         });
 
@@ -371,7 +368,6 @@ fn test_detect_command_matches_buffer_driven_detection() {
 
         // Type the command into the buffer so the buffer-driven model processes it.
         input.update(&mut app, |input, ctx| {
-            input.set_input_mode_natural_language_detection(ctx);
             input.user_insert(&command_name, ctx);
         });
 
@@ -439,60 +435,5 @@ fn test_detect_command_returns_queue_with_no_argument() {
                 "/queue with no argument should not be detected as a complete slash command"
             );
         });
-    });
-}
-
-#[test]
-fn test_submit_queued_prompt_routes_plain_text_to_conversation() {
-    App::test((), |mut app| async move {
-        initialize_app(&mut app);
-
-        let terminal = add_window_with_bootstrapped_terminal(&mut app, None, None).await;
-        let input = terminal.read(&app, |terminal, _| terminal.input().clone());
-
-        // Set up AI input mode so the input can interact with the AI controller.
-        input.update(&mut app, |input, ctx| {
-            input.set_input_mode_natural_language_detection(ctx);
-        });
-
-        // submit_queued_prompt with plain text should not panic or crash.
-        // It routes through detect_command (returning None) and falls through
-        // to send_user_query_in_new_conversation.
-        input.update(&mut app, |input, ctx| {
-            input.submit_queued_prompt("fix the tests".to_string(), ctx);
-        });
-    });
-}
-
-#[test]
-fn test_submit_queued_prompt_detects_slash_command() {
-    App::test((), |mut app| async move {
-        initialize_app(&mut app);
-
-        let terminal = add_window_with_bootstrapped_terminal(&mut app, None, None).await;
-        let input = terminal.read(&app, |terminal, _| terminal.input().clone());
-
-        input.update(&mut app, |input, ctx| {
-            input.set_input_mode_natural_language_detection(ctx);
-        });
-
-        // Verify that submit_queued_prompt correctly detects slash commands.
-        // Find a command that exists and has an optional argument.
-        let command_with_arg = input.read(&app, |input, ctx| {
-            let ds = &input.slash_command_data_source;
-            ds.as_ref(ctx).active_commands().find_map(|(_, command)| {
-                (command.argument.as_ref().is_some_and(|a| a.is_optional)
-                    && ds.as_ref(ctx).parse_slash_command(command.name).is_some())
-                .then(|| command.name.to_owned())
-            })
-        });
-
-        if let Some(command_text) = command_with_arg {
-            // submit_queued_prompt should detect the slash command and route through
-            // execute_slash_command. This should not panic.
-            input.update(&mut app, |input, ctx| {
-                input.submit_queued_prompt(command_text, ctx);
-            });
-        }
     });
 }

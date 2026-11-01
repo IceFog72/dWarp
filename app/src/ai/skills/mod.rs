@@ -1,5 +1,5 @@
 mod telemetry;
-pub use telemetry::{SkillOpenOrigin, SkillTelemetryEvent};
+pub use telemetry::SkillOpenOrigin;
 
 cfg_if::cfg_if! {
     if #[cfg(not(feature = "local_fs"))] {
@@ -8,26 +8,17 @@ cfg_if::cfg_if! {
     }
 }
 
-pub use ai::skills::SkillReference;
-
 mod listed_skill;
 pub use listed_skill::SkillDescriptor;
 
 mod skill_utils;
-pub use skill_utils::{
-    icon_override_for_skill_name, list_skills, render_skill_button, skill_path_from_file_path,
-};
 
 #[cfg(not(target_family = "wasm"))]
 mod resolve_skill_spec;
-#[cfg(not(target_family = "wasm"))]
-pub use resolve_skill_spec::{
-    clone_repo_for_skill, resolve_skill_spec, ResolveSkillError, ResolvedSkill,
-};
 
 cfg_if::cfg_if! {
     if #[cfg(feature = "local_fs")] {
         mod skill_manager;
-        pub use skill_manager::{SkillManager, SkillWatcher};
+        pub use skill_manager::SkillManager;
     }
 }

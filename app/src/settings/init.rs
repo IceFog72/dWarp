@@ -4,10 +4,8 @@ use warpui::{rendering::GPUPowerPreference, AppContext, SingletonEntity};
 use warpui_extras::user_preferences;
 
 use crate::{
-    ai::cloud_agent_settings::CloudAgentSettings,
     appearance,
     banner::BannerState,
-    drive::settings::WarpDriveSettings,
     report_if_error,
     resource_center::TipsCompleted,
     search::command_search::settings::CommandSearchSettings,
@@ -25,7 +23,6 @@ use crate::{
     },
     undo_close::UndoCloseSettings,
     window_settings::WindowSettings,
-    workflows::aliases::WorkflowAliases,
     workspace::tab_settings::TabSettings,
 };
 
@@ -33,13 +30,12 @@ use warp_core::semantic_selection::SemanticSelection;
 
 use super::{
     app_icon::AppIconSettings, app_installation_detection::UserAppInstallDetectionSettings,
-    cloud_preferences::CloudPreferencesSettings, initializer::SettingsInitializer,
     language::LanguageSettings, native_preference::NativePreferenceSettings, AISettings,
     AccessibilitySettings, AliasExpansionSettings, AppEditorSettings, BlockVisibilitySettings,
     CodeSettings, DebugSettings, EmacsBindingsSettings, FontSettings, FontSettingsChangedEvent,
     GPUSettings, InputBoxType, InputModeSettings, InputSettings, PaneSettings,
     SameLinePromptBlockSettings, ScrollSettings, SelectionSettings, SshSettings, ThemeSettings,
-    VimBannerSettings, WarpDrivePrivacySettings,
+    VimBannerSettings,
 };
 
 pub struct UserDefaultsOnStartup {
@@ -73,15 +69,12 @@ pub fn register_all_settings(ctx: &mut AppContext) {
     GPUSettings::register(ctx);
     GeneralSettings::register(ctx);
     AISettings::register_and_subscribe_to_events(ctx);
-    CloudAgentSettings::register(ctx);
     ScrollSettings::register(ctx);
     SelectionSettings::register(ctx);
     InputModeSettings::register(ctx);
     ThemeSettings::register(ctx);
     AccessibilitySettings::register(ctx);
     NativePreferenceSettings::register(ctx);
-    CloudPreferencesSettings::register(ctx);
-    WarpDrivePrivacySettings::register(ctx);
     UserAppInstallDetectionSettings::register(ctx);
     AppIconSettings::register(ctx);
     LanguageSettings::register(ctx);
@@ -93,8 +86,6 @@ pub fn register_all_settings(ctx: &mut AppContext) {
     SshSettings::register(ctx);
     VimBannerSettings::register(ctx);
     SharedSessionSettings::register(ctx);
-    WarpDriveSettings::register(ctx);
-    WorkflowAliases::register(ctx);
     EmacsBindingsSettings::register(ctx);
     SameLinePromptBlockSettings::register(ctx);
     SemanticSelection::register(ctx);
@@ -115,8 +106,6 @@ pub fn init(
     startup_toml_parse_error: Option<user_preferences::Error>,
     ctx: &mut AppContext,
 ) -> UserDefaultsOnStartup {
-    ctx.add_singleton_model(|_| SettingsInitializer::new());
-
     register_all_settings(ctx);
 
     // One-time migration: copy public settings from the platform-native store

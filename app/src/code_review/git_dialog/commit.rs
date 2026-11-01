@@ -20,7 +20,8 @@ use warpui::{
 use crate::{
     code_review::git_dialog::{
         interactive_path_future, pr::show_pr_created_toast, render_branch_section,
-        render_file_changes_box, show_toast, user_facing_git_error, GitDialog, GitDialogAction, GitDialogEvent, GitDialogMode,
+        render_file_changes_box, show_toast, user_facing_git_error, GitDialog, GitDialogAction,
+        GitDialogEvent, GitDialogMode,
     },
     editor::{
         EditorOptions, EditorView, Event as EditorEvent, InteractionState,
@@ -28,8 +29,7 @@ use crate::{
     },
     ui_components::icons::Icon,
     util::git::{
-        create_pr, get_file_change_entries, run_commit, run_push,
-        FileChangeEntry, PrInfo,
+        create_pr, get_file_change_entries, run_commit, run_push, FileChangeEntry, PrInfo,
     },
     view_components::action_button::{ActionButton, ButtonSize, SecondaryTheme},
 };

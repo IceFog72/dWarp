@@ -1,3 +1,4 @@
+use warpui::Element;
 pub mod event;
 pub mod listener;
 #[cfg(not(target_family = "wasm"))]
@@ -7,7 +8,11 @@ use std::collections::{HashMap, HashSet};
 
 use warpui::{Entity, EntityId, ModelContext, ModelHandle, SingletonEntity};
 
-use crate::ai::blocklist::InputConfig;
+use warp_core::ui::appearance::Appearance;
+use warp_core::ui::theme::{AnsiColorIdentifier, WarpTheme};
+use warpui::color::ColorU;
+
+use crate::ui_components::icons::Icon;
 
 use self::listener::CLIAgentSessionListener;
 use super::CLIAgent;
@@ -21,17 +26,70 @@ pub enum CLIAgentSessionStatus {
     Blocked { message: Option<String> },
 }
 
-impl CLIAgentSessionStatus {
-    pub fn to_conversation_status(&self) -> crate::ai::agent::conversation::ConversationStatus {
-        use crate::ai::agent::conversation::ConversationStatus;
+impl std::fmt::Display for CLIAgentSessionStatus {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            CLIAgentSessionStatus::InProgress => ConversationStatus::InProgress,
-            CLIAgentSessionStatus::Success => ConversationStatus::Success,
-            CLIAgentSessionStatus::Blocked { message } => ConversationStatus::Blocked {
-                blocked_action: message.clone().unwrap_or_default(),
-            },
+            CLIAgentSessionStatus::InProgress => write!(f, "In progress"),
+            CLIAgentSessionStatus::Success => write!(f, "Done"),
+            CLIAgentSessionStatus::Blocked { .. } => write!(f, "Blocked"),
         }
     }
+}
+
+impl CLIAgentSessionStatus {
+    /// Icon and its color for this status.
+    pub fn status_icon_and_color(&self, theme: &WarpTheme) -> (Icon, ColorU) {
+        match self {
+            CLIAgentSessionStatus::InProgress => (Icon::ClockLoader, theme.ansi_fg_magenta()),
+            CLIAgentSessionStatus::Success => (Icon::Check, theme.ansi_fg_green()),
+            CLIAgentSessionStatus::Blocked { .. } => (Icon::StopFilled, theme.ansi_fg_yellow()),
+        }
+    }
+
+    pub fn render_icon(&self, appearance: &Appearance) -> warpui::elements::Icon {
+        let (icon, color) = match self {
+            CLIAgentSessionStatus::InProgress => (Icon::Circle, AnsiColorIdentifier::Magenta),
+            CLIAgentSessionStatus::Success => (Icon::Check, AnsiColorIdentifier::Green),
+            CLIAgentSessionStatus::Blocked { .. } => {
+                (Icon::StopFilled, AnsiColorIdentifier::Yellow)
+            }
+        };
+        warpui::elements::Icon::new(
+            icon.into(),
+            color.to_ansi_color(&appearance.theme().terminal_colors().normal),
+        )
+    }
+
+    pub fn is_in_progress(&self) -> bool {
+        matches!(self, CLIAgentSessionStatus::InProgress)
+    }
+
+    pub fn is_blocked(&self) -> bool {
+        matches!(self, CLIAgentSessionStatus::Blocked { .. })
+    }
+}
+
+/// Renders a status icon on a tinted background, used by tabs and notifications.
+pub fn render_status_element(
+    status: &CLIAgentSessionStatus,
+    icon_size: f32,
+    appearance: &Appearance,
+) -> Box<dyn warpui::Element> {
+    use warp_core::ui::color::coloru_with_opacity;
+    use warp_core::ui::theme::Fill;
+    use warpui::elements::{ConstrainedBox, Container, CornerRadius, Radius};
+
+    let (icon, color) = status.status_icon_and_color(appearance.theme());
+    Container::new(
+        ConstrainedBox::new(icon.to_warpui_icon(Fill::from(color)).finish())
+            .with_width(icon_size)
+            .with_height(icon_size)
+            .finish(),
+    )
+    .with_uniform_padding(2.)
+    .with_background(coloru_with_opacity(color, 10))
+    .with_corner_radius(CornerRadius::with_all(Radius::Pixels(4.)))
+    .finish()
 }
 
 /// Rich context accumulated from CLI agent session events.
@@ -56,24 +114,7 @@ pub enum CLIAgentInputState {
     Open {
         /// How this session was opened (for telemetry).
         entrypoint: CLIAgentInputEntrypoint,
-        /// The input config that was active before opening rich input.
-        previous_input_config: InputConfig,
-        /// Whether the previous lock state was established while the input buffer was empty.
-        previous_was_lock_set_with_empty_buffer: bool,
     },
-}
-
-/// Why the CLI agent rich input was closed (for telemetry).
-#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize)]
-pub enum CLIAgentRichInputCloseReason {
-    /// User explicitly closed (Escape, Ctrl-G, footer button).
-    Manual,
-    /// Auto-closed due to agent status change (e.g. Blocked).
-    AutoToggle,
-    /// Auto-dismissed after submitting a prompt.
-    Submit,
-    /// Closed for another reason (chip removed, session ended, shared session sync).
-    Other,
 }
 
 /// How a [`CLIAgentInputState`] was opened.
@@ -417,8 +458,6 @@ impl CLIAgentSessionsModel {
         &mut self,
         terminal_view_id: EntityId,
         entrypoint: CLIAgentInputEntrypoint,
-        previous_input_config: InputConfig,
-        previous_was_lock_set_with_empty_buffer: bool,
         should_auto_toggle_input: bool,
         ctx: &mut ModelContext<Self>,
     ) {
@@ -427,11 +466,7 @@ impl CLIAgentSessionsModel {
         };
 
         let previous_input_state = session.input_state;
-        session.input_state = CLIAgentInputState::Open {
-            entrypoint,
-            previous_input_config,
-            previous_was_lock_set_with_empty_buffer,
-        };
+        session.input_state = CLIAgentInputState::Open { entrypoint };
         session.should_auto_toggle_input = should_auto_toggle_input;
 
         ctx.emit(CLIAgentSessionsModelEvent::InputSessionChanged {

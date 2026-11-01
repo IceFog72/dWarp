@@ -1,40 +1,27 @@
 use std::{path::PathBuf, sync::Arc};
 
-use warp_core::features::FeatureFlag;
-use warp_graphql::scalars::time::ServerTimestamp;
+use diesel::prelude::*;
 
 use crate::{
     app_state::{
         AppState, CodePaneSnapShot, CodePaneTabSnapshot, LeafContents, LeafSnapshot,
         PaneNodeSnapshot, TabSnapshot, TerminalPaneSnapshot, WindowSnapshot,
     },
-    cloud_object::{CloudObjectPermissions, Owner},
     code::editor_management::CodeSource,
-    notebooks::{CloudNotebook, CloudNotebookModel},
-    persistence::{model::ObjectPermissions, BlockCompleted, ModelEvent},
-    server::ids::ClientId,
+    persistence::{BlockCompleted, ModelEvent},
     tab::SelectedTabColor,
     terminal::model::block::SerializedBlock,
     terminal::ShellLaunchData,
 };
 
 use super::{
-    decode_path, deduplicate_events, encode_path, read_sqlite_data, save_app_state, setup_database,
+    decode_path, deduplicate_events, encode_path, model, read_sqlite_data, save_app_state, schema,
+    setup_database, AI_FACT_PANE_KIND, ENV_VAR_COLLECTION_PANE_KIND, NOTEBOOK_PANE_KIND,
+    TERMINAL_PANE_KIND, WORKFLOW_PANE_KIND,
 };
 
 #[test]
 fn test_deduplicate_snapshots() {
-    let local_notebook = CloudNotebook::new_local(
-        CloudNotebookModel {
-            title: "Hello".to_string(),
-            data: "World".to_string(),
-            ai_document_id: None,
-            conversation_id: None,
-        },
-        Owner::mock_current_user(),
-        None,
-        ClientId::new(),
-    );
     let completed_block_1 = BlockCompleted {
         pane_id: vec![1, 2, 3],
         block: Arc::new(SerializedBlock::default()),
@@ -49,32 +36,29 @@ fn test_deduplicate_snapshots() {
         active_window_index: Some(1),
         block_lists: Default::default(),
         windows: Default::default(),
-        running_mcp_servers: Default::default(),
     };
     let snapshot_2 = AppState {
         active_window_index: Some(2),
         block_lists: Default::default(),
         windows: Default::default(),
-        running_mcp_servers: Default::default(),
     };
     let snapshot_3 = AppState {
         active_window_index: Some(3),
         block_lists: Default::default(),
         windows: Default::default(),
-        running_mcp_servers: Default::default(),
     };
 
     let original_events = vec![
-        ModelEvent::UpsertNotebook {
-            notebook: local_notebook.clone(),
+        ModelEvent::DeleteProject {
+            path: "/repo".to_string(),
         },
         ModelEvent::Snapshot(snapshot_1.clone()),
         ModelEvent::SaveBlock(completed_block_1.clone()),
         ModelEvent::Snapshot(snapshot_2.clone()),
         ModelEvent::SaveBlock(completed_block_2.clone()),
         ModelEvent::Snapshot(snapshot_3.clone()),
-        ModelEvent::UpsertNotebook {
-            notebook: local_notebook.clone(),
+        ModelEvent::DeleteProject {
+            path: "/repo".to_string(),
         },
     ];
 
@@ -83,7 +67,7 @@ fn test_deduplicate_snapshots() {
 
     assert!(matches!(
         &filtered_events[0],
-        &ModelEvent::UpsertNotebook { .. }
+        &ModelEvent::DeleteProject { .. }
     ));
     // The first snapshot should have been filtered out.
     assert!(matches!(&filtered_events[1], &ModelEvent::SaveBlock(_)));
@@ -96,7 +80,7 @@ fn test_deduplicate_snapshots() {
     }
     assert!(matches!(
         &filtered_events[4],
-        &ModelEvent::UpsertNotebook { .. }
+        &ModelEvent::DeleteProject { .. }
     ));
 }
 
@@ -128,11 +112,6 @@ fn test_terminal_window_snapshot(vertical_tabs_panel_open: bool) -> WindowSnapsh
                     }),
                     is_active: true,
                     is_read_only: false,
-                    input_config: None,
-                    llm_model_override: None,
-                    active_profile_id: None,
-                    conversation_ids_to_restore: vec![],
-                    active_conversation_id: None,
                 }),
             }),
             default_directory_color: None,
@@ -147,12 +126,11 @@ fn test_terminal_window_snapshot(vertical_tabs_panel_open: bool) -> WindowSnapsh
         universal_search_width: None,
         warp_ai_width: None,
         voltron_width: None,
-        warp_drive_index_width: None,
+
         left_panel_open: false,
         vertical_tabs_panel_open,
         left_panel_width: None,
         right_panel_width: None,
-        agent_management_filters: None,
     }
 }
 
@@ -169,12 +147,11 @@ fn test_sqlite_round_trips_vertical_tabs_panel_open() {
         ],
         active_window_index: Some(1),
         block_lists: Default::default(),
-        running_mcp_servers: Default::default(),
     };
 
     save_app_state(&mut conn, &app_state).expect("app state should save");
 
-    let restored = read_sqlite_data(&mut conn, None)
+    let restored = read_sqlite_data(&mut conn)
         .expect("app state should load")
         .app_state;
 
@@ -211,11 +188,6 @@ fn test_sqlite_round_trips_custom_vertical_tabs_title() {
                         }),
                         is_active: true,
                         is_read_only: false,
-                        input_config: None,
-                        llm_model_override: None,
-                        active_profile_id: None,
-                        conversation_ids_to_restore: vec![],
-                        active_conversation_id: None,
                     }),
                 }),
                 default_directory_color: None,
@@ -230,21 +202,19 @@ fn test_sqlite_round_trips_custom_vertical_tabs_title() {
             universal_search_width: None,
             warp_ai_width: None,
             voltron_width: None,
-            warp_drive_index_width: None,
+
             left_panel_open: false,
             vertical_tabs_panel_open: false,
             left_panel_width: None,
             right_panel_width: None,
-            agent_management_filters: None,
         }],
         active_window_index: Some(0),
         block_lists: Default::default(),
-        running_mcp_servers: Default::default(),
     };
 
     save_app_state(&mut conn, &app_state).expect("app state should save");
 
-    let restored = read_sqlite_data(&mut conn, None)
+    let restored = read_sqlite_data(&mut conn)
         .expect("app state should load")
         .app_state;
 
@@ -302,21 +272,19 @@ fn test_sqlite_round_trips_code_pane_with_multiple_tabs() {
             universal_search_width: None,
             warp_ai_width: None,
             voltron_width: None,
-            warp_drive_index_width: None,
+
             left_panel_open: false,
             vertical_tabs_panel_open: false,
             left_panel_width: None,
             right_panel_width: None,
-            agent_management_filters: None,
         }],
         active_window_index: Some(0),
         block_lists: Default::default(),
-        running_mcp_servers: Default::default(),
     };
 
     save_app_state(&mut conn, &app_state).expect("app state should save");
 
-    let restored = read_sqlite_data(&mut conn, None)
+    let restored = read_sqlite_data(&mut conn)
         .expect("app state should load")
         .app_state;
 
@@ -380,38 +348,74 @@ fn test_path_encode_decode() {
 }
 
 #[test]
-fn test_deserialize_corrupted_guests() {
-    let _ = FeatureFlag::SharedWithMe.override_enabled(true);
-    // Use a hardcoded timestamp to ensure this test works on systems with more-than-microsecond
-    // precision.
-    let permissions_ts_micros = 123456;
-    let permissions_ts =
-        ServerTimestamp::from_unix_timestamp_micros(permissions_ts_micros).unwrap();
-
-    let db_permissions = ObjectPermissions {
-        id: 42,
-        object_metadata_id: 10,
-        subject_type: "TEAM".to_string(),
-        subject_id: Some("7".to_string()),
-        subject_uid: "team_uid12345678912345".to_string(),
-        permissions_last_updated_at: Some(permissions_ts_micros),
-        // This is not a valid set of encoded object guests.
-        object_guests: Some(vec![1, 2, 3]),
-        anyone_with_link_access_level: None,
-        anyone_with_link_source: None,
+fn test_restore_removed_cloud_panes_preserves_terminal_tabs() {
+    let tempdir = tempfile::tempdir().unwrap();
+    let mut conn = setup_database(&tempdir.path().join("warp.sqlite")).unwrap();
+    let mut window = test_terminal_window_snapshot(false);
+    let mut removed_tab = window.tabs[0].clone();
+    removed_tab.root = PaneNodeSnapshot::Leaf(LeafSnapshot {
+        is_focused: true,
+        custom_vertical_tabs_title: None,
+        contents: LeafContents::Welcome {
+            startup_directory: None,
+        },
+    });
+    window.tabs.push(removed_tab);
+    let state = AppState {
+        windows: vec![window],
+        active_window_index: Some(0),
+        block_lists: Default::default(),
     };
+    save_app_state(&mut conn, &state).unwrap();
 
-    // The overall permissions should successfully convert, minus the object guests.
-    let cloud_permissions = super::to_cloud_object_permissions(&db_permissions, None);
-    assert_eq!(
-        cloud_permissions,
-        Some(CloudObjectPermissions {
-            owner: Owner::Team {
-                team_uid: crate::server::ids::ServerId::from_string_lossy("team_uid12345678912345"),
-            },
-            permissions_last_updated_ts: Some(permissions_ts),
-            anyone_with_link: None,
-            guests: vec![],
-        })
-    );
+    let cloud_pane_id: i32 = schema::pane_leaves::table
+        .filter(schema::pane_leaves::kind.ne(TERMINAL_PANE_KIND))
+        .select(schema::pane_leaves::pane_node_id)
+        .first(&mut conn)
+        .unwrap();
+    diesel::delete(
+        schema::welcome_panes::table.filter(schema::welcome_panes::id.eq(cloud_pane_id)),
+    )
+    .execute(&mut conn)
+    .unwrap();
+
+    for kind in [
+        WORKFLOW_PANE_KIND,
+        ENV_VAR_COLLECTION_PANE_KIND,
+        AI_FACT_PANE_KIND,
+        NOTEBOOK_PANE_KIND,
+    ] {
+        diesel::update(
+            schema::pane_leaves::table.filter(schema::pane_leaves::pane_node_id.eq(cloud_pane_id)),
+        )
+        .set(schema::pane_leaves::kind.eq(kind))
+        .execute(&mut conn)
+        .unwrap();
+        if kind == NOTEBOOK_PANE_KIND {
+            diesel::insert_into(schema::notebook_panes::table)
+                .values(model::NewNotebookPane {
+                    id: cloud_pane_id,
+                    notebook_id: Some("legacy-cloud-notebook".to_owned()),
+                    local_path: None,
+                })
+                .execute(&mut conn)
+                .unwrap();
+        }
+        let restored = read_sqlite_data(&mut conn).unwrap().app_state;
+        assert_eq!(restored.windows[0].tabs.len(), 2, "pane kind: {kind}");
+        assert_eq!(
+            restored.windows[0].tabs[0].root, state.windows[0].tabs[0].root,
+            "pane kind: {kind}"
+        );
+        assert!(
+            matches!(
+                &restored.windows[0].tabs[1].root,
+                PaneNodeSnapshot::Leaf(LeafSnapshot {
+                    contents: LeafContents::Welcome { .. },
+                    ..
+                })
+            ),
+            "pane kind: {kind}"
+        );
+    }
 }

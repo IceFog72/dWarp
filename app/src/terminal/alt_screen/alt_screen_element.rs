@@ -174,7 +174,6 @@ impl AltScreenElement {
         self
     }
 
-
     fn key_down(&mut self, chars: &str, ctx: &mut EventContext) -> bool {
         if self.is_terminal_focused && !chars.is_empty() && chars.chars().all(|c| c.is_control()) {
             ctx.dispatch_typed_action(TerminalAction::KeyDown(chars.to_string()));
@@ -597,7 +596,6 @@ impl AltScreenElement {
     fn line_height(&self) -> Pixels {
         self.grid_render_params.size_info.cell_height_px()
     }
-
 }
 
 impl Element for AltScreenElement {

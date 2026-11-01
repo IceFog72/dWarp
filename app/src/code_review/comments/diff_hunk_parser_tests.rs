@@ -1,4 +1,4 @@
-use ai::agent::action::CommentSide;
+use ai::review::CommentSide;
 
 use super::{parse_diff_hunk, DiffHunkParseError};
 

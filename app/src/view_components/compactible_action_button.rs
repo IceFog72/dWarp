@@ -1,8 +1,8 @@
 use std::sync::Arc;
 
 use crate::{
-    ai::blocklist::inline_action::inline_action_icons::icon_size,
     ui_components::icons::Icon,
+    ui_components::inline_action::inline_action_icons::icon_size,
     view_components::action_button::{
         ActionButton, ActionButtonTheme, AdjoinedSide, ButtonSize, KeystrokeSource,
     },

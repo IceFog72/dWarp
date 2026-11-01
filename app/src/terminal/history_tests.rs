@@ -1,12 +1,8 @@
 use crate::{
-    ai::agent::conversation::AIConversationId,
     terminal::{
         model::{
-            block::{AgentInteractionMetadata, SerializedAIMetadata, SerializedBlock},
-            bootstrap::BootstrapStage,
             session::command_executor::testing::TestCommandExecutor,
             session::{BootstrapSessionType, Session, SessionId, SessionInfo},
-            test_utils::TestBlockBuilder,
         },
         shell::ShellType,
         History,
@@ -77,7 +73,6 @@ impl HistoryEntry {
             completed_ts: None,
             git_head: None,
             shell_host: None,
-            is_agent_executed: false,
             is_for_restored_block: false,
         }
     }
@@ -98,80 +93,9 @@ impl HistoryEntry {
             completed_ts: None,
             git_head: None,
             shell_host: None,
-            is_agent_executed: false,
             is_for_restored_block: false,
         }
     }
-}
-
-#[test]
-fn history_entry_for_restored_block_preserves_agent_execution() {
-    let mut block = TestBlockBuilder::new()
-        .with_bootstrap_stage(BootstrapStage::RestoreBlocks)
-        .build();
-    block.set_agent_interaction_mode_for_requested_command(
-        String::from("action-id").into(),
-        None,
-        AIConversationId::new(),
-    );
-
-    let entry = HistoryEntry::for_restored_block("ls".to_string(), &block);
-
-    assert!(entry.is_agent_executed);
-}
-
-#[test]
-fn history_entry_for_restored_block_does_not_treat_all_agent_interactions_as_agent_execution() {
-    let mut block = TestBlockBuilder::new()
-        .with_bootstrap_stage(BootstrapStage::RestoreBlocks)
-        .build();
-    block.set_agent_interaction_mode(AgentInteractionMetadata::new(
-        None,
-        AIConversationId::new(),
-        None,
-        None,
-        false,
-        false,
-    ));
-
-    let entry = HistoryEntry::for_restored_block("ls".to_string(), &block);
-
-    assert!(!entry.is_agent_executed);
-}
-
-#[test]
-fn history_entry_for_completed_block_preserves_agent_execution() {
-    let ai_metadata = serde_json::to_string(&SerializedAIMetadata::from(
-        AgentInteractionMetadata::new_hidden(
-            String::from("action-id").into(),
-            AIConversationId::new(),
-        ),
-    ))
-    .unwrap();
-    let block = SerializedBlock {
-        ai_metadata: Some(ai_metadata),
-        ..SerializedBlock::new_for_test("ls".as_bytes().to_vec(), vec![])
-    };
-
-    let entry = HistoryEntry::for_completed_block("ls".to_string(), &block);
-
-    assert!(entry.is_agent_executed);
-}
-
-#[test]
-fn history_entry_for_completed_block_does_not_treat_all_agent_interactions_as_agent_execution() {
-    let ai_metadata = serde_json::to_string(&SerializedAIMetadata::from(
-        AgentInteractionMetadata::new(None, AIConversationId::new(), None, None, false, false),
-    ))
-    .unwrap();
-    let block = SerializedBlock {
-        ai_metadata: Some(ai_metadata),
-        ..SerializedBlock::new_for_test("ls".as_bytes().to_vec(), vec![])
-    };
-
-    let entry = HistoryEntry::for_completed_block("ls".to_string(), &block);
-
-    assert!(!entry.is_agent_executed);
 }
 
 /// Initializes history for testing
@@ -825,7 +749,6 @@ fn append_command_with_rich_history_data() {
                         exit_code: Some(ExitCode::from(0)),
                         git_head: None,
                         shell_host: None,
-                        is_agent_executed: false,
                         is_for_restored_block: false,
                     },
                     HistoryEntry {
@@ -839,7 +762,6 @@ fn append_command_with_rich_history_data() {
                         exit_code: Some(ExitCode::from(0)),
                         git_head: None,
                         shell_host: None,
-                        is_agent_executed: false,
                         is_for_restored_block: false,
                     },
                 ],
@@ -862,7 +784,6 @@ fn append_command_with_rich_history_data() {
                         exit_code: Some(ExitCode::from(0)),
                         git_head: Some(String::from("foobar")),
                         shell_host: Some(shell_host.clone()),
-                        is_agent_executed: false,
                         is_for_restored_block: false,
                     },
                     &HistoryEntry {
@@ -876,7 +797,6 @@ fn append_command_with_rich_history_data() {
                         exit_code: Some(ExitCode::from(0)),
                         git_head: None,
                         shell_host: None,
-                        is_agent_executed: false,
                         is_for_restored_block: false,
                     },
                     &HistoryEntry {
@@ -890,7 +810,6 @@ fn append_command_with_rich_history_data() {
                         exit_code: Some(ExitCode::from(0)),
                         git_head: None,
                         shell_host: None,
-                        is_agent_executed: false,
                         is_for_restored_block: false,
                     },
                 ]
@@ -952,7 +871,6 @@ fn append_restored_command_doesnt_overwrite_rich_history() {
                     exit_code: Some(ExitCode::from(0)),
                     git_head: None,
                     shell_host: None,
-                    is_agent_executed: false,
                     is_for_restored_block: true,
                 }],
             );
@@ -974,7 +892,6 @@ fn append_restored_command_doesnt_overwrite_rich_history() {
                         exit_code: Some(ExitCode::from(0)),
                         git_head: None,
                         shell_host: None,
-                        is_agent_executed: false,
                         is_for_restored_block: true,
                     },
                 ]

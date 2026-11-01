@@ -10,8 +10,6 @@ use warpui::{
 
 use crate::terminal::TerminalView;
 
-use super::SharedSessionActionSource;
-
 struct SharedSessionState {
     session_id: SessionId,
     view_handle: WeakViewHandle<TerminalView>,
@@ -188,7 +186,7 @@ impl Manager {
         for view_id in view_ids {
             if let Some(terminal_view) = self.shared_view_by_id(&view_id, ctx) {
                 terminal_view.update(ctx, |view, ctx| {
-                    view.stop_sharing_session(SharedSessionActionSource::NonUser, ctx);
+                    view.stop_sharing_session(ctx);
                 });
             }
         }

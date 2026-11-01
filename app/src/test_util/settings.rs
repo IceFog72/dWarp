@@ -14,15 +14,13 @@ pub fn initialize_settings_for_tests_with_mode(
     is_sandboxed: bool,
 ) {
     use crate::{
-        ai::cloud_agent_settings::CloudAgentSettings,
-        drive::settings::WarpDriveSettings,
         search::command_search::settings::CommandSearchSettings,
         settings::{
             app_icon::AppIconSettings, init_and_register_user_preferences,
             manager::SettingsManager, AISettings, AccessibilitySettings, AliasExpansionSettings,
-            AppEditorSettings, BlockVisibilitySettings, CloudPreferencesSettings, CodeSettings,
-            DebugSettings, EmacsBindingsSettings, FontSettings, GPUSettings, InputModeSettings,
-            InputSettings, LanguageSettings, NativePreferenceSettings, PaneSettings, SameLinePromptBlockSettings,
+            AppEditorSettings, BlockVisibilitySettings, CodeSettings, DebugSettings,
+            EmacsBindingsSettings, FontSettings, GPUSettings, InputModeSettings, InputSettings,
+            LanguageSettings, NativePreferenceSettings, PaneSettings, SameLinePromptBlockSettings,
             ScrollSettings, SelectionSettings, SshSettings, ThemeSettings, VimBannerSettings,
         },
         terminal::{
@@ -47,11 +45,9 @@ pub fn initialize_settings_for_tests_with_mode(
     AccessibilitySettings::register(app);
     app.update(AISettings::register_and_subscribe_to_events);
     AliasExpansionSettings::register(app);
-    CloudAgentSettings::register(app);
     AppEditorSettings::register(app);
     BlockVisibilitySettings::register(app);
     BlockListSettings::register(app);
-    CloudPreferencesSettings::register(app);
     CommandSearchSettings::register(app);
     DebugSettings::register(app);
     AppIconSettings::register(app);
@@ -93,7 +89,6 @@ pub fn initialize_settings_for_tests_with_mode(
     ThemeSettings::register(app);
     UndoCloseSettings::register(app);
     VimBannerSettings::register(app);
-    WarpDriveSettings::register(app);
     WindowSettings::register(app);
     SharedSessionSettings::register(app);
     CodeSettings::register(app);

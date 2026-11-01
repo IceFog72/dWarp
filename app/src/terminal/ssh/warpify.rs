@@ -3,12 +3,12 @@ use markdown_parser::{FormattedText, FormattedTextFragment, FormattedTextLine};
 use warp_core::ui::theme::WarpTheme;
 use warpui::assets::asset_cache::{AssetCache, AssetState};
 
-use crate::ai::blocklist::inline_action::requested_action::RenderableAction;
 use crate::appearance::Appearance;
 use crate::terminal::shell::ShellType;
 use crate::terminal::warpify;
 use crate::terminal::warpify::render::SSH_DOCS_URL;
 use crate::ui_components::icons::Icon as UiIcon;
+use crate::ui_components::inline_action::requested_action::RenderableAction;
 use warpui::elements::{HighlightedHyperlink, Hoverable, Icon, MouseStateHandle};
 use warpui::keymap::FixedBinding;
 use warpui::AppContext;

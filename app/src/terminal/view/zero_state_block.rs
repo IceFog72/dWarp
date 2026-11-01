@@ -1,42 +1,8 @@
 use settings::Setting;
 use warp_core::{report_if_error, ui::Icon};
-use warpui::{
-    elements::{
-        ChildAnchor, Container, CrossAxisAlignment, Flex, MainAxisSize, OffsetPositioning,
-        ParentAnchor, ParentElement, ParentOffsetBounds, Shrinkable, Stack, Text,
-    },
-    fonts::{Properties, Weight},
-    keymap::Keystroke,
-    prelude::{vec2f, ConstrainedBox, Cursor, Empty, Hoverable, MouseStateHandle},
-    scene::{Border, CornerRadius, Radius},
-    ui_components::{
-        checkbox::Checkbox,
-        components::{UiComponent, UiComponentStyles},
-    },
-    AppContext, Element, Entity, ModelHandle, SingletonEntity, TypedActionView, View, ViewContext,
-};
+use warpui::{elements::{ChildAnchor, Container, CrossAxisAlignment, Flex, MainAxisSize, OffsetPositioning, ParentAnchor, ParentElement, ParentOffsetBounds, Shrinkable, Stack, Text}, fonts::{Properties, Weight}, keymap::Keystroke, prelude::{vec2f, ConstrainedBox, Cursor, Empty, Hoverable, MouseStateHandle}, scene::{Border, CornerRadius, Radius}, ui_components::{checkbox::Checkbox, components::{UiComponent, UiComponentStyles}}, AppContext, Element, Entity, ModelHandle, SingletonEntity, TypedActionView, View, ViewContext};
 
-use crate::{
-    ai::blocklist::agent_view::{
-        AgentViewController, AgentViewControllerEvent, ENTER_AGENT_VIEW_NEW_CONVERSATION_KEYSTROKE,
-    },
-    appearance::Appearance,
-    settings::{AISettings, AISettingsChangedEvent, InputModeSettings},
-    terminal::{
-        self,
-        event::BlockType,
-        input::message_bar::{common::render_standard_message, Message, MessageItem},
-        model_events::{ModelEvent, ModelEventDispatcher},
-        settings::{TerminalSettings, TerminalSettingsChangedEvent},
-        view::TerminalAction,
-    },
-    ui_components::blended_colors,
-    util::bindings::keybinding_name_to_keystroke,
-    workspace::tab_settings::TabSettings,
-    workspace::tab_settings::TabSettingsChangedEvent,
-    workspace::view::TOGGLE_RIGHT_PANEL_BINDING_NAME,
-    WorkspaceAction,
-};
+use crate::{appearance::Appearance, settings::{AISettings, AISettingsChangedEvent, InputModeSettings}, terminal::{self, event::BlockType, input::message_bar::{common::render_standard_message, Message, MessageItem}, model_events::{ModelEvent, ModelEventDispatcher}, settings::{TerminalSettings, TerminalSettingsChangedEvent}, view::TerminalAction}, ui_components::blended_colors, util::bindings::keybinding_name_to_keystroke, workspace::tab_settings::TabSettings, workspace::tab_settings::TabSettingsChangedEvent, workspace::view::TOGGLE_RIGHT_PANEL_BINDING_NAME, WorkspaceAction};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TerminalViewZeroStateAction {
@@ -126,7 +92,7 @@ impl TerminalViewZeroStateBlock {
         let ai_settings = AISettings::as_ref(ctx);
         Self {
             should_hide: false,
-            should_render_nld_checkbox: ai_settings.is_any_ai_enabled(ctx),
+            should_render_nld_checkbox: ai_settings.is_any_ai_enabled(),
             state_handles: Default::default(),
         }
     }

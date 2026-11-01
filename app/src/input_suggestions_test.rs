@@ -3,7 +3,6 @@ use std::collections::HashSet;
 use warp_core::ui::appearance::Appearance;
 use warpui::{platform::WindowStyle, App};
 
-use crate::ai::blocklist::AIQueryHistory;
 use crate::input_suggestions::{filter_tab_suggestions, HistoryOrder};
 use crate::terminal::model::session::SessionId;
 use crate::terminal::HistoryEntry;
@@ -372,32 +371,6 @@ fn test_history_order() {
     };
     assert_eq!(
         no_session_cmd.history_order(Some(current_session_id), &live_sessions,),
-        HistoryOrder::DifferentSession
-    );
-
-    // AI queries from current session
-    let ai_query_current = HistoryInputSuggestion::AIQuery {
-        entry: AIQueryHistory::new_for_test(
-            "ai query current session",
-            now,
-            HistoryOrder::CurrentSession,
-        ),
-    };
-    assert_eq!(
-        ai_query_current.history_order(Some(current_session_id), &live_sessions,),
-        HistoryOrder::CurrentSession
-    );
-
-    // AI queries from different session
-    let ai_query_different = HistoryInputSuggestion::AIQuery {
-        entry: AIQueryHistory::new_for_test(
-            "ai query different session",
-            now,
-            HistoryOrder::DifferentSession,
-        ),
-    };
-    assert_eq!(
-        ai_query_different.history_order(Some(current_session_id), &live_sessions,),
         HistoryOrder::DifferentSession
     );
 }

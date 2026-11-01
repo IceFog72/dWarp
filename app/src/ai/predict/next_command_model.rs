@@ -1,14 +1,12 @@
 use crate::ai::block_context::BlockContext;
-use crate::ai_assistant::execution_context::WarpAiExecutionContext;
+use crate::ai::execution_context::WarpAiExecutionContext;
 use crate::completer::SessionContext;
 use crate::report_error;
-use crate::server::server_api::{AIApiError, ServerApi};
 use crate::settings::AISettings;
 use crate::terminal::event::UserBlockCompleted;
 use crate::terminal::input::{CompleterData, IntelligentAutosuggestionResult};
 use crate::terminal::model::session::Sessions;
 use crate::terminal::{History, HistoryEntry, TerminalModel};
-use crate::workspaces::user_workspaces::UserWorkspaces;
 use chrono::Utc;
 use futures::stream::AbortHandle;
 use itertools::Itertools;
@@ -56,7 +54,7 @@ const MAX_NUM_SIMILAR_HISTORY_CONTEXT: usize = 25;
 async fn byop_generate_input_suggestions(
     byop_cfg: Option<OneshotConfig>,
     request: &GenerateAIInputSuggestionsRequest,
-) -> Result<GenerateAIInputSuggestionsResponseV2, AIApiError> {
+) -> Result<GenerateAIInputSuggestionsResponseV2, anyhow::Error> {
     let Some(cfg) = byop_cfg else {
         // OpenWarp 已剥云,无 BYOP 配置时不再 fallback ServerApi —— 返回空响应,
         // UI 自然不会展示建议,也不会刷错误日志。
@@ -110,7 +108,6 @@ const ARG_GENERATOR_VALIDATION_TIMEOUT: Duration = Duration::from_millis(150);
 
 pub fn is_next_command_enabled(app: &warpui::AppContext) -> bool {
     AISettings::as_ref(app).is_intelligent_autosuggestions_enabled(app)
-        && UserWorkspaces::as_ref(app).is_next_command_enabled()
 }
 
 /// Information about an autosuggestion that would have been made if purely based off history.
@@ -183,7 +180,6 @@ pub struct ZeroStateSuggestionInfo {
 pub struct NextCommandModel {
     sessions: ModelHandle<Sessions>,
     model: Arc<FairMutex<TerminalModel>>,
-    server_api: Arc<ServerApi>,
     #[cfg(feature = "local_fs")]
     conn: Option<Arc<Mutex<SqliteConnection>>>,
 
@@ -204,11 +200,7 @@ pub enum NextCommandModelEvent {
 }
 
 impl NextCommandModel {
-    pub fn new(
-        sessions: ModelHandle<Sessions>,
-        model: Arc<FairMutex<TerminalModel>>,
-        server_api: Arc<ServerApi>,
-    ) -> Self {
+    pub fn new(sessions: ModelHandle<Sessions>, model: Arc<FairMutex<TerminalModel>>) -> Self {
         #[cfg(feature = "local_fs")]
         let conn = crate::persistence::database_file_path()
             .to_str()
@@ -220,7 +212,6 @@ impl NextCommandModel {
         Self {
             sessions,
             model,
-            server_api,
             #[cfg(feature = "local_fs")]
             conn,
             next_command_state: NextCommandSuggestionState::None,
@@ -393,12 +384,11 @@ impl NextCommandModel {
         previous_result: Option<IntelligentAutosuggestionResult>,
         ctx: &mut ModelContext<Self>,
     ) {
-        let _server_api = self.server_api.clone(); // BYOP 接管后不再使用,保留以避免改动它处
         let terminal_model = self.model.clone();
         let cached_next_command_context = self.cached_zerostate_next_command_context.clone();
         // BYOP cfg 必须在 spawn 前解出(spawn 内拿不到 &AppContext)。
         // 用 None terminal_view_id 走全局当前 active profile。
-        let byop_cfg = byop_next_command::resolve(ctx, None);
+        let byop_cfg = byop_next_command::resolve(ctx);
 
         let completion_context = completer_data.completion_session_context(ctx);
         // This is only needed if we have a prefix.
@@ -621,7 +611,7 @@ impl NextCommandModel {
     fn on_next_command_suggestion_result(
         &mut self,
         result: (
-            Result<GenerateAIInputSuggestionsResponseV2, AIApiError>,
+            Result<GenerateAIInputSuggestionsResponseV2, anyhow::Error>,
             GenerateAIInputSuggestionsRequest,
             bool,
             i64,
@@ -681,9 +671,7 @@ impl NextCommandModel {
                 ctx.emit(NextCommandModelEvent::NextCommandSuggestionReady);
             }
             Err(err) => {
-                report_error!(
-                    anyhow::anyhow!(err).context("Failed to generate Next Command suggestion")
-                );
+                report_error!(err.context("Failed to generate Next Command suggestion"));
             }
         };
     }

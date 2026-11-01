@@ -1,6 +1,5 @@
 use crate::features::FeatureFlag;
 use async_channel::TryRecvError;
-use std::sync::Arc;
 use string_offset::CharOffset;
 use warp_editor::render::{
     element::RichTextAction,
@@ -22,20 +21,15 @@ use crate::notebooks::editor::link_editor::LinkEditorAction;
 use crate::notebooks::editor::model::NotebooksEditorModel;
 use crate::notebooks::editor::rich_text_styles;
 use crate::notebooks::link::{NotebookLinks, SessionSource};
-use crate::server::server_api::team::MockTeamClient;
-use crate::server::server_api::workspace::MockWorkspaceClient;
 
 use crate::settings::FontSettings;
 use crate::settings_view::keybindings::KeybindingChangedNotifier;
 
-use crate::auth::AuthStateProvider;
 use crate::terminal::keys::TerminalKeybindings;
 use crate::test_util::settings::initialize_settings_for_tests;
 use crate::workspace::ActiveSession;
-use crate::UserWorkspaces;
 use crate::{
-    cloud_object::model::persistence::CloudModel, search::files::model::FileSearchModel,
-    GlobalResourceHandles, GlobalResourceHandlesProvider,
+    search::files::model::FileSearchModel, GlobalResourceHandles, GlobalResourceHandlesProvider,
 };
 
 /// Container for a [`RichTextEditorView`] in unit tests.
@@ -80,18 +74,6 @@ fn initialize_editor(
     app.add_singleton_model(FileSearchModel::new);
     app.add_singleton_model(NotebookKeybindings::new);
     app.add_singleton_model(TerminalKeybindings::new);
-    app.add_singleton_model(CloudModel::mock);
-    app.add_singleton_model(|_| AuthStateProvider::new_for_test());
-    let team_client_mock = Arc::new(MockTeamClient::new());
-    let workspace_client_mock = Arc::new(MockWorkspaceClient::new());
-    app.add_singleton_model(|ctx| {
-        UserWorkspaces::mock(
-            team_client_mock.clone(),
-            workspace_client_mock.clone(),
-            vec![],
-            ctx,
-        )
-    });
 
     let (window, test_view) = app.add_window(WindowStyle::NotStealFocus, |ctx| {
         let window_id = ctx.window_id();

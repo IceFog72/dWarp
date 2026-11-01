@@ -33,26 +33,10 @@ impl ApiKeys {
     }
 }
 
-/// Controls how AWS credentials are refreshed by [`ApiKeyManager`].
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
-pub enum AwsCredentialsRefreshStrategy {
-    /// Load credentials from the local AWS credential chain (~/.aws). This is the default.
-    #[default]
-    LocalChain,
-    /// Credentials are managed externally via OIDC/STS.
-    /// The task ID is used to scope the STS AssumeRoleWithWebIdentity session.
-    /// The role ARN is the IAM role to assume via STS.
-    OidcManaged {
-        task_id: Option<String>,
-        role_arn: String,
-    },
-}
-
 /// A structure that manages API keys for AI providers.
 pub struct ApiKeyManager {
     keys: ApiKeys,
     pub(crate) aws_credentials_state: AwsCredentialsState,
-    aws_credentials_refresh_strategy: AwsCredentialsRefreshStrategy,
 }
 
 impl ApiKeyManager {
@@ -61,7 +45,6 @@ impl ApiKeyManager {
         Self {
             keys,
             aws_credentials_state: AwsCredentialsState::Missing,
-            aws_credentials_refresh_strategy: AwsCredentialsRefreshStrategy::default(),
         }
     }
 
@@ -106,17 +89,6 @@ impl ApiKeyManager {
         &self.aws_credentials_state
     }
 
-    pub fn aws_credentials_refresh_strategy(&self) -> AwsCredentialsRefreshStrategy {
-        self.aws_credentials_refresh_strategy.clone()
-    }
-
-    pub fn set_aws_credentials_refresh_strategy(
-        &mut self,
-        strategy: AwsCredentialsRefreshStrategy,
-    ) {
-        self.aws_credentials_refresh_strategy = strategy;
-    }
-
     pub fn api_keys_for_request(
         &self,
         include_byo_keys: bool,
@@ -138,14 +110,7 @@ impl ApiKeyManager {
             .then(|| self.keys.open_router.clone())
             .flatten()
             .unwrap_or_default();
-        // Also include credentials when running with OIDC-managed Bedrock inference, regardless
-        // of the per-user setting flag (which only applies to the local credential chain path).
-        let include_aws = include_aws_bedrock_credentials
-            || matches!(
-                self.aws_credentials_refresh_strategy,
-                AwsCredentialsRefreshStrategy::OidcManaged { .. }
-            );
-        let aws_credentials = include_aws
+        let aws_credentials = include_aws_bedrock_credentials
             .then(|| match self.aws_credentials_state {
                 AwsCredentialsState::Loaded {
                     ref credentials, ..

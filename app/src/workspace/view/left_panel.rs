@@ -2,7 +2,7 @@ use std::collections::HashSet;
 use std::path::PathBuf;
 
 use warp_core::ui::theme::color::internal_colors;
-use warp_core::{send_telemetry_from_ctx, ui::Icon};
+use warp_core::ui::Icon;
 use warp_util::path::LineAndColumnArg;
 use warpui::{
     elements::{
@@ -16,17 +16,11 @@ use warpui::{
     ViewContext, ViewHandle, WeakViewHandle,
 };
 
-use crate::ai::agent::conversation::AIConversationId;
-use crate::ai::agent_conversations_model::AgentConversationsModel;
 #[cfg(feature = "local_fs")]
 use crate::code::file_tree::FileTreeEvent;
 use crate::coding_panel_enablement_state::CodingPanelEnablementState;
-use crate::drive::panel::{DrivePanel, DrivePanelEvent};
 use crate::pane_group::working_directories::WorkingDirectory;
 use crate::pane_group::{PaneGroup, WorkingDirectoriesEvent, WorkingDirectoriesModel};
-#[cfg(feature = "local_fs")]
-use crate::server::telemetry::CodePanelsFileOpenEntrypoint;
-use crate::server::telemetry::{FileTreeSource, WarpDriveSource};
 use crate::settings_view::keybindings::{KeybindingChangedEvent, KeybindingChangedNotifier};
 use crate::ssh_manager::SshManagerPanel;
 #[cfg(feature = "local_fs")]
@@ -34,23 +28,17 @@ use crate::util::file::external_editor::EditorSettings;
 #[cfg(feature = "local_fs")]
 use crate::util::openable_file_type::resolve_file_target_with_editor_choice;
 use crate::util::openable_file_type::FileTarget;
-use crate::workspace::view::conversation_list::view::{
-    ConversationListView, Event as ConversationListViewEvent,
-};
 use crate::workspace::view::global_search::view::{
     Event as GlobalSearchViewEvent, GlobalSearchEntryFocus, GlobalSearchView,
 };
 use crate::workspace::view::{
-    LEFT_PANEL_AGENT_CONVERSATIONS_BINDING_NAME, LEFT_PANEL_GLOBAL_SEARCH_BINDING_NAME,
-    LEFT_PANEL_PROJECT_EXPLORER_BINDING_NAME, LEFT_PANEL_SSH_MANAGER_BINDING_NAME,
-    LEFT_PANEL_WARP_DRIVE_BINDING_NAME, OPEN_GLOBAL_SEARCH_BINDING_NAME,
-    TOGGLE_CONVERSATION_LIST_VIEW_BINDING_NAME, TOGGLE_PROJECT_EXPLORER_BINDING_NAME,
-    TOGGLE_WARP_DRIVE_BINDING_NAME,
+    LEFT_PANEL_GLOBAL_SEARCH_BINDING_NAME, LEFT_PANEL_PROJECT_EXPLORER_BINDING_NAME,
+    LEFT_PANEL_SSH_MANAGER_BINDING_NAME, OPEN_GLOBAL_SEARCH_BINDING_NAME,
+    TOGGLE_PROJECT_EXPLORER_BINDING_NAME,
 };
 use crate::{
     appearance::Appearance,
     code::file_tree::FileTreeView,
-    drive::panel::{MAX_SIDEBAR_WIDTH_RATIO, MIN_SIDEBAR_WIDTH},
     pane_group::pane::view::header::{components::HEADER_EDGE_PADDING, PANE_HEADER_HEIGHT},
     pane_group::{self},
     terminal::resizable_data::{ModalType, ResizableData},
@@ -60,15 +48,15 @@ use crate::{
     },
     util::bindings::keybinding_name_to_display_string,
     workspace::WorkspaceAction,
-    TelemetryEvent,
 };
+
+pub(crate) const MIN_SIDEBAR_WIDTH: f32 = 250.;
+pub(crate) const MAX_SIDEBAR_WIDTH_RATIO: f32 = 0.75;
 
 #[derive(Default)]
 struct MouseStateHandles {
     project_explorer_button: MouseStateHandle,
     global_search_button: MouseStateHandle,
-    warp_drive_button: MouseStateHandle,
-    conversation_list_view_button: MouseStateHandle,
     ssh_manager_button: MouseStateHandle,
 }
 
@@ -76,32 +64,21 @@ struct MouseStateHandles {
 pub enum LeftPanelAction {
     ProjectExplorer,
     GlobalSearch { entry_focus: GlobalSearchEntryFocus },
-    WarpDrive,
-    ConversationListView,
     SshManager,
 }
 
 pub enum LeftPanelEvent {
     #[cfg_attr(not(feature = "local_fs"), allow(dead_code))]
     FileTree(pane_group::Event),
-    WarpDrive(DrivePanelEvent),
     #[cfg_attr(not(feature = "local_fs"), allow(dead_code))]
     OpenFileWithTarget {
         path: PathBuf,
         target: FileTarget,
         line_col: Option<LineAndColumnArg>,
     },
-    NewConversationInNewTab,
-    ShowDeleteConfirmationDialog {
-        conversation_id: AIConversationId,
-        conversation_title: String,
-        terminal_view_id: Option<warpui::EntityId>,
-    },
     /// 用户从 SSH 管理器树点击 server / 双击 / 右键 "编辑" → 主窗口应在中央
     /// 区开/聚焦 `SshServerPane`(具体 `WorkspaceView::open_ssh_server`)。
-    OpenSshServerEditor {
-        node_id: String,
-    },
+    OpenSshServerEditor { node_id: String },
     /// 用户从 SSH 管理器右键 "连接" → 主窗口在新 terminal pane 跑 `ssh ...`
     /// 并启动 SecretInjector(Commit 3 实施;当前为占位事件)。
     OpenSshTerminal {
@@ -114,8 +91,6 @@ pub enum LeftPanelEvent {
 pub enum ToolPanelView {
     ProjectExplorer,
     GlobalSearch { entry_focus: GlobalSearchEntryFocus },
-    WarpDrive,
-    ConversationListView,
     SshManager,
 }
 
@@ -142,18 +117,9 @@ mod active_view_state {
         new_view: ToolPanelView,
         ctx: &mut ViewContext<super::LeftPanelView>,
     ) {
-        let previous = left_panel.active_view.0;
         left_panel.active_view.0 = new_view;
         left_panel.update_button_active_states();
         ctx.notify();
-
-        let was_conversation_list_open = previous == ToolPanelView::ConversationListView;
-        let is_conversation_list_open = new_view == ToolPanelView::ConversationListView;
-        if was_conversation_list_open && !is_conversation_list_open {
-            left_panel.on_conversation_list_view_visibility_changed(false, ctx);
-        } else if !was_conversation_list_open && is_conversation_list_open {
-            left_panel.on_conversation_list_view_visibility_changed(true, ctx);
-        }
 
         left_panel.update_active_file_tree_subscription_state(ctx);
     }
@@ -181,15 +147,12 @@ pub struct LeftPanelView {
     resizable_state_handle: ResizableStateHandle,
     mouse_state_handles: MouseStateHandles,
     close_button_mouse_state: MouseStateHandle,
-    warp_drive_view: ViewHandle<DrivePanel>,
-    conversation_list_view: ViewHandle<ConversationListView>,
     ssh_manager_view: ViewHandle<SshManagerPanel>,
     active_view: active_view_state::ActiveViewState,
     toolbelt_buttons: Vec<ToolbeltButtonConfig>,
     active_pane_group: Option<WeakViewHandle<PaneGroup>>,
     #[cfg_attr(not(feature = "local_fs"), allow(dead_code))]
     working_directories_model: ModelHandle<WorkingDirectoriesModel>,
-    is_agent_management_view_open: bool,
     panel_position: super::PanelPosition,
 }
 
@@ -226,8 +189,6 @@ impl LeftPanelView {
                 resizable_state_handle(600.0)
             }
         };
-        let warp_drive_view = ctx.add_typed_action_view(DrivePanel::new);
-        let conversation_list_view = ctx.add_typed_action_view(ConversationListView::new);
         let ssh_manager_view = ctx.add_typed_action_view(SshManagerPanel::new);
         ctx.subscribe_to_view(&ssh_manager_view, |_me, _, event, ctx| {
             use crate::ssh_manager::SshManagerPanelEvent;
@@ -249,28 +210,10 @@ impl LeftPanelView {
             }
         });
 
-        ctx.subscribe_to_view(&warp_drive_view, |_me, _, event, ctx| {
-            ctx.emit(LeftPanelEvent::WarpDrive(event.clone()));
-        });
-
-        ctx.subscribe_to_view(&conversation_list_view, |_me, _, event, ctx| match event {
-            ConversationListViewEvent::NewConversationInNewTab => {
-                ctx.emit(LeftPanelEvent::NewConversationInNewTab);
-            }
-            ConversationListViewEvent::ShowDeleteConfirmationDialog {
-                conversation_id,
-                conversation_title,
-                terminal_view_id,
-            } => {
-                ctx.emit(LeftPanelEvent::ShowDeleteConfirmationDialog {
-                    conversation_id: *conversation_id,
-                    conversation_title: conversation_title.clone(),
-                    terminal_view_id: *terminal_view_id,
-                });
-            }
-        });
-
-        let active_view = views.first().copied().unwrap_or(ToolPanelView::WarpDrive);
+        let active_view = views
+            .first()
+            .copied()
+            .unwrap_or(ToolPanelView::ProjectExplorer);
         let toolbelt_buttons = views
             .iter()
             .map(|view| Self::create_toolbelt_button_config(view, ctx))
@@ -343,24 +286,16 @@ impl LeftPanelView {
             resizable_state_handle,
             mouse_state_handles: Default::default(),
             close_button_mouse_state: Default::default(),
-            warp_drive_view,
-            conversation_list_view,
             ssh_manager_view,
             active_view: active_view_state::new(active_view),
             toolbelt_buttons,
             active_pane_group: None,
             working_directories_model,
-            is_agent_management_view_open: false,
             panel_position: super::PanelPosition::Left,
         };
         view.update_button_active_states();
 
         view
-    }
-
-    pub fn set_agent_management_view_open(&mut self, is_open: bool, ctx: &mut ViewContext<Self>) {
-        self.is_agent_management_view_open = is_open;
-        ctx.notify();
     }
 
     pub fn set_panel_position(
@@ -442,38 +377,6 @@ impl LeftPanelView {
                     action: LeftPanelAction::GlobalSearch {
                         entry_focus: GlobalSearchEntryFocus::QueryEditor,
                     },
-                    render_with_active_state: false,
-                    tooltip_keybinding: toolbelt_tooltip_keybinding(&tooltip_keybinding_names, ctx),
-                    tooltip_keybinding_names,
-                }
-            }
-            ToolPanelView::WarpDrive => {
-                let tooltip_keybinding_names = vec![
-                    LEFT_PANEL_WARP_DRIVE_BINDING_NAME,
-                    TOGGLE_WARP_DRIVE_BINDING_NAME,
-                ];
-
-                ToolbeltButtonConfig {
-                    icon: Icon::WarpDrive,
-                    active_icon: None,
-                    tooltip_text: crate::t!("workspace-left-panel-warp-drive"),
-                    action: LeftPanelAction::WarpDrive,
-                    render_with_active_state: false,
-                    tooltip_keybinding: toolbelt_tooltip_keybinding(&tooltip_keybinding_names, ctx),
-                    tooltip_keybinding_names,
-                }
-            }
-            ToolPanelView::ConversationListView => {
-                let tooltip_keybinding_names = vec![
-                    LEFT_PANEL_AGENT_CONVERSATIONS_BINDING_NAME,
-                    TOGGLE_CONVERSATION_LIST_VIEW_BINDING_NAME,
-                ];
-
-                ToolbeltButtonConfig {
-                    icon: Icon::Conversation,
-                    active_icon: Some(Icon::Conversation),
-                    tooltip_text: crate::t!("workspace-left-panel-agent-conversations"),
-                    action: LeftPanelAction::ConversationListView,
                     render_with_active_state: false,
                     tooltip_keybinding: toolbelt_tooltip_keybinding(&tooltip_keybinding_names, ctx),
                     tooltip_keybinding_names,
@@ -576,16 +479,8 @@ impl LeftPanelView {
         self.active_view.get()
     }
 
-    pub fn is_warp_drive_active(&self) -> bool {
-        self.active_view.get() == ToolPanelView::WarpDrive
-    }
-
     pub fn is_file_tree_active(&self) -> bool {
         self.active_view.get() == ToolPanelView::ProjectExplorer
-    }
-
-    pub fn warp_drive_view(&self) -> &ViewHandle<DrivePanel> {
-        &self.warp_drive_view
     }
 
     pub(crate) fn auto_expand_active_file_tree_to_most_recent_directory(
@@ -671,7 +566,7 @@ impl LeftPanelView {
             }
         });
 
-        self.on_left_panel_visibility_changed(left_panel_open, ctx);
+        self.on_left_panel_visibility_changed(ctx);
 
         ctx.notify();
     }
@@ -722,17 +617,6 @@ impl LeftPanelView {
                     ctx,
                 );
             }
-            ToolPanelView::WarpDrive => {
-                ctx.focus(&self.warp_drive_view);
-                self.warp_drive_view.update(ctx, |view, ctx| {
-                    view.reset_focused_index_in_warp_drive(true, ctx);
-                });
-            }
-            ToolPanelView::ConversationListView => {
-                self.conversation_list_view.update(ctx, |view, ctx| {
-                    view.on_left_panel_focused(ctx);
-                });
-            }
             ToolPanelView::SshManager => {
                 ctx.focus(&self.ssh_manager_view);
             }
@@ -771,14 +655,6 @@ impl LeftPanelView {
                     *settings.prefer_markdown_viewer,
                     *settings.open_file_layout,
                     None,
-                );
-
-                send_telemetry_from_ctx!(
-                    TelemetryEvent::CodePanelsFileOpened {
-                        entrypoint: CodePanelsFileOpenEntrypoint::GlobalSearch,
-                        target: target.clone(),
-                    },
-                    ctx
                 );
 
                 ctx.emit(LeftPanelEvent::OpenFileWithTarget {
@@ -884,10 +760,6 @@ impl LeftPanelView {
                 LeftPanelAction::GlobalSearch { .. } => {
                     matches!(self.active_view.get(), ToolPanelView::GlobalSearch { .. })
                 }
-                LeftPanelAction::WarpDrive => self.active_view.get() == ToolPanelView::WarpDrive,
-                LeftPanelAction::ConversationListView => {
-                    self.active_view.get() == ToolPanelView::ConversationListView
-                }
                 LeftPanelAction::SshManager => self.active_view.get() == ToolPanelView::SshManager,
             };
         }
@@ -964,37 +836,13 @@ impl LeftPanelView {
     pub fn handle_action_with_force_open(
         &mut self,
         action: &LeftPanelAction,
-        force_open: bool,
         ctx: &mut ViewContext<Self>,
     ) {
         match action {
             LeftPanelAction::ProjectExplorer => {
                 active_view_state::set(self, ToolPanelView::ProjectExplorer, ctx);
-                if force_open {
-                    send_telemetry_from_ctx!(
-                        TelemetryEvent::FileTreeToggled {
-                            source: FileTreeSource::ForceOpened,
-                            is_code_mode_v2: true,
-                            cli_agent: None,
-                        },
-                        ctx
-                    );
-                } else {
-                    send_telemetry_from_ctx!(
-                        TelemetryEvent::FileTreeToggled {
-                            source: FileTreeSource::LeftPanelToolbelt,
-                            is_code_mode_v2: true,
-                            cli_agent: None,
-                        },
-                        ctx
-                    );
-                }
             }
             LeftPanelAction::GlobalSearch { entry_focus } => {
-                let was_active = self.active_view.get()
-                    == ToolPanelView::GlobalSearch {
-                        entry_focus: *entry_focus,
-                    };
                 active_view_state::set(
                     self,
                     ToolPanelView::GlobalSearch {
@@ -1002,33 +850,6 @@ impl LeftPanelView {
                     },
                     ctx,
                 );
-                if !was_active {
-                    send_telemetry_from_ctx!(TelemetryEvent::GlobalSearchOpened, ctx);
-                }
-            }
-            LeftPanelAction::WarpDrive => {
-                active_view_state::set(self, ToolPanelView::WarpDrive, ctx);
-                if force_open {
-                    send_telemetry_from_ctx!(
-                        TelemetryEvent::WarpDriveOpened {
-                            source: WarpDriveSource::ForceOpened,
-                            is_code_mode_v2: true
-                        },
-                        ctx
-                    );
-                } else {
-                    send_telemetry_from_ctx!(
-                        TelemetryEvent::WarpDriveOpened {
-                            source: WarpDriveSource::LeftPanelToolbelt,
-                            is_code_mode_v2: true
-                        },
-                        ctx
-                    );
-                }
-            }
-            LeftPanelAction::ConversationListView => {
-                active_view_state::set(self, ToolPanelView::ConversationListView, ctx);
-                send_telemetry_from_ctx!(TelemetryEvent::ConversationListViewOpened, ctx);
             }
             LeftPanelAction::SshManager => {
                 active_view_state::set(self, ToolPanelView::SshManager, ctx);
@@ -1036,11 +857,7 @@ impl LeftPanelView {
         }
     }
 
-    pub fn on_left_panel_visibility_changed(&self, is_now_open: bool, ctx: &mut ViewContext<Self>) {
-        if ToolPanelView::ConversationListView == self.active_view.get() {
-            self.on_conversation_list_view_visibility_changed(is_now_open, ctx);
-        }
-
+    pub fn on_left_panel_visibility_changed(&self, ctx: &mut ViewContext<Self>) {
         self.update_active_file_tree_subscription_state(ctx);
     }
 
@@ -1082,32 +899,13 @@ impl LeftPanelView {
             });
         }
     }
-
-    /// When the conversation list view's visibility changes,
-    /// we need to update the conversation and tasks model to reflect the new state
-    /// (this information is used to decide whether or not we should poll for new tasks).
-    fn on_conversation_list_view_visibility_changed(
-        &self,
-        is_now_open: bool,
-        ctx: &mut ViewContext<Self>,
-    ) {
-        let window_id = ctx.window_id();
-        let view_id = self.conversation_list_view.id();
-        AgentConversationsModel::handle(ctx).update(ctx, |model, ctx| {
-            if is_now_open {
-                model.register_view_open(window_id, view_id, ctx);
-            } else {
-                model.register_view_closed(window_id, view_id, ctx);
-            }
-        });
-    }
 }
 
 impl TypedActionView for LeftPanelView {
     type Action = LeftPanelAction;
 
     fn handle_action(&mut self, action: &Self::Action, ctx: &mut ViewContext<Self>) {
-        self.handle_action_with_force_open(action, false, ctx);
+        self.handle_action_with_force_open(action, ctx);
     }
 }
 
@@ -1130,8 +928,6 @@ impl View for LeftPanelView {
                         ctx.focus(&view);
                     }
                 }
-                ToolPanelView::WarpDrive => ctx.focus(&self.warp_drive_view),
-                ToolPanelView::ConversationListView => ctx.focus(&self.conversation_list_view),
                 ToolPanelView::SshManager => ctx.focus(&self.ssh_manager_view),
             }
         }
@@ -1143,10 +939,6 @@ impl View for LeftPanelView {
         let mouse_state_handles = vec![
             self.mouse_state_handles.project_explorer_button.clone(),
             self.mouse_state_handles.global_search_button.clone(),
-            self.mouse_state_handles.warp_drive_button.clone(),
-            self.mouse_state_handles
-                .conversation_list_view_button
-                .clone(),
             self.mouse_state_handles.ssh_manager_button.clone(),
         ];
 
@@ -1194,17 +986,6 @@ impl View for LeftPanelView {
                 } else {
                     Shrinkable::new(1.0, Container::new(Empty::new().finish()).finish()).finish()
                 }
-            }
-            ToolPanelView::WarpDrive => Shrinkable::new(
-                1.0,
-                Container::new(ChildView::new(&self.warp_drive_view).finish())
-                    .with_padding_left(2.)
-                    .with_padding_right(2.)
-                    .finish(),
-            )
-            .finish(),
-            ToolPanelView::ConversationListView => {
-                Shrinkable::new(1.0, ChildView::new(&self.conversation_list_view).finish()).finish()
             }
             ToolPanelView::SshManager => Shrinkable::new(
                 1.0,

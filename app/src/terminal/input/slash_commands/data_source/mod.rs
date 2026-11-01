@@ -1,8 +1,6 @@
-mod saved_prompts;
 mod zero_state;
 
 use ai::skills::SkillProvider;
-pub(crate) use saved_prompts::*;
 use warp_core::features::FeatureFlag;
 pub use zero_state::*;
 
@@ -15,7 +13,6 @@ use warp_core::ui::appearance::Appearance;
 use warpui::fonts::FamilyId;
 use warpui::{AppContext, Entity, EntityId, ModelContext, ModelHandle, SingletonEntity};
 
-use crate::ai::blocklist::BlocklistAIHistoryModel;
 use crate::ai::skills::{SkillDescriptor, SkillManager};
 use crate::search::data_source::{Query, QueryResult};
 use crate::search::mixer::DataSourceRunErrorWrapper;
@@ -29,33 +26,23 @@ use warp_core::ui::Icon as WarpIcon;
 
 use super::AcceptSlashCommandOrSavedPrompt;
 use crate::{
-    ai::blocklist::{
-        agent_view::{AgentViewController, AgentViewControllerEvent},
-        block::cli_controller::{CLISubagentController, CLISubagentEvent},
-    },
     search::{
         slash_command_menu::{
-            static_commands::commands::{self, COMMAND_REGISTRY},
-            SlashCommandId, StaticCommand,
+            static_commands::commands::COMMAND_REGISTRY, SlashCommandId, StaticCommand,
         },
         SyncDataSource,
     },
     settings::{AISettings, AISettingsChangedEvent, InputSettings, InputSettingsChangedEvent},
     terminal::model::session::active_session::{ActiveSession, ActiveSessionEvent},
-    workspaces::user_workspaces::{UserWorkspaces, UserWorkspacesEvent},
 };
 
 pub struct DataSourceArgs {
     pub active_session: ModelHandle<ActiveSession>,
-    pub agent_view_controller: ModelHandle<AgentViewController>,
-    pub cli_subagent_controller: ModelHandle<CLISubagentController>,
     pub terminal_view_id: EntityId,
 }
 
 pub struct SlashCommandDataSource {
     active_session: ModelHandle<ActiveSession>,
-    agent_view_controller: ModelHandle<AgentViewController>,
-    cli_subagent_controller: ModelHandle<CLISubagentController>,
     terminal_view_id: EntityId,
     active_commands_by_id: HashMap<SlashCommandId, StaticCommand>,
     active_repo_root: Option<PathBuf>,
@@ -65,8 +52,6 @@ impl SlashCommandDataSource {
     pub fn new(args: DataSourceArgs, ctx: &mut ModelContext<Self>) -> Self {
         let DataSourceArgs {
             active_session,
-            agent_view_controller,
-            cli_subagent_controller,
             terminal_view_id,
         } = args;
         ctx.subscribe_to_model(&active_session, |me, event, ctx| match event {
@@ -74,27 +59,8 @@ impl SlashCommandDataSource {
                 me.recompute_active_commands(ctx);
             }
         });
-        ctx.subscribe_to_model(&cli_subagent_controller, |me, event, ctx| {
-            if let CLISubagentEvent::SpawnedSubagent { .. }
-            | CLISubagentEvent::FinishedSubagent { .. }
-            | CLISubagentEvent::UpdatedControl { .. } = event
-            {
-                me.recompute_active_commands(ctx);
-            }
-        });
-        ctx.subscribe_to_model(&agent_view_controller, |me, event, ctx| match event {
-            AgentViewControllerEvent::EnteredAgentView { .. }
-            | AgentViewControllerEvent::ExitedAgentView { .. } => {
-                me.recompute_active_commands(ctx);
-            }
-            _ => (),
-        });
         ctx.subscribe_to_model(&AISettings::handle(ctx), |me, event, ctx| {
-            if matches!(
-                event,
-                AISettingsChangedEvent::IsAnyAIEnabled { .. }
-                    | AISettingsChangedEvent::OrchestrationEnabled { .. }
-            ) {
+            if matches!(event, AISettingsChangedEvent::IsAnyAIEnabled { .. }) {
                 me.recompute_active_commands(ctx);
             }
         });
@@ -103,11 +69,6 @@ impl SlashCommandDataSource {
                 event,
                 InputSettingsChangedEvent::EnableSlashCommandsInTerminal { .. }
             ) {
-                me.recompute_active_commands(ctx);
-            }
-        });
-        ctx.subscribe_to_model(&UserWorkspaces::handle(ctx), |me, event, ctx| {
-            if matches!(event, UserWorkspacesEvent::CodebaseContextEnablementChanged) {
                 me.recompute_active_commands(ctx);
             }
         });
@@ -128,8 +89,6 @@ impl SlashCommandDataSource {
 
         let mut me = Self {
             active_session,
-            agent_view_controller,
-            cli_subagent_controller,
             terminal_view_id,
             active_commands_by_id: Default::default(),
             active_repo_root: None,
@@ -141,24 +100,14 @@ impl SlashCommandDataSource {
     /// Slash commands that are available in CLI agent rich input mode.
     /// Add command names here to make them accessible when composing prompts
     /// for a running CLI agent (Claude Code, Codex, etc.).
-    const CLI_AGENT_INPUT_ALLOWED_COMMANDS: &[&str] = &["/prompts", "/skills"];
+    const CLI_AGENT_INPUT_ALLOWED_COMMANDS: &[&str] = &["/skills"];
 
     fn recompute_active_commands(&mut self, ctx: &mut ModelContext<Self>) {
         let is_cli_agent_input = self.is_cli_agent_input_open(ctx);
 
         let mut session_context = Availability::empty();
 
-        let is_agent_view_active = self.agent_view_controller.as_ref(ctx).is_active();
-        if !FeatureFlag::AgentView.is_enabled() {
-            // When the AgentView feature flag is disabled, set both view bits so that
-            // either view requirement is satisfied (but other requirements like
-            // REPOSITORY and LOCAL still apply).
-            session_context |= Availability::AGENT_VIEW | Availability::TERMINAL_VIEW;
-        } else if is_agent_view_active {
-            session_context |= Availability::AGENT_VIEW;
-        } else {
-            session_context |= Availability::TERMINAL_VIEW;
-        }
+        session_context |= Availability::TERMINAL_VIEW;
 
         if self.active_repo_root.is_some() {
             session_context |= Availability::REPOSITORY;
@@ -173,44 +122,17 @@ impl SlashCommandDataSource {
             session_context |= Availability::LOCAL;
         }
 
-        if !self
-            .cli_subagent_controller
-            .as_ref(ctx)
-            .is_agent_in_control()
-        {
-            session_context |= Availability::NO_LRC_CONTROL;
-        }
+        session_context |= Availability::NO_LRC_CONTROL;
 
-        let has_active_conversation = if is_agent_view_active {
-            // There is always an active conversation in the agent view.
-            true
-        } else {
-            BlocklistAIHistoryModel::as_ref(ctx)
-                .active_conversation(self.terminal_view_id)
-                .is_some()
-        };
-        if has_active_conversation {
-            session_context |= Availability::ACTIVE_CONVERSATION;
-        }
-
-        if UserWorkspaces::as_ref(ctx).is_codebase_context_enabled(ctx) {
-            session_context |= Availability::CODEBASE_CONTEXT;
-        }
-
-        if AISettings::as_ref(ctx).is_any_ai_enabled(ctx) {
+        if AISettings::as_ref(ctx).is_any_ai_enabled() {
             session_context |= Availability::AI_ENABLED;
         }
-
-        let is_orchestration_enabled = AISettings::as_ref(ctx).is_orchestration_enabled(ctx);
 
         let old_active_command_count = self.active_commands_by_id.len();
         self.active_commands_by_id = HashMap::from_iter(
             COMMAND_REGISTRY
                 .all_commands_by_id()
                 .filter(|(_, command)| command.is_active(session_context))
-                .filter(|(_, command)| {
-                    command.name != commands::ORCHESTRATE_NAME || is_orchestration_enabled
-                })
                 // When CLI agent input is open, restrict to the explicit allowlist.
                 .filter(|(_, command)| {
                     !is_cli_agent_input
@@ -242,10 +164,6 @@ impl SlashCommandDataSource {
 
     pub fn active_commands(&self) -> impl Iterator<Item = (&SlashCommandId, &StaticCommand)> {
         self.active_commands_by_id.iter()
-    }
-
-    pub fn is_agent_view_active(&self, ctx: &AppContext) -> bool {
-        self.agent_view_controller.as_ref(ctx).is_active()
     }
 
     /// Returns `true` if the CLI agent rich input is currently open for this terminal.
@@ -319,7 +237,7 @@ impl SyncDataSource for SlashCommandDataSource {
 
         // Also search skills — when CLI agent input is open, filter to natively supported providers.
         // Skills are invoked by the agent, so they're hidden entirely when AI is globally off.
-        if FeatureFlag::ListSkills.is_enabled() && AISettings::as_ref(app).is_any_ai_enabled(app) {
+        if FeatureFlag::ListSkills.is_enabled() && AISettings::as_ref(app).is_any_ai_enabled() {
             let cli_agent_providers = self.active_cli_agent_providers(app);
             let cwd = self.active_session.as_ref(app).current_working_directory();
             let cwd_path = cwd.as_ref().map(std::path::Path::new);

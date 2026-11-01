@@ -1,6 +1,5 @@
 #![allow(dead_code)]
 
-use crate::ai::blocklist::TextLocation;
 use crate::terminal::model::index::Point;
 use anyhow::anyhow;
 use itertools::Itertools;
@@ -10,8 +9,6 @@ use rangemap::{RangeInclusiveMap, StepLite};
 use std::collections::HashMap;
 use std::ops::{Not, RangeInclusive};
 use std::sync::atomic::{AtomicUsize, Ordering};
-use warpui::elements::SecretRange;
-use warpui::EntityId;
 
 use super::grid::grid_handler::GridHandler;
 use super::grid::{Dimensions as _, RespectDisplayedOutput};
@@ -63,17 +60,6 @@ impl SecretHandle {
     pub fn id(&self) -> String {
         format!("{}", self.0)
     }
-}
-
-#[derive(Clone, Debug)]
-pub struct RichContentSecretTooltipInfo {
-    pub secret: String,
-    pub secret_range: SecretRange,
-    pub location: TextLocation,
-    pub is_obfuscated: bool,
-    pub position_id: String,
-    pub view_id: EntityId,
-    pub secret_level: SecretLevel,
 }
 
 #[derive(Copy, Clone, Debug)]

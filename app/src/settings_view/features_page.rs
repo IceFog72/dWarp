@@ -1,17 +1,14 @@
 use crate::default_terminal::DefaultTerminal;
 use crate::gpu_state::{GPUState, GPUStateEvent};
 use crate::terminal::input::OPEN_COMPLETIONS_KEYBINDING_NAME;
-#[cfg(feature = "local_tty")]
-use crate::terminal::session_settings::WorkingDirectoryConfig;
 
 use lazy_static::lazy_static;
-use warp_core::context_flag::ContextFlag;
 use warpui::platform::GraphicsBackend;
 use warpui::rendering::GPUPowerPreference;
 use warpui::{elements::DispatchEventResult, platform::Cursor};
 #[cfg(any(target_os = "linux", target_os = "freebsd"))]
 use {
-    crate::settings::ForceX11, crate::settings::LinuxAppConfiguration,
+    crate::settings::LinuxAppConfiguration,
     warpui::platform::linux::windowing_system_is_customizable,
 };
 
@@ -19,9 +16,8 @@ use super::keybindings::KeyBindingModifyingState;
 #[cfg(feature = "local_tty")]
 use super::settings_page::render_sub_sub_header;
 use super::settings_page::{
-    add_setting, build_reset_button, render_body_item_label, render_dropdown_item_label,
-    render_local_only_icon, Category, LocalOnlyIconState, MatchData, PageType, SettingsWidget,
-    TOGGLE_BUTTON_RIGHT_PADDING,
+    add_setting, build_reset_button, render_body_item_label, render_dropdown_item_label, Category,
+    MatchData, PageType, SettingsWidget, TOGGLE_BUTTON_RIGHT_PADDING,
 };
 use super::settings_page::{
     render_body_item, render_dropdown_item, AdditionalInfo, SettingsPageMeta,
@@ -34,47 +30,24 @@ use crate::editor::{
     Event as EditorEvent, SingleLineEditorOptions, TextOptions,
     ACCEPT_AUTOSUGGESTION_KEYBINDING_NAME,
 };
-use crate::search::command_search::settings::{
-    CommandSearchSettings, ShowGlobalWorkflowsInUniversalSearch,
-};
-use crate::server::telemetry::TelemetryEvent;
+use crate::search::command_search::settings::CommandSearchSettings;
 use crate::settings::ai::AISettings;
+use crate::settings::{AISettingsChangedEvent, ScrollSettingsChangedEvent};
 use crate::settings::{
-    AISettingsChangedEvent, ScrollSettingsChangedEvent, UserNativeRedirectPreference,
-};
-use crate::settings::{
-    AliasExpansionEnabled, AliasExpansionSettings, AppEditorSettings, AtContextMenuInTerminalMode,
-    AutocompleteSymbols, AutosuggestionKeybindingHint, CloudPreferencesSettings, CodeSettings,
-    CommandCorrections, CompletionsOpenWhileTyping, CopyOnSelect, CpuRenderer, CtrlTabBehavior,
-    DefaultSessionMode, EnableSlashCommandsInTerminal, EnableSshWrapper, ErrorUnderliningEnabled,
-    ExtraMetaKeys, GPUSettings, GlobalHotkeyMode, InputSettings,
-    InputSettingsChangedEvent, LinuxSelectionClipboard, MiddleClickPasteEnabled,
-    MouseScrollMultiplier, OutlineCodebaseSymbolsForAtContextMenu, PreferLowPowerGPU,
-    PreferredGraphicsBackend, QuakeModeSettings, ScrollSettings, SelectionSettings,
-    ShowAutosuggestionIgnoreButton, ShowTerminalInputMessageBar, SshSettings, SyntaxHighlighting,
-    TabBehavior, VimModeEnabled, VimStatusBar, VimUnnamedSystemClipboard,
+    AliasExpansionSettings, AppEditorSettings, CodeSettings, CtrlTabBehavior, DefaultSessionMode,
+    ExtraMetaKeys, GPUSettings, GlobalHotkeyMode, InputSettings, InputSettingsChangedEvent,
+    QuakeModeSettings, ScrollSettings, SelectionSettings, SshSettings, TabBehavior,
     DEFAULT_QUAKE_MODE_SIZE_PERCENTAGES, QUAKE_WINDOW_AUTOHIDE_SUPPORTED,
 };
-use crate::terminal::alt_screen_reporting::{
-    AltScreenReporting, FocusReportingEnabled, MouseReportingEnabled, ScrollReportingEnabled,
-};
-use crate::terminal::general_settings::{
-    AutoOpenCodeReviewPaneOnFirstAgentChange, GeneralSettings, LinkTooltip, QuitOnLastWindowClosed,
-    RestoreSession, ShowWarningBeforeQuitting,
-};
-use crate::terminal::keys_settings::{
-    ActivationHotkeyEnabled, CtrlTabBehaviorSetting, KeysSettings, KeysSettingsChangedEvent,
-};
-#[cfg(feature = "local_tty")]
-use crate::terminal::session_settings::StartupShellOverride;
+use crate::terminal::alt_screen_reporting::AltScreenReporting;
+use crate::terminal::general_settings::GeneralSettings;
+use crate::terminal::keys_settings::{KeysSettings, KeysSettingsChangedEvent};
 use crate::terminal::session_settings::{
     Notifications, NotificationsMode, NotificationsSettings, SessionSettings,
-    SessionSettingsChangedEvent, ShouldConfirmCloseSession,
+    SessionSettingsChangedEvent,
 };
-use crate::terminal::settings::{
-    MaximumGridSize, ShowTerminalZeroStateBlock, TerminalSettings, UseAudibleBell,
-};
-use crate::terminal::{BlockListSettings, SnackbarEnabled};
+use crate::terminal::settings::TerminalSettings;
+use crate::terminal::BlockListSettings;
 use crate::undo_close::UndoCloseSettings;
 use crate::user_config::{WarpConfig, WarpConfigUpdateEvent};
 use crate::util::bindings::{
@@ -86,18 +59,14 @@ use crate::workspace::WorkspaceAction;
 use crate::{appearance::Appearance, settings::native_preference::NativePreferenceSettings};
 use crate::{editor::EditorView, settings::native_preference::UserNativePreference};
 use crate::{features::FeatureFlag, terminal::settings::TerminalSettingsChangedEvent};
-use crate::{report_if_error, send_telemetry_from_ctx, themes, GlobalResourceHandles};
+use crate::{report_if_error, themes, GlobalResourceHandles};
 use crate::{root_view::QuakeModePinPosition, workspace::tab_settings::TabSettingsChangedEvent};
 use ::settings::{Setting, ToggleableSetting};
-use std::cell::RefCell;
-use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use strum::IntoEnumIterator;
 use warp_core::channel::ChannelState;
-use warp_core::semantic_selection::{
-    SemanticSelection, SemanticSelectionChangedEvent, SmartSelectEnabled,
-};
+use warp_core::semantic_selection::{SemanticSelection, SemanticSelectionChangedEvent};
 use warpui::elements::{
     Align, Border, ChildView, ConstrainedBox, Container, CornerRadius, CrossAxisAlignment, Dismiss,
     Element, Empty, EventHandler, Fill, Flex, Hoverable, MainAxisAlignment, MainAxisSize,
@@ -546,7 +515,7 @@ pub fn init_actions_from_parent_view<T: Action + Clone>(
         .with_enabled(|| FeatureFlag::AgentView.is_enabled()),
     );
 
-    if FeatureFlag::AgentView.is_enabled() && AISettings::as_ref(app).is_any_ai_enabled(app) {
+    if FeatureFlag::AgentView.is_enabled() && AISettings::as_ref(app).is_any_ai_enabled() {
         toggle_binding_pairs.push(
             ToggleSettingActionPair::new(
                 &crate::t!("toggle-suffix-slash-commands-terminal"),
@@ -695,7 +664,6 @@ pub enum FeaturesPageAction {
     SetDefaultTabConfig(String),
     SearchForKeybinding(String),
     ToggleAutosuggestions,
-    ToggleConfirmCloseSession,
     #[cfg(any(target_os = "linux", target_os = "freebsd"))]
     ToggleForceX11,
     ToggleAutosuggestionKeybindingHint,
@@ -773,455 +741,10 @@ fn to_string(b: bool) -> String {
     format!("{b}")
 }
 
-impl FeaturesPageAction {
-    fn telemetry_event(&self, ctx: &AppContext) -> TelemetryEvent {
-        let workflow_settings = CommandSearchSettings::as_ref(ctx);
-        let reporting_settings = AltScreenReporting::as_ref(ctx);
-        let selection_settings = SelectionSettings::as_ref(ctx);
-        let input_settings = InputSettings::as_ref(ctx);
-        let ssh_settings = SshSettings::as_ref(ctx);
-        let keys_settings = KeysSettings::as_ref(ctx);
-        match self {
-            Self::ToggleCopyOnSelect => TelemetryEvent::FeaturesPageAction {
-                action: "ToggleCopyOnSelect".to_string(),
-                value: to_string(selection_settings.copy_on_select_enabled()),
-            },
-            Self::ToggleOpenLinksInDesktopApp => TelemetryEvent::FeaturesPageAction {
-                action: "ToggleOpenLinksInDesktopApp".to_string(),
-                value: to_string(matches!(
-                    NativePreferenceSettings::as_ref(ctx)
-                        .user_native_redirect_preference
-                        .value(),
-                    UserNativePreference::Desktop
-                )),
-            },
-            Self::ToggleSnackbar => {
-                let settings = BlockListSettings::as_ref(ctx);
-                TelemetryEvent::FeaturesPageAction {
-                    action: "ToggleSnackbar".to_string(),
-                    value: to_string(*settings.snackbar_enabled),
-                }
-            }
-            Self::ToggleGlobalWorkflowsInUniversalSearch => TelemetryEvent::FeaturesPageAction {
-                action: "ToggleGlobalWorkflowsInUniversalSearch".to_string(),
-                value: to_string(*workflow_settings.show_global_workflows_in_universal_search),
-            },
-            Self::ToggleNotifications => TelemetryEvent::FeaturesPageAction {
-                action: "ToggleNotifications".to_string(),
-                value: to_string(matches!(
-                    SessionSettings::as_ref(ctx).notifications.mode,
-                    NotificationsMode::Enabled
-                )),
-            },
-            Self::ToggleRestoreSession => {
-                TelemetryEvent::ToggleRestoreSession(*GeneralSettings::as_ref(ctx).restore_session)
-            }
-            Self::ToggleAutocompleteSymbols => TelemetryEvent::FeaturesPageAction {
-                action: "ToggleAutocompleteSymbols".to_string(),
-                value: to_string(*AppEditorSettings::as_ref(ctx).autocomplete_symbols),
-            },
-            #[allow(deprecated)]
-            Self::ToggleSshWrapper => TelemetryEvent::FeaturesPageAction {
-                action: "ToggleSshWrapper".to_string(),
-                value: to_string(*ssh_settings.enable_legacy_ssh_wrapper.value()),
-            },
-            Self::SetGlobalHotkeyMode(mode) => TelemetryEvent::FeaturesPageAction {
-                action: "SetGlobalHotkeyMode".to_string(),
-                value: format!("{mode:?}"),
-            },
-            Self::ToggleLinkTooltip => TelemetryEvent::FeaturesPageAction {
-                action: "ToggleLinkTooltip".to_string(),
-                value: to_string(*GeneralSettings::as_ref(ctx).link_tooltip),
-            },
-            Self::ToggleCompletionsOpenWhileTyping => TelemetryEvent::FeaturesPageAction {
-                action: "ToggleCompletionsOpenWhileTyping".to_string(),
-                value: to_string(*input_settings.completions_open_while_typing.value()),
-            },
-            Self::ToggleCommandCorrections => TelemetryEvent::FeaturesPageAction {
-                action: "ToggleCommandCorrections".to_string(),
-                value: to_string(*input_settings.command_corrections.value()),
-            },
-            Self::ToggleErrorUnderlining => TelemetryEvent::FeaturesPageAction {
-                action: "ToggleErrorUnderlining".to_string(),
-                value: to_string(*input_settings.error_underlining.value()),
-            },
-            Self::ToggleSyntaxHighlighting => TelemetryEvent::FeaturesPageAction {
-                action: "ToggleSyntaxHighlighting".to_string(),
-                value: to_string(*input_settings.syntax_highlighting.value()),
-            },
-            Self::ToggleAliasExpansion => {
-                let settings = AliasExpansionSettings::as_ref(ctx);
-                TelemetryEvent::FeaturesPageAction {
-                    action: "ToggleAliasExpansion".to_string(),
-                    value: to_string(*settings.alias_expansion_enabled),
-                }
-            }
-            Self::ToggleMiddleClickPaste => {
-                let settings = SelectionSettings::as_ref(ctx);
-                TelemetryEvent::FeaturesPageAction {
-                    action: "ToggleMiddleClickPaste".to_string(),
-                    value: to_string(*settings.middle_click_paste_enabled),
-                }
-            }
-            Self::ToggleCodeAsDefaultEditor => TelemetryEvent::FeaturesPageAction {
-                action: "ToggleCodeAsDefaultEditor".to_string(),
-                value: to_string(*CodeSettings::as_ref(ctx).code_as_default_editor.value()),
-            },
-            Self::ToggleShowInputHintText => {
-                let settings = InputSettings::as_ref(ctx);
-                TelemetryEvent::FeaturesPageAction {
-                    action: "ToggleShowInputHintText".to_string(),
-                    value: to_string(*settings.show_hint_text),
-                }
-            }
-            Self::ToggleShowTerminalInputMessageLine => {
-                let settings = InputSettings::as_ref(ctx);
-                TelemetryEvent::FeaturesPageAction {
-                    action: "ToggleShowTerminalInputMessageLine".to_string(),
-                    value: to_string(settings.is_terminal_input_message_bar_enabled()),
-                }
-            }
-            Self::ActivationKeybindEditorClicked => TelemetryEvent::FeaturesPageAction {
-                action: "ActivationKeybindEditorClicked".to_string(),
-                value: String::new(),
-            },
-            Self::ActivationKeybindEditorCancel => TelemetryEvent::FeaturesPageAction {
-                action: "ActivationKeybindEditorCancel".to_string(),
-                value: String::new(),
-            },
-            Self::ActivationKeybindEditorSave => TelemetryEvent::FeaturesPageAction {
-                action: "ActivationKeybindEditorSave".to_string(),
-                value: String::new(),
-            },
-            Self::ActivationKeystrokeDefined(keystroke) => TelemetryEvent::FeaturesPageAction {
-                action: "ActivationKeystrokeDefined".to_string(),
-                value: keystroke.normalized(),
-            },
-            Self::QuakeKeybindEditorClicked => TelemetryEvent::FeaturesPageAction {
-                action: "QuakeKeybindEditorClicked".to_string(),
-                value: String::new(),
-            },
-            Self::QuakeKeystrokeDefined(keystroke) => TelemetryEvent::FeaturesPageAction {
-                action: "QuakeKeystrokeDefined".to_string(),
-                value: keystroke.normalized(),
-            },
-            Self::QuakeKeybindEditorCancel => TelemetryEvent::FeaturesPageAction {
-                action: "QuakeKeybindEditorCancel".to_string(),
-                value: String::new(),
-            },
-            Self::QuakeKeybindEditorSave => TelemetryEvent::FeaturesPageAction {
-                action: "QuakeKeybindEditorSave".to_string(),
-                value: String::new(),
-            },
-            Self::OpenUrl(url) => TelemetryEvent::FeaturesPageAction {
-                action: "OpenUrl".to_string(),
-                value: url.clone(),
-            },
-            Self::SetExtraMetaKeys(extra_metas) => TelemetryEvent::FeaturesPageAction {
-                action: "SetExtraMetaKeys".to_string(),
-                value: format!("{extra_metas:?}"),
-            },
-            Self::ToggleLeftMetaKey => TelemetryEvent::FeaturesPageAction {
-                action: "ToggleLeftMetaKey".to_string(),
-                value: to_string(keys_settings.extra_meta_keys.left_alt),
-            },
-            Self::ToggleRightMetaKey => TelemetryEvent::FeaturesPageAction {
-                action: "ToggleRightMetaKey".to_string(),
-                value: to_string(keys_settings.extra_meta_keys.right_alt),
-            },
-            Self::ToggleMouseReporting => TelemetryEvent::FeaturesPageAction {
-                action: "ToggleMouseReporting".to_string(),
-                value: to_string(*reporting_settings.mouse_reporting_enabled),
-            },
-            Self::ToggleScrollReporting => TelemetryEvent::FeaturesPageAction {
-                action: "ToggleScrollReporting".to_string(),
-                value: to_string(*reporting_settings.scroll_reporting_enabled),
-            },
-            Self::ToggleFocusReporting => TelemetryEvent::FeaturesPageAction {
-                action: "ToggleFocusReporting".to_string(),
-                value: to_string(*reporting_settings.focus_reporting_enabled),
-            },
-            Self::QuakeEditorSetPinPosition(position) => TelemetryEvent::FeaturesPageAction {
-                action: "QuakeEditorSetPinPosition".to_string(),
-                value: format!("{position:?}"),
-            },
-            Self::QuakeEditorSetPinScreen(screen) => TelemetryEvent::FeaturesPageAction {
-                action: "QuakeEditorSetPinScreen".to_string(),
-                value: screen
-                    .map(|idx| format!("{idx}"))
-                    .unwrap_or_else(|| "Active Screen".into()),
-            },
-            Self::QuakeEditorResetWidthHeight => TelemetryEvent::FeaturesPageAction {
-                action: "QuakeEditorResetWidthHeight".to_string(),
-                value: String::new(),
-            },
-            Self::QuakeEditorSetWidthPercentage | Self::QuakeEditorSetHeightPercentage => {
-                TelemetryEvent::FeaturesPageAction {
-                    action: "QuakeEditorSetSizePercentage".to_string(),
-                    value: format!(
-                        "width: {:?}, height: {:?}",
-                        KeysSettings::handle(ctx)
-                            .as_ref(ctx)
-                            .quake_mode_settings
-                            .width_percentage(),
-                        KeysSettings::handle(ctx)
-                            .as_ref(ctx)
-                            .quake_mode_settings
-                            .height_percentage()
-                    ),
-                }
-            }
-            Self::QuakeEditorTogglePinWindow => TelemetryEvent::FeaturesPageAction {
-                action: "QuakeEditorTogglePinWindow".to_string(),
-                value: to_string(
-                    KeysSettings::as_ref(ctx)
-                        .quake_mode_settings
-                        .hide_window_when_unfocused,
-                ),
-            },
-            Self::ToggleLongRunningNotifications => TelemetryEvent::FeaturesPageAction {
-                action: "ToggleLongRunningNotifications".to_string(),
-                value: to_string(
-                    SessionSettings::as_ref(ctx)
-                        .notifications
-                        .is_long_running_enabled,
-                ),
-            },
-            Self::SetLongRunningNotificationThreshold => TelemetryEvent::FeaturesPageAction {
-                action: "SetLongRunningNotificationThreshold".to_string(),
-                value: format!(
-                    "{}s",
-                    SessionSettings::handle(ctx)
-                        .as_ref(ctx)
-                        .notifications
-                        .long_running_threshold
-                        .as_secs_f32()
-                ),
-            },
-            Self::TogglePasswordPromptNotifications => TelemetryEvent::FeaturesPageAction {
-                action: "TogglePasswordPromptNotifications".to_string(),
-                value: to_string(
-                    SessionSettings::as_ref(ctx)
-                        .notifications
-                        .is_password_prompt_enabled,
-                ),
-            },
-            Self::ToggleAgentTaskCompletedNotifications => TelemetryEvent::FeaturesPageAction {
-                action: "ToggleAgentTaskCompletedNotifications".to_string(),
-                value: to_string(
-                    SessionSettings::as_ref(ctx)
-                        .notifications
-                        .is_agent_task_completed_enabled,
-                ),
-            },
-            Self::ToggleNeedsAttentionNotifications => TelemetryEvent::FeaturesPageAction {
-                action: "ToggleNeedsAttentionNotifications".to_string(),
-                value: to_string(
-                    SessionSettings::as_ref(ctx)
-                        .notifications
-                        .is_needs_attention_enabled,
-                ),
-            },
-            Self::ToggleNotificationSound => TelemetryEvent::FeaturesPageAction {
-                action: "ToggleNotificationSound".to_string(),
-                value: to_string(
-                    SessionSettings::as_ref(ctx)
-                        .notifications
-                        .play_notification_sound,
-                ),
-            },
-            Self::ToggleShowWarningBeforeQuitting => TelemetryEvent::FeaturesPageAction {
-                action: "ToggleShowWarningBeforeQuitting".to_string(),
-                value: to_string(
-                    *GeneralSettings::as_ref(ctx)
-                        .show_warning_before_quitting
-                        .value(),
-                ),
-            },
-            Self::ToggleQuitOnLastWindowClosed => TelemetryEvent::FeaturesPageAction {
-                action: "ToggleQuitOnLastWindowClosed".to_string(),
-                value: to_string(
-                    *GeneralSettings::as_ref(ctx)
-                        .quit_on_last_window_closed
-                        .value(),
-                ),
-            },
-            Self::ToggleSmartSelection => TelemetryEvent::FeaturesPageAction {
-                action: "ToggleSmartSelection".to_string(),
-                value: to_string(SemanticSelection::as_ref(ctx).smart_select_enabled()),
-            },
-            Self::SetWordCharAllowlist => TelemetryEvent::FeaturesPageAction {
-                action: "SetWordCharAllowlist".to_string(),
-                value: SemanticSelection::as_ref(ctx).word_char_allowlist_string(),
-            },
-            Self::ResetWordCharAllowlist => TelemetryEvent::FeaturesPageAction {
-                action: "ResetWordCharAllowlist".to_string(),
-                value: String::new(),
-            },
-            Self::ToggleUseAudibleBell => {
-                let terminal_settings = TerminalSettings::as_ref(ctx);
-                TelemetryEvent::FeaturesPageAction {
-                    action: "ToggleUseAudibleBell".to_string(),
-                    value: to_string(*terminal_settings.use_audible_bell),
-                }
-            }
-            Self::ToggleVimMode => TelemetryEvent::FeaturesPageAction {
-                action: "ToggleVimMode".to_string(),
-                value: to_string(*AppEditorSettings::as_ref(ctx).vim_mode.value()),
-            },
-            Self::ToggleVimUnnamedSystemClipboard => TelemetryEvent::FeaturesPageAction {
-                action: "ToggleVimUnnamedSystemClipboard".to_string(),
-                value: to_string(
-                    *AppEditorSettings::as_ref(ctx)
-                        .vim_unnamed_system_clipboard
-                        .value(),
-                ),
-            },
-            Self::ToggleVimStatusBar => TelemetryEvent::FeaturesPageAction {
-                action: "ToggleVimStatusBar".to_string(),
-                value: to_string(*AppEditorSettings::as_ref(ctx).vim_status_bar.value()),
-            },
-            Self::SetTabBehavior(tab_behavior) => TelemetryEvent::FeaturesPageAction {
-                action: "SetTabBehavior".to_string(),
-                value: format!("{tab_behavior:?}"),
-            },
-            Self::SetCtrlTabBehavior(ctrl_tab_behavior) => TelemetryEvent::FeaturesPageAction {
-                action: "SetCtrlTabBehavior".to_string(),
-                value: format!("{ctrl_tab_behavior:?}"),
-            },
-            Self::SetNewTabPlacement(new_tab_placement) => TelemetryEvent::FeaturesPageAction {
-                action: "SetNewTabPlacement".to_string(),
-                value: format!("{new_tab_placement:?}"),
-            },
-            Self::SetDefaultSessionMode(mode) => TelemetryEvent::FeaturesPageAction {
-                action: "SetDefaultSessionMode".to_string(),
-                value: format!("{mode:?}"),
-            },
-            Self::SetDefaultTabConfig(path) => TelemetryEvent::FeaturesPageAction {
-                action: "SetDefaultTabConfig".to_string(),
-                value: path.clone(),
-            },
-            Self::SearchForKeybinding(page_name) => TelemetryEvent::FeaturesPageAction {
-                action: "SearchForKeybinding".to_string(),
-                value: page_name.clone(),
-            },
-            Self::ToggleAutosuggestions => TelemetryEvent::FeaturesPageAction {
-                action: "ToggleAutosuggestions".to_string(),
-                value: to_string(*AppEditorSettings::as_ref(ctx).enable_autosuggestions),
-            },
-            Self::ToggleAutosuggestionKeybindingHint => TelemetryEvent::FeaturesPageAction {
-                action: "ToggleHideAutosuggestionKeybindingHint".to_string(),
-                value: to_string(
-                    *AppEditorSettings::as_ref(ctx)
-                        .autosuggestion_keybinding_hint
-                        .value(),
-                ),
-            },
-            Self::ToggleShowAutosuggestionIgnoreButton => TelemetryEvent::FeaturesPageAction {
-                action: "ToggleShowAutosuggestionIgnoreButton".to_string(),
-                value: to_string(
-                    *AppEditorSettings::as_ref(ctx)
-                        .show_autosuggestion_ignore_button
-                        .value(),
-                ),
-            },
-            Self::TogglePreferLowPowerGPU => {
-                let gpu_settings = GPUSettings::as_ref(ctx);
-                TelemetryEvent::FeaturesPageAction {
-                    action: "TogglePreferLowPowerGPU".to_string(),
-                    value: to_string(*gpu_settings.prefer_low_power_gpu.value()),
-                }
-            }
-            Self::ToggleCpuRenderer => {
-                let gpu_settings = GPUSettings::as_ref(ctx);
-                TelemetryEvent::FeaturesPageAction {
-                    action: "ToggleCpuRenderer".to_string(),
-                    value: to_string(*gpu_settings.cpu_renderer.value()),
-                }
-            }
-            Self::SetPreferredGraphicsBackend(backend) => TelemetryEvent::FeaturesPageAction {
-                action: "SetPreferredGraphicsBackend".to_string(),
-                value: format!("{backend:?}"),
-            },
-            Self::ToggleConfirmCloseSession => TelemetryEvent::FeaturesPageAction {
-                action: "ToggleConfirmCloseSession".to_string(),
-                value: to_string(*SessionSettings::as_ref(ctx).should_confirm_close_session),
-            },
-            Self::ToggleShowTerminalZeroStateBlock => TelemetryEvent::FeaturesPageAction {
-                action: "ToggleShowTerminalZeroStateBlock".to_string(),
-                value: to_string(*TerminalSettings::as_ref(ctx).show_terminal_zero_state_block),
-            },
-            Self::ToggleLinuxClipboardSelection => {
-                let selection_setting =
-                    SelectionSettings::as_ref(ctx).linux_selection_clipboard_enabled();
-                TelemetryEvent::FeaturesPageAction {
-                    action: "ToggleLinuxClipboardSelection".to_string(),
-                    value: to_string(selection_setting),
-                }
-            }
-            #[cfg(any(target_os = "linux", target_os = "freebsd"))]
-            Self::ToggleForceX11 => {
-                let setting = *LinuxAppConfiguration::as_ref(ctx).force_x11.value();
-                TelemetryEvent::FeaturesPageAction {
-                    action: "ToggleForceX11".to_string(),
-                    value: to_string(setting),
-                }
-            }
-            Self::ToggleAtContextMenuInTerminalMode => TelemetryEvent::FeaturesPageAction {
-                action: "ToggleAtContextMenuInTerminalMode".to_string(),
-                value: to_string(
-                    *InputSettings::as_ref(ctx)
-                        .at_context_menu_in_terminal_mode
-                        .value(),
-                ),
-            },
-            Self::ToggleSlashCommandsInTerminalMode => TelemetryEvent::FeaturesPageAction {
-                action: "ToggleSlashCommandsInTerminalMode".to_string(),
-                value: to_string(
-                    *InputSettings::as_ref(ctx)
-                        .enable_slash_commands_in_terminal
-                        .value(),
-                ),
-            },
-            Self::ToggleOutlineCodebaseSymbolsForAtContextMenu => {
-                TelemetryEvent::FeaturesPageAction {
-                    action: "ToggleOutlineCodebaseSymbolsForAtContextMenu".to_string(),
-                    value: to_string(
-                        *InputSettings::as_ref(ctx)
-                            .outline_codebase_symbols_for_at_context_menu
-                            .value(),
-                    ),
-                }
-            }
-            Self::MakeWarpDefaultTerminal => TelemetryEvent::FeaturesPageAction {
-                action: "MakeWarpDefaultTerminal".to_string(),
-                value: to_string(DefaultTerminal::as_ref(ctx).is_warp_default()),
-            },
-            Self::ToggleAutoOpenCodeReviewPane => TelemetryEvent::FeaturesPageAction {
-                action: "ToggleAutoOpenCodeReviewPane".to_string(),
-                value: to_string(
-                    *GeneralSettings::as_ref(ctx).auto_open_code_review_pane_on_first_agent_change,
-                ),
-            },
-            Self::SetNotificationToastDuration => TelemetryEvent::FeaturesPageAction {
-                action: "SetNotificationToastDuration".to_string(),
-                value: format!(
-                    "{}s",
-                    *SessionSettings::as_ref(ctx).notification_toast_duration_secs
-                ),
-            },
-            Self::ToggleAgentInAppNotifications => TelemetryEvent::FeaturesPageAction {
-                action: "ToggleAgentInAppNotifications".to_string(),
-                value: to_string(*AISettings::as_ref(ctx).show_agent_notifications),
-            },
-        }
-    }
-}
+impl FeaturesPageAction {}
 
 #[derive(Default)]
 struct MouseStateHandles {
-    local_only_icon_tooltip_states: RefCell<HashMap<String, MouseStateHandle>>,
-    tab_behavior_local_only_icon: MouseStateHandle,
     activation_hotkey_keybinding_editor: MouseStateHandle,
     activation_hotkey_save: MouseStateHandle,
     activation_hotkey_cancel: MouseStateHandle,
@@ -1874,15 +1397,6 @@ impl TypedActionView for FeaturesPageView {
                 ctx.update_rendering_config(|config| config.backend_preference = *graphics_backend);
                 self.graphics_backend_preference_changed = true;
             }
-            ToggleConfirmCloseSession => {
-                SessionSettings::handle(ctx).update(ctx, |session_settings, ctx| {
-                    session_settings
-                        .should_confirm_close_session
-                        .toggle_and_save_value(ctx)
-                        .expect("failed to serialize ShouldConfirmCloseSession");
-                    ctx.notify();
-                })
-            }
             ToggleShowTerminalZeroStateBlock => {
                 TerminalSettings::handle(ctx).update(ctx, |terminal_settings, ctx| {
                     report_if_error!(terminal_settings
@@ -1968,8 +1482,6 @@ impl TypedActionView for FeaturesPageView {
                 });
             }
         }
-
-        send_telemetry_from_ctx!(action.telemetry_event(ctx), ctx);
     }
 }
 
@@ -2597,15 +2109,6 @@ impl FeaturesPageView {
             .is_supported_on_current_platform()
         {
             session_widgets.push(Box::new(UndoCloseWidget::default()));
-        }
-
-        if FeatureFlag::CreatingSharedSessions.is_enabled()
-            && ContextFlag::CreateSharedSession.is_enabled()
-            && session_settings
-                .should_confirm_close_session
-                .is_supported_on_current_platform()
-        {
-            session_widgets.push(Box::new(ConfirmCloseSharedSessionWidget::default()));
         }
 
         let mut keys_widgets: Vec<Box<dyn SettingsWidget<View = Self>>> = vec![];
@@ -3374,7 +2877,7 @@ impl FeaturesPageView {
         dropdown.update(
             ctx,
             |dropdown: &mut FilterableDropdown<FeaturesPageAction>, ctx| {
-                let is_ai_enabled = AISettings::as_ref(ctx).is_any_ai_enabled(ctx);
+                let is_ai_enabled = AISettings::as_ref(ctx).is_any_ai_enabled();
 
                 if is_ai_enabled {
                     dropdown.set_enabled(ctx);
@@ -3383,19 +2886,14 @@ impl FeaturesPageView {
                 }
 
                 let ai_settings = AISettings::as_ref(ctx);
-                let current_mode = ai_settings.default_session_mode(ctx);
+                let current_mode = ai_settings.default_session_mode();
                 let current_tab_config_path = ai_settings.default_tab_config_path().to_string();
 
                 // Build items: built-in modes (skip TabConfig since configs are listed individually,
                 // and skip DockerSandbox when its feature flag is disabled).
-                let docker_sandbox_enabled = FeatureFlag::LocalDockerSandbox.is_enabled();
+
                 let mut items: Vec<DropdownItem<FeaturesPageAction>> = DefaultSessionMode::iter()
                     .filter(|val| *val != DefaultSessionMode::TabConfig)
-                    .filter(|val| {
-                        *val != DefaultSessionMode::DockerSandbox || docker_sandbox_enabled
-                    })
-                    // 去中心化分支:不再展示 Cloud Oz / Cloud Agent 选项。
-                    .filter(|val| *val != DefaultSessionMode::CloudAgent)
                     .map(|val| {
                         DropdownItem::new(
                             val.display_name(),
@@ -4062,7 +3560,6 @@ impl FeaturesPageView {
     fn render_setting_subgroup_item(
         &self,
         appearance: &Appearance,
-        local_only_icon_state: LocalOnlyIconState,
         switch: Box<dyn Element>,
         label_text: String,
     ) -> Box<dyn Element> {
@@ -4076,7 +3573,6 @@ impl FeaturesPageView {
                                 label_text,
                                 None,
                                 None,
-                                local_only_icon_state,
                                 ToggleState::Enabled,
                                 appearance,
                             ))
@@ -4255,7 +3751,7 @@ impl SettingsWidget for NativeRedirectWidget {
 
     fn render(
         &self,
-        view: &Self::View,
+        _: &Self::View,
         appearance: &Appearance,
         app: &AppContext,
     ) -> Box<dyn Element> {
@@ -4266,19 +3762,10 @@ impl SettingsWidget for NativeRedirectWidget {
                 mouse_state: self.additional_info_link.clone(),
                 on_click_action: None,
                 secondary_text: None,
-                tooltip_override_text: Some(
-                    crate::t!("settings-features-open-links-in-desktop-tooltip").into(),
-                ),
+                tooltip_override_text: Some(crate::t!(
+                    "settings-features-open-links-in-desktop-tooltip"
+                )),
             }),
-            LocalOnlyIconState::for_setting(
-                UserNativeRedirectPreference::storage_key(),
-                UserNativeRedirectPreference::sync_to_cloud(),
-                &mut view
-                    .button_mouse_states
-                    .local_only_icon_tooltip_states
-                    .borrow_mut(),
-                app,
-            ),
             ToggleState::Enabled,
             appearance,
             ui_builder
@@ -4315,7 +3802,7 @@ impl SettingsWidget for SessionRestorationWidget {
 
     fn render(
         &self,
-        view: &Self::View,
+        _: &Self::View,
         appearance: &Appearance,
         app: &AppContext,
     ) -> Box<dyn Element> {
@@ -4340,15 +3827,6 @@ impl SettingsWidget for SessionRestorationWidget {
                 secondary_text: None,
                 tooltip_override_text: None,
             }),
-            LocalOnlyIconState::for_setting(
-                RestoreSession::storage_key(),
-                RestoreSession::sync_to_cloud(),
-                &mut view
-                    .button_mouse_states
-                    .local_only_icon_tooltip_states
-                    .borrow_mut(),
-                app,
-            ),
             ToggleState::Enabled,
             appearance,
             switch,
@@ -4410,7 +3888,7 @@ impl SettingsWidget for SnackbarHeaderWidget {
 
     fn render(
         &self,
-        view: &Self::View,
+        _: &Self::View,
         appearance: &Appearance,
         app: &AppContext,
     ) -> Box<dyn Element> {
@@ -4425,15 +3903,6 @@ impl SettingsWidget for SnackbarHeaderWidget {
                 secondary_text: None,
                 tooltip_override_text: None,
             }),
-            LocalOnlyIconState::for_setting(
-                SnackbarEnabled::storage_key(),
-                SnackbarEnabled::sync_to_cloud(),
-                &mut view
-                    .button_mouse_states
-                    .local_only_icon_tooltip_states
-                    .borrow_mut(),
-                app,
-            ),
             ToggleState::Enabled,
             appearance,
             ui_builder
@@ -4463,7 +3932,7 @@ impl SettingsWidget for LinkTooltipWidget {
 
     fn render(
         &self,
-        view: &Self::View,
+        _: &Self::View,
         appearance: &Appearance,
         app: &AppContext,
     ) -> Box<dyn Element> {
@@ -4471,15 +3940,6 @@ impl SettingsWidget for LinkTooltipWidget {
         render_body_item::<FeaturesPageAction>(
             crate::t!("settings-features-show-link-tooltip"),
             None,
-            LocalOnlyIconState::for_setting(
-                LinkTooltip::storage_key(),
-                LinkTooltip::sync_to_cloud(),
-                &mut view
-                    .button_mouse_states
-                    .local_only_icon_tooltip_states
-                    .borrow_mut(),
-                app,
-            ),
             ToggleState::Enabled,
             appearance,
             ui_builder
@@ -4531,7 +3991,7 @@ impl SettingsWidget for QuitWarningModalWidget {
 
     fn render(
         &self,
-        view: &Self::View,
+        _: &Self::View,
         appearance: &Appearance,
         app: &AppContext,
     ) -> Box<dyn Element> {
@@ -4540,15 +4000,6 @@ impl SettingsWidget for QuitWarningModalWidget {
         render_body_item::<FeaturesPageAction>(
             crate::t!("settings-features-show-quit-warning"),
             None,
-            LocalOnlyIconState::for_setting(
-                ShowWarningBeforeQuitting::storage_key(),
-                ShowWarningBeforeQuitting::sync_to_cloud(),
-                &mut view
-                    .button_mouse_states
-                    .local_only_icon_tooltip_states
-                    .borrow_mut(),
-                app,
-            ),
             ToggleState::Enabled,
             appearance,
             ui_builder
@@ -4578,7 +4029,7 @@ impl SettingsWidget for QuitWhenAllWindowsClosedWidget {
 
     fn render(
         &self,
-        view: &Self::View,
+        _: &Self::View,
         appearance: &Appearance,
         app: &AppContext,
     ) -> Box<dyn Element> {
@@ -4587,15 +4038,6 @@ impl SettingsWidget for QuitWhenAllWindowsClosedWidget {
         render_body_item::<FeaturesPageAction>(
             crate::t!("settings-features-quit-on-last-window-closed"),
             None,
-            LocalOnlyIconState::for_setting(
-                QuitOnLastWindowClosed::storage_key(),
-                QuitOnLastWindowClosed::sync_to_cloud(),
-                &mut view
-                    .button_mouse_states
-                    .local_only_icon_tooltip_states
-                    .borrow_mut(),
-                app,
-            ),
             ToggleState::Enabled,
             appearance,
             ui_builder
@@ -4627,7 +4069,7 @@ impl SettingsWidget for MouseScrollMultiplierWidget {
         &self,
         view: &Self::View,
         appearance: &Appearance,
-        app: &AppContext,
+        _: &AppContext,
     ) -> Box<dyn Element> {
         let border_color = match view.valid_mouse_scroll_multiplier {
             false => Some(themes::theme::Fill::error().into()),
@@ -4678,15 +4120,6 @@ impl SettingsWidget for MouseScrollMultiplierWidget {
                 secondary_text: None,
                 tooltip_override_text: Some(crate::t!("settings-features-supports-floating-1-20")),
             }),
-            LocalOnlyIconState::for_setting(
-                MouseScrollMultiplier::storage_key(),
-                MouseScrollMultiplier::sync_to_cloud(),
-                &mut view
-                    .button_mouse_states
-                    .local_only_icon_tooltip_states
-                    .borrow_mut(),
-                app,
-            ),
             ToggleState::Enabled,
             appearance,
             input_column,
@@ -4709,7 +4142,7 @@ impl SettingsWidget for AutoOpenCodeReviewPaneWidget {
 
     fn render(
         &self,
-        view: &Self::View,
+        _: &Self::View,
         appearance: &Appearance,
         app: &AppContext,
     ) -> Box<dyn Element> {
@@ -4718,15 +4151,6 @@ impl SettingsWidget for AutoOpenCodeReviewPaneWidget {
         render_body_item::<FeaturesPageAction>(
             crate::t!("settings-features-auto-open-code-review"),
             None,
-            LocalOnlyIconState::for_setting(
-                AutoOpenCodeReviewPaneOnFirstAgentChange::storage_key(),
-                AutoOpenCodeReviewPaneOnFirstAgentChange::sync_to_cloud(),
-                &mut view
-                    .button_mouse_states
-                    .local_only_icon_tooltip_states
-                    .borrow_mut(),
-                app,
-            ),
             ToggleState::Enabled,
             appearance,
             ui_builder
@@ -4808,7 +4232,7 @@ impl SettingsWidget for BlockLimitWidget {
         &self,
         view: &Self::View,
         appearance: &Appearance,
-        app: &AppContext,
+        _: &AppContext,
     ) -> Box<dyn Element> {
         let border_color: Option<Fill> = match view.valid_max_block_size {
             false => Some(themes::theme::Fill::error().into()),
@@ -4835,15 +4259,6 @@ impl SettingsWidget for BlockLimitWidget {
         render_body_item::<FeaturesPageAction>(
             crate::t!("settings-features-max-rows-per-block"),
             None,
-            LocalOnlyIconState::for_setting(
-                MaximumGridSize::storage_key(),
-                MaximumGridSize::sync_to_cloud(),
-                &mut view
-                    .button_mouse_states
-                    .local_only_icon_tooltip_states
-                    .borrow_mut(),
-                app,
-            ),
             ToggleState::Enabled,
             appearance,
             input_field,
@@ -4886,15 +4301,6 @@ impl SettingsWidget for SSHWrapperWidget {
                 },
                 tooltip_override_text: None,
             }),
-            LocalOnlyIconState::for_setting(
-                EnableSshWrapper::storage_key(),
-                EnableSshWrapper::sync_to_cloud(),
-                &mut view
-                    .button_mouse_states
-                    .local_only_icon_tooltip_states
-                    .borrow_mut(),
-                app,
-            ),
             ToggleState::Enabled,
             appearance,
             ui_builder
@@ -4941,15 +4347,6 @@ impl SettingsWidget for DesktopNotificationsWidget {
                 secondary_text: None,
                 tooltip_override_text: None,
             }),
-            LocalOnlyIconState::for_setting(
-                Notifications::storage_key(),
-                Notifications::sync_to_cloud(),
-                &mut view
-                    .button_mouse_states
-                    .local_only_icon_tooltip_states
-                    .borrow_mut(),
-                app,
-            ),
             ToggleState::Enabled,
             appearance,
             ui_builder
@@ -5017,7 +4414,6 @@ impl SettingsWidget for DesktopNotificationsWidget {
             column.add_child(render_body_item::<FeaturesPageAction>(
                 crate::t!("settings-features-show-in-app-agent-notifications"),
                 None,
-                LocalOnlyIconState::Hidden,
                 ToggleState::Enabled,
                 appearance,
                 ui_builder
@@ -5117,22 +4513,13 @@ impl SettingsWidget for StartupShellWidget {
         &self,
         view: &Self::View,
         appearance: &Appearance,
-        app: &AppContext,
+        _: &AppContext,
     ) -> Box<dyn Element> {
         Flex::column()
             .with_children([
                 render_sub_sub_header(
                     appearance,
                     crate::t!("settings-features-default-shell-header"),
-                    Some(LocalOnlyIconState::for_setting(
-                        StartupShellOverride::storage_key(),
-                        StartupShellOverride::sync_to_cloud(),
-                        &mut view
-                            .button_mouse_states
-                            .local_only_icon_tooltip_states
-                            .borrow_mut(),
-                        app,
-                    )),
                 ),
                 ChildView::new(&view.startup_shell_view).finish(),
             ])
@@ -5156,22 +4543,13 @@ impl SettingsWidget for WorkingDirectoryWidget {
         &self,
         view: &Self::View,
         appearance: &Appearance,
-        app: &AppContext,
+        _: &AppContext,
     ) -> Box<dyn Element> {
         Flex::column()
             .with_children([
                 render_sub_sub_header(
                     appearance,
                     crate::t!("settings-features-working-directory-header"),
-                    Some(LocalOnlyIconState::for_setting(
-                        WorkingDirectoryConfig::storage_key(),
-                        WorkingDirectoryConfig::sync_to_cloud(),
-                        &mut view
-                            .button_mouse_states
-                            .local_only_icon_tooltip_states
-                            .borrow_mut(),
-                        app,
-                    )),
                 ),
                 ChildView::new(&view.working_directory_view).finish(),
             ])
@@ -5200,53 +4578,6 @@ impl SettingsWidget for UndoCloseWidget {
 }
 
 #[derive(Default)]
-struct ConfirmCloseSharedSessionWidget {
-    switch_state: SwitchStateHandle,
-}
-
-impl SettingsWidget for ConfirmCloseSharedSessionWidget {
-    type View = FeaturesPageView;
-
-    fn search_terms(&self) -> &str {
-        "warning popup modal dialog shared session close"
-    }
-
-    fn render(
-        &self,
-        view: &Self::View,
-        appearance: &Appearance,
-        app: &AppContext,
-    ) -> Box<dyn Element> {
-        let ui_builder = appearance.ui_builder();
-        let session_settings = SessionSettings::as_ref(app);
-        render_body_item::<FeaturesPageAction>(
-            crate::t!("settings-features-confirm-close-shared-session"),
-            None,
-            LocalOnlyIconState::for_setting(
-                ShouldConfirmCloseSession::storage_key(),
-                ShouldConfirmCloseSession::sync_to_cloud(),
-                &mut view
-                    .button_mouse_states
-                    .local_only_icon_tooltip_states
-                    .borrow_mut(),
-                app,
-            ),
-            ToggleState::Enabled,
-            appearance,
-            ui_builder
-                .switch(self.switch_state.clone())
-                .check(*session_settings.should_confirm_close_session)
-                .build()
-                .on_click(move |ctx, _, _| {
-                    ctx.dispatch_typed_action(FeaturesPageAction::ToggleConfirmCloseSession);
-                })
-                .finish(),
-            None,
-        )
-    }
-}
-
-#[derive(Default)]
 struct ExtraMetaKeysWidget {
     left_switch_state: SwitchStateHandle,
     right_switch_state: SwitchStateHandle,
@@ -5261,26 +4592,16 @@ impl SettingsWidget for ExtraMetaKeysWidget {
 
     fn render(
         &self,
-        view: &Self::View,
+        _: &Self::View,
         appearance: &Appearance,
         app: &AppContext,
     ) -> Box<dyn Element> {
         let ui_builder = appearance.ui_builder();
         let key_settings = KeysSettings::as_ref(app);
-        let mut tooltip_states = view
-            .button_mouse_states
-            .local_only_icon_tooltip_states
-            .borrow_mut();
         Flex::column()
             .with_child(render_body_item::<FeaturesPageAction>(
                 extra_meta_keys_left_text(),
                 None,
-                LocalOnlyIconState::for_setting(
-                    crate::terminal::keys_settings::ExtraMetaKeys::storage_key(),
-                    crate::terminal::keys_settings::ExtraMetaKeys::sync_to_cloud(),
-                    &mut tooltip_states,
-                    app,
-                ),
                 ToggleState::Enabled,
                 appearance,
                 ui_builder
@@ -5296,12 +4617,6 @@ impl SettingsWidget for ExtraMetaKeysWidget {
             .with_child(render_body_item::<FeaturesPageAction>(
                 extra_meta_keys_right_text(),
                 None,
-                LocalOnlyIconState::for_setting(
-                    crate::terminal::keys_settings::ExtraMetaKeys::storage_key(),
-                    crate::terminal::keys_settings::ExtraMetaKeys::sync_to_cloud(),
-                    &mut tooltip_states,
-                    app,
-                ),
                 ToggleState::Enabled,
                 appearance,
                 ui_builder
@@ -5341,7 +4656,6 @@ impl SettingsWidget for GlobalHotkeyWidget {
                 crate::t!("settings-features-global-hotkey-label"),
                 None,
                 // Fine not to show local only icon state for this, as it's not a supported setting.
-                LocalOnlyIconState::Hidden,
                 ToggleState::Disabled,
                 appearance,
                 Flex::row()
@@ -5379,15 +4693,6 @@ impl SettingsWidget for GlobalHotkeyWidget {
                         &crate::t!("settings-features-global-hotkey-label"),
                         None,
                         None,
-                        LocalOnlyIconState::for_setting(
-                            ActivationHotkeyEnabled::storage_key(),
-                            ActivationHotkeyEnabled::sync_to_cloud(),
-                            &mut view
-                                .button_mouse_states
-                                .local_only_icon_tooltip_states
-                                .borrow_mut(),
-                            app,
-                        ),
                         None,
                         &view.global_hotkey_dropdown,
                     )
@@ -5477,7 +4782,7 @@ impl SettingsWidget for AutocompleteSymbolsWidget {
 
     fn render(
         &self,
-        view: &Self::View,
+        _: &Self::View,
         appearance: &Appearance,
         app: &AppContext,
     ) -> Box<dyn Element> {
@@ -5485,15 +4790,6 @@ impl SettingsWidget for AutocompleteSymbolsWidget {
         render_body_item::<FeaturesPageAction>(
             crate::t!("settings-features-autocomplete-symbols"),
             None,
-            LocalOnlyIconState::for_setting(
-                AutocompleteSymbols::storage_key(),
-                AutocompleteSymbols::sync_to_cloud(),
-                &mut view
-                    .button_mouse_states
-                    .local_only_icon_tooltip_states
-                    .borrow_mut(),
-                app,
-            ),
             ToggleState::Enabled,
             appearance,
             ui_builder
@@ -5523,7 +4819,7 @@ impl SettingsWidget for ErrorUnderliningWidget {
 
     fn render(
         &self,
-        view: &Self::View,
+        _: &Self::View,
         appearance: &Appearance,
         app: &AppContext,
     ) -> Box<dyn Element> {
@@ -5531,15 +4827,6 @@ impl SettingsWidget for ErrorUnderliningWidget {
         render_body_item::<FeaturesPageAction>(
             crate::t!("settings-features-error-underlining"),
             None,
-            LocalOnlyIconState::for_setting(
-                ErrorUnderliningEnabled::storage_key(),
-                ErrorUnderliningEnabled::sync_to_cloud(),
-                &mut view
-                    .button_mouse_states
-                    .local_only_icon_tooltip_states
-                    .borrow_mut(),
-                app,
-            ),
             ToggleState::Enabled,
             appearance,
             ui_builder
@@ -5569,7 +4856,7 @@ impl SettingsWidget for SyntaxHighlightingWidget {
 
     fn render(
         &self,
-        view: &Self::View,
+        _: &Self::View,
         appearance: &Appearance,
         app: &AppContext,
     ) -> Box<dyn Element> {
@@ -5577,15 +4864,6 @@ impl SettingsWidget for SyntaxHighlightingWidget {
         render_body_item::<FeaturesPageAction>(
             crate::t!("settings-features-syntax-highlighting"),
             None,
-            LocalOnlyIconState::for_setting(
-                SyntaxHighlighting::storage_key(),
-                SyntaxHighlighting::sync_to_cloud(),
-                &mut view
-                    .button_mouse_states
-                    .local_only_icon_tooltip_states
-                    .borrow_mut(),
-                app,
-            ),
             ToggleState::Enabled,
             appearance,
             ui_builder
@@ -5615,7 +4893,7 @@ impl SettingsWidget for CompletionsMenuWhileTypingWidget {
 
     fn render(
         &self,
-        view: &Self::View,
+        _: &Self::View,
         appearance: &Appearance,
         app: &AppContext,
     ) -> Box<dyn Element> {
@@ -5623,15 +4901,6 @@ impl SettingsWidget for CompletionsMenuWhileTypingWidget {
         render_body_item::<FeaturesPageAction>(
             crate::t!("settings-features-completions-while-typing"),
             None,
-            LocalOnlyIconState::for_setting(
-                CompletionsOpenWhileTyping::storage_key(),
-                CompletionsOpenWhileTyping::sync_to_cloud(),
-                &mut view
-                    .button_mouse_states
-                    .local_only_icon_tooltip_states
-                    .borrow_mut(),
-                app,
-            ),
             ToggleState::Enabled,
             appearance,
             ui_builder
@@ -5665,7 +4934,7 @@ impl SettingsWidget for CommandCorrectionsWidget {
 
     fn render(
         &self,
-        view: &Self::View,
+        _: &Self::View,
         appearance: &Appearance,
         app: &AppContext,
     ) -> Box<dyn Element> {
@@ -5673,15 +4942,6 @@ impl SettingsWidget for CommandCorrectionsWidget {
         render_body_item::<FeaturesPageAction>(
             crate::t!("settings-features-command-corrections"),
             None,
-            LocalOnlyIconState::for_setting(
-                CommandCorrections::storage_key(),
-                CommandCorrections::sync_to_cloud(),
-                &mut view
-                    .button_mouse_states
-                    .local_only_icon_tooltip_states
-                    .borrow_mut(),
-                app,
-            ),
             ToggleState::Enabled,
             appearance,
             ui_builder
@@ -5711,7 +4971,7 @@ impl SettingsWidget for AliasExpansionWidget {
 
     fn render(
         &self,
-        view: &Self::View,
+        _: &Self::View,
         appearance: &Appearance,
         app: &AppContext,
     ) -> Box<dyn Element> {
@@ -5720,15 +4980,6 @@ impl SettingsWidget for AliasExpansionWidget {
         render_body_item::<FeaturesPageAction>(
             crate::t!("settings-features-expand-aliases"),
             None,
-            LocalOnlyIconState::for_setting(
-                AliasExpansionEnabled::storage_key(),
-                AliasExpansionEnabled::sync_to_cloud(),
-                &mut view
-                    .button_mouse_states
-                    .local_only_icon_tooltip_states
-                    .borrow_mut(),
-                app,
-            ),
             ToggleState::Enabled,
             appearance,
             ui_builder
@@ -5758,7 +5009,7 @@ impl SettingsWidget for MiddleClickPasteWidget {
 
     fn render(
         &self,
-        view: &Self::View,
+        _: &Self::View,
         appearance: &Appearance,
         app: &AppContext,
     ) -> Box<dyn Element> {
@@ -5767,15 +5018,6 @@ impl SettingsWidget for MiddleClickPasteWidget {
         render_body_item::<FeaturesPageAction>(
             crate::t!("settings-features-middle-click-paste"),
             None,
-            LocalOnlyIconState::for_setting(
-                MiddleClickPasteEnabled::storage_key(),
-                MiddleClickPasteEnabled::sync_to_cloud(),
-                &mut view
-                    .button_mouse_states
-                    .local_only_icon_tooltip_states
-                    .borrow_mut(),
-                app,
-            ),
             ToggleState::Enabled,
             appearance,
             ui_builder
@@ -5819,15 +5061,6 @@ impl SettingsWidget for VimModeWidget {
         column.add_child(render_body_item::<FeaturesPageAction>(
             crate::t!("settings-features-vim-mode"),
             None,
-            LocalOnlyIconState::for_setting(
-                VimModeEnabled::storage_key(),
-                VimModeEnabled::sync_to_cloud(),
-                &mut view
-                    .button_mouse_states
-                    .local_only_icon_tooltip_states
-                    .borrow_mut(),
-                app,
-            ),
             ToggleState::Enabled,
             appearance,
             ui_builder
@@ -5855,15 +5088,6 @@ impl SettingsWidget for VimModeWidget {
                 .finish();
             let clipboard_setting = view.render_setting_subgroup_item(
                 appearance,
-                LocalOnlyIconState::for_setting(
-                    VimUnnamedSystemClipboard::storage_key(),
-                    VimUnnamedSystemClipboard::sync_to_cloud(),
-                    &mut view
-                        .button_mouse_states
-                        .local_only_icon_tooltip_states
-                        .borrow_mut(),
-                    app,
-                ),
                 clipboard_switch,
                 crate::t!("settings-features-vim-system-clipboard"),
             );
@@ -5879,15 +5103,6 @@ impl SettingsWidget for VimModeWidget {
                 .finish();
             let status_bar_setting = view.render_setting_subgroup_item(
                 appearance,
-                LocalOnlyIconState::for_setting(
-                    VimStatusBar::storage_key(),
-                    VimStatusBar::sync_to_cloud(),
-                    &mut view
-                        .button_mouse_states
-                        .local_only_icon_tooltip_states
-                        .borrow_mut(),
-                    app,
-                ),
                 status_bar_switch,
                 crate::t!("settings-features-vim-status-bar"),
             );
@@ -5916,7 +5131,7 @@ impl SettingsWidget for AtContextMenuInTerminalModeWidget {
 
     fn render(
         &self,
-        view: &Self::View,
+        _: &Self::View,
         appearance: &Appearance,
         app: &AppContext,
     ) -> Box<dyn Element> {
@@ -5924,15 +5139,6 @@ impl SettingsWidget for AtContextMenuInTerminalModeWidget {
         render_body_item::<FeaturesPageAction>(
             crate::t!("settings-features-at-context-menu"),
             None,
-            LocalOnlyIconState::for_setting(
-                AtContextMenuInTerminalMode::storage_key(),
-                AtContextMenuInTerminalMode::sync_to_cloud(),
-                &mut view
-                    .button_mouse_states
-                    .local_only_icon_tooltip_states
-                    .borrow_mut(),
-                app,
-            ),
             ToggleState::Enabled,
             appearance,
             ui_builder
@@ -5967,12 +5173,12 @@ impl SettingsWidget for SlashCommandsInTerminalModeWidget {
     }
 
     fn should_render(&self, app: &AppContext) -> bool {
-        AISettings::as_ref(app).is_any_ai_enabled(app)
+        AISettings::as_ref(app).is_any_ai_enabled()
     }
 
     fn render(
         &self,
-        view: &Self::View,
+        _: &Self::View,
         appearance: &Appearance,
         app: &AppContext,
     ) -> Box<dyn Element> {
@@ -5980,15 +5186,6 @@ impl SettingsWidget for SlashCommandsInTerminalModeWidget {
         render_body_item::<FeaturesPageAction>(
             crate::t!("settings-features-slash-commands-in-terminal"),
             None,
-            LocalOnlyIconState::for_setting(
-                EnableSlashCommandsInTerminal::storage_key(),
-                EnableSlashCommandsInTerminal::sync_to_cloud(),
-                &mut view
-                    .button_mouse_states
-                    .local_only_icon_tooltip_states
-                    .borrow_mut(),
-                app,
-            ),
             ToggleState::Enabled,
             appearance,
             ui_builder
@@ -6024,7 +5221,7 @@ impl SettingsWidget for OutlineCodebaseSymbolsForAtContextMenuWidget {
 
     fn render(
         &self,
-        view: &Self::View,
+        _: &Self::View,
         appearance: &Appearance,
         app: &AppContext,
     ) -> Box<dyn Element> {
@@ -6032,15 +5229,6 @@ impl SettingsWidget for OutlineCodebaseSymbolsForAtContextMenuWidget {
         render_body_item::<FeaturesPageAction>(
             crate::t!("settings-features-outline-codebase-symbols"),
             None,
-            LocalOnlyIconState::for_setting(
-                OutlineCodebaseSymbolsForAtContextMenu::storage_key(),
-                OutlineCodebaseSymbolsForAtContextMenu::sync_to_cloud(),
-                &mut view
-                    .button_mouse_states
-                    .local_only_icon_tooltip_states
-                    .borrow_mut(),
-                app,
-            ),
             ToggleState::Enabled,
             appearance,
             ui_builder
@@ -6076,7 +5264,7 @@ impl SettingsWidget for ShowTerminalInputMessageLineWidget {
 
     fn render(
         &self,
-        view: &Self::View,
+        _: &Self::View,
         appearance: &Appearance,
         app: &AppContext,
     ) -> Box<dyn Element> {
@@ -6084,15 +5272,6 @@ impl SettingsWidget for ShowTerminalInputMessageLineWidget {
         render_body_item::<FeaturesPageAction>(
             crate::t!("settings-features-show-input-message-bar"),
             None,
-            LocalOnlyIconState::for_setting(
-                ShowTerminalInputMessageBar::storage_key(),
-                ShowTerminalInputMessageBar::sync_to_cloud(),
-                &mut view
-                    .button_mouse_states
-                    .local_only_icon_tooltip_states
-                    .borrow_mut(),
-                app,
-            ),
             ToggleState::Enabled,
             appearance,
             ui_builder
@@ -6124,7 +5303,7 @@ impl SettingsWidget for AutosuggestionKeybindingHintWidget {
 
     fn render(
         &self,
-        view: &Self::View,
+        _: &Self::View,
         appearance: &Appearance,
         app: &AppContext,
     ) -> Box<dyn Element> {
@@ -6137,15 +5316,6 @@ impl SettingsWidget for AutosuggestionKeybindingHintWidget {
         column.add_child(render_body_item::<FeaturesPageAction>(
             crate::t!("settings-features-show-autosuggestion-hint"),
             None,
-            LocalOnlyIconState::for_setting(
-                AutosuggestionKeybindingHint::storage_key(),
-                AutosuggestionKeybindingHint::sync_to_cloud(),
-                &mut view
-                    .button_mouse_states
-                    .local_only_icon_tooltip_states
-                    .borrow_mut(),
-                app,
-            ),
             ToggleState::Enabled,
             appearance,
             ui_builder
@@ -6179,7 +5349,7 @@ impl SettingsWidget for AutosuggestionIgnoreButtonWidget {
 
     fn render(
         &self,
-        view: &Self::View,
+        _: &Self::View,
         appearance: &Appearance,
         app: &AppContext,
     ) -> Box<dyn Element> {
@@ -6193,15 +5363,6 @@ impl SettingsWidget for AutosuggestionIgnoreButtonWidget {
         column.add_child(render_body_item::<FeaturesPageAction>(
             crate::t!("settings-features-show-autosuggestion-ignore"),
             None,
-            LocalOnlyIconState::for_setting(
-                ShowAutosuggestionIgnoreButton::storage_key(),
-                ShowAutosuggestionIgnoreButton::sync_to_cloud(),
-                &mut view
-                    .button_mouse_states
-                    .local_only_icon_tooltip_states
-                    .borrow_mut(),
-                app,
-            ),
             ToggleState::Enabled,
             appearance,
             ui_builder
@@ -6321,7 +5482,7 @@ impl SettingsWidget for TabKeyBehaviorWidget {
         appearance: &Appearance,
         app: &AppContext,
     ) -> Box<dyn Element> {
-        let mut tab_key_span = Flex::row()
+        let tab_key_span = Flex::row()
             .with_cross_axis_alignment(CrossAxisAlignment::Start)
             .with_child(
                 appearance
@@ -6334,15 +5495,6 @@ impl SettingsWidget for TabKeyBehaviorWidget {
                     .build()
                     .finish(),
             );
-        if *CloudPreferencesSettings::as_ref(app).settings_sync_enabled {
-            tab_key_span.add_child(render_local_only_icon(
-                appearance,
-                view.button_mouse_states
-                    .tab_behavior_local_only_icon
-                    .clone(),
-                None,
-            ));
-        }
 
         let main_row = Flex::row()
             .with_cross_axis_alignment(CrossAxisAlignment::Center)
@@ -6389,15 +5541,6 @@ impl SettingsWidget for CtrlTabBehaviorWidget {
                     &crate::t!("settings-features-ctrl-tab-behavior-label"),
                     None,
                     None,
-                    LocalOnlyIconState::for_setting(
-                        CtrlTabBehaviorSetting::storage_key(),
-                        CtrlTabBehaviorSetting::sync_to_cloud(),
-                        &mut view
-                            .button_mouse_states
-                            .local_only_icon_tooltip_states
-                            .borrow_mut(),
-                        app,
-                    ),
                     None,
                     &view.ctrl_tab_behavior_dropdown,
                 )
@@ -6422,7 +5565,7 @@ impl SettingsWidget for MouseReportingWidget {
 
     fn render(
         &self,
-        view: &Self::View,
+        _: &Self::View,
         appearance: &Appearance,
         app: &AppContext,
     ) -> Box<dyn Element> {
@@ -6439,15 +5582,7 @@ impl SettingsWidget for MouseReportingWidget {
                 secondary_text: None,
                 tooltip_override_text: None,
             }),
-            LocalOnlyIconState::for_setting(
-                MouseReportingEnabled::storage_key(),
-                MouseReportingEnabled::sync_to_cloud(),
-                &mut view
-                    .button_mouse_states
-                    .local_only_icon_tooltip_states
-                    .borrow_mut(),
-                app,
-            ),
+
             ToggleState::Enabled,
             appearance,
             ui_builder
@@ -6477,7 +5612,7 @@ impl SettingsWidget for ScrollReportingWidget {
 
     fn render(
         &self,
-        view: &Self::View,
+        _: &Self::View,
         appearance: &Appearance,
         app: &AppContext,
     ) -> Box<dyn Element> {
@@ -6486,15 +5621,6 @@ impl SettingsWidget for ScrollReportingWidget {
         render_body_item::<FeaturesPageAction>(
             crate::t!("settings-features-enable-scroll-reporting"),
             None,
-            LocalOnlyIconState::for_setting(
-                ScrollReportingEnabled::storage_key(),
-                ScrollReportingEnabled::sync_to_cloud(),
-                &mut view
-                    .button_mouse_states
-                    .local_only_icon_tooltip_states
-                    .borrow_mut(),
-                app,
-            ),
             if *reporting_settings.mouse_reporting_enabled.value() {
                 ToggleState::Enabled
             } else {
@@ -6535,7 +5661,7 @@ impl SettingsWidget for FocusReportingWidget {
 
     fn render(
         &self,
-        view: &Self::View,
+        _: &Self::View,
         appearance: &Appearance,
         app: &AppContext,
     ) -> Box<dyn Element> {
@@ -6544,15 +5670,6 @@ impl SettingsWidget for FocusReportingWidget {
         render_body_item::<FeaturesPageAction>(
             crate::t!("settings-features-enable-focus-reporting"),
             None,
-            LocalOnlyIconState::for_setting(
-                FocusReportingEnabled::storage_key(),
-                FocusReportingEnabled::sync_to_cloud(),
-                &mut view
-                    .button_mouse_states
-                    .local_only_icon_tooltip_states
-                    .borrow_mut(),
-                app,
-            ),
             ToggleState::Enabled,
             appearance,
             ui_builder
@@ -6582,7 +5699,7 @@ impl SettingsWidget for AudibleBellWidget {
 
     fn render(
         &self,
-        view: &Self::View,
+        _: &Self::View,
         appearance: &Appearance,
         app: &AppContext,
     ) -> Box<dyn Element> {
@@ -6591,15 +5708,6 @@ impl SettingsWidget for AudibleBellWidget {
         render_body_item::<FeaturesPageAction>(
             crate::t!("settings-features-use-audible-bell"),
             None,
-            LocalOnlyIconState::for_setting(
-                UseAudibleBell::storage_key(),
-                UseAudibleBell::sync_to_cloud(),
-                &mut view
-                    .button_mouse_states
-                    .local_only_icon_tooltip_states
-                    .borrow_mut(),
-                app,
-            ),
             ToggleState::Enabled,
             appearance,
             ui_builder
@@ -6703,15 +5811,6 @@ impl SettingsWidget for SmartSelectWidget {
                 secondary_text: None,
                 tooltip_override_text: None,
             }),
-            LocalOnlyIconState::for_setting(
-                SmartSelectEnabled::storage_key(),
-                SmartSelectEnabled::sync_to_cloud(),
-                &mut view
-                    .button_mouse_states
-                    .local_only_icon_tooltip_states
-                    .borrow_mut(),
-                app,
-            ),
             ToggleState::Enabled,
             appearance,
             ui_builder
@@ -6758,12 +5857,12 @@ impl SettingsWidget for ShowTerminalZeroStateBlockWidget {
     }
 
     fn should_render(&self, app: &AppContext) -> bool {
-        AISettings::as_ref(app).is_any_ai_enabled(app)
+        AISettings::as_ref(app).is_any_ai_enabled()
     }
 
     fn render(
         &self,
-        view: &Self::View,
+        _: &Self::View,
         appearance: &Appearance,
         app: &AppContext,
     ) -> Box<dyn Element> {
@@ -6772,15 +5871,6 @@ impl SettingsWidget for ShowTerminalZeroStateBlockWidget {
         render_body_item::<FeaturesPageAction>(
             crate::t!("settings-features-show-help-block-in-new-sessions"),
             None,
-            LocalOnlyIconState::for_setting(
-                ShowTerminalZeroStateBlock::storage_key(),
-                ShowTerminalZeroStateBlock::sync_to_cloud(),
-                &mut view
-                    .button_mouse_states
-                    .local_only_icon_tooltip_states
-                    .borrow_mut(),
-                app,
-            ),
             ToggleState::Enabled,
             appearance,
             ui_builder
@@ -6805,7 +5895,7 @@ impl SettingsWidget for CopyOnSelectWidget {
 
     fn render(
         &self,
-        view: &Self::View,
+        _: &Self::View,
         appearance: &Appearance,
         app: &AppContext,
     ) -> Box<dyn Element> {
@@ -6814,15 +5904,6 @@ impl SettingsWidget for CopyOnSelectWidget {
         render_body_item::<FeaturesPageAction>(
             crate::t!("settings-features-copy-on-select"),
             None,
-            LocalOnlyIconState::for_setting(
-                CopyOnSelect::storage_key(),
-                CopyOnSelect::sync_to_cloud(),
-                &mut view
-                    .button_mouse_states
-                    .local_only_icon_tooltip_states
-                    .borrow_mut(),
-                app,
-            ),
             ToggleState::Enabled,
             appearance,
             ui_builder
@@ -6852,22 +5933,13 @@ impl SettingsWidget for NewTabPlacementWidget {
         &self,
         view: &Self::View,
         appearance: &Appearance,
-        app: &AppContext,
+        _: &AppContext,
     ) -> Box<dyn Element> {
         render_dropdown_item(
             appearance,
             &crate::t!("settings-features-new-tab-placement"),
             None,
             None,
-            LocalOnlyIconState::for_setting(
-                NewTabPlacement::storage_key(),
-                NewTabPlacement::sync_to_cloud(),
-                &mut view
-                    .button_mouse_states
-                    .local_only_icon_tooltip_states
-                    .borrow_mut(),
-                app,
-            ),
             None,
             &view.new_tab_placement_dropdown,
         )
@@ -6888,20 +5960,11 @@ impl SettingsWidget for DefaultSessionModeWidget {
         &self,
         view: &Self::View,
         appearance: &Appearance,
-        app: &AppContext,
+        _: &AppContext,
     ) -> Box<dyn Element> {
         let label = render_dropdown_item_label(
             crate::t!("settings-features-default-session-mode"),
             None,
-            LocalOnlyIconState::for_setting(
-                DefaultSessionMode::storage_key(),
-                DefaultSessionMode::sync_to_cloud(),
-                &mut view
-                    .button_mouse_states
-                    .local_only_icon_tooltip_states
-                    .borrow_mut(),
-                app,
-            ),
             None,
             appearance,
         );
@@ -6938,7 +6001,7 @@ impl SettingsWidget for WorkflowsInCommandSearch {
 
     fn render(
         &self,
-        view: &Self::View,
+        _: &Self::View,
         appearance: &Appearance,
         app: &AppContext,
     ) -> Box<dyn Element> {
@@ -6954,15 +6017,6 @@ impl SettingsWidget for WorkflowsInCommandSearch {
                 secondary_text: None,
                 tooltip_override_text: None,
             }),
-            LocalOnlyIconState::for_setting(
-                ShowGlobalWorkflowsInUniversalSearch::storage_key(),
-                ShowGlobalWorkflowsInUniversalSearch::sync_to_cloud(),
-                &mut view
-                    .button_mouse_states
-                    .local_only_icon_tooltip_states
-                    .borrow_mut(),
-                app,
-            ),
             ToggleState::Enabled,
             appearance,
             ui_builder
@@ -6995,7 +6049,7 @@ impl SettingsWidget for LinuxSelectionClipboardWidget {
 
     fn render(
         &self,
-        view: &Self::View,
+        _: &Self::View,
         appearance: &Appearance,
         app: &AppContext,
     ) -> Box<dyn Element> {
@@ -7009,15 +6063,6 @@ impl SettingsWidget for LinuxSelectionClipboardWidget {
                     "settings-features-linux-selection-clipboard-tooltip"
                 )),
             }),
-            LocalOnlyIconState::for_setting(
-                LinuxSelectionClipboard::storage_key(),
-                LinuxSelectionClipboard::sync_to_cloud(),
-                &mut view
-                    .button_mouse_states
-                    .local_only_icon_tooltip_states
-                    .borrow_mut(),
-                app,
-            ),
             ToggleState::Enabled,
             appearance,
             appearance
@@ -7056,15 +6101,6 @@ impl SettingsWidget for CpuRendererWidget {
         let body = render_body_item::<FeaturesPageAction>(
             crate::t!("settings-features-cpu-renderer"),
             None,
-            LocalOnlyIconState::for_setting(
-                CpuRenderer::storage_key(),
-                CpuRenderer::sync_to_cloud(),
-                &mut view
-                    .button_mouse_states
-                    .local_only_icon_tooltip_states
-                    .borrow_mut(),
-                app,
-            ),
             ToggleState::Enabled,
             appearance,
             appearance
@@ -7122,15 +6158,6 @@ impl SettingsWidget for GPUWidget {
         let mut col = Flex::column().with_child(render_body_item::<FeaturesPageAction>(
             crate::t!("settings-features-prefer-low-power-gpu"),
             None,
-            LocalOnlyIconState::for_setting(
-                PreferLowPowerGPU::storage_key(),
-                PreferLowPowerGPU::sync_to_cloud(),
-                &mut view
-                    .button_mouse_states
-                    .local_only_icon_tooltip_states
-                    .borrow_mut(),
-                app,
-            ),
             ToggleState::Enabled,
             appearance,
             appearance
@@ -7200,15 +6227,6 @@ impl SettingsWidget for WindowSystemWidget {
                 secondary_text: None,
                 tooltip_override_text: Some(crate::t!("settings-features-use-wayland-tooltip")),
             }),
-            LocalOnlyIconState::for_setting(
-                ForceX11::storage_key(),
-                ForceX11::sync_to_cloud(),
-                &mut view
-                    .button_mouse_states
-                    .local_only_icon_tooltip_states
-                    .borrow_mut(),
-                app,
-            ),
             ToggleState::Enabled,
             appearance,
             appearance
@@ -7270,15 +6288,6 @@ impl SettingsWidget for GraphicsBackendWidget {
             &crate::t!("settings-features-graphics-backend-label"),
             None,
             None,
-            LocalOnlyIconState::for_setting(
-                PreferredGraphicsBackend::storage_key(),
-                PreferredGraphicsBackend::sync_to_cloud(),
-                &mut view
-                    .button_mouse_states
-                    .local_only_icon_tooltip_states
-                    .borrow_mut(),
-                app,
-            ),
             None,
             &view.graphics_backend_dropdown,
         );

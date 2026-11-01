@@ -11,16 +11,13 @@
 
 pub mod active_ai;
 pub mod attachment_caps;
-pub mod chat_stream;
+pub mod client;
 pub mod llm_id;
 pub mod models_dev;
 pub mod oneshot;
 pub mod openai_compatible;
-pub mod prompt_renderer;
 pub mod reasoning;
 pub mod secrets;
-pub mod tools;
-pub mod user_context;
 
 // 当前外部使用点:
 // - `fetch_openai_compatible_models`: ai_page.rs 中的 FetchAgentProviderModels handler
@@ -122,7 +119,8 @@ fn build_byop_llm_infos(app: &AppContext) -> Vec<LLMInfo> {
 /// 选不动,提示用户去设置中配。
 fn placeholder_llm_info() -> LLMInfo {
     LLMInfo {
-        display_name: "未配置自定义提供商 — 请到 设置 → AI 添加".to_owned(),
+        display_name: "No custom provider configured. Add one in Settings → Agents → Providers."
+            .to_owned(),
         base_model_name: "未配置".to_owned(),
         id: ai::LLMId::from("byop-placeholder"),
         reasoning_level: None,
