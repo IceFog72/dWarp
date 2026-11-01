@@ -1,6 +1,7 @@
 import os
 from pathlib import Path
 import signal
+import shutil
 import subprocess
 import tempfile
 import time
@@ -57,6 +58,73 @@ class CleanupDebugTests(unittest.TestCase):
         )
         self.assertEqual(result.returncode, 127, result.stderr)
         self.assert_clean()
+
+    @unittest.skipUnless(Path("/dev/full").exists(), "requires /dev/full")
+    def test_out_of_space_failure_removes_partial_output(self):
+        result = subprocess.run(
+            [str(SCRIPT), "bash", "-c",
+             'touch "$CARGO_TARGET_DIR/partial"; printf dependency > /dev/full'],
+            env=self.env, capture_output=True, text=True,
+        )
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("No space left on device", result.stderr)
+        self.assert_clean()
+
+    def test_default_uses_project_disk_instead_of_tmpdir(self):
+        scripts = self.root / "script"
+        scripts.mkdir()
+        copied_script = scripts / SCRIPT.name
+        shutil.copy2(SCRIPT, copied_script)
+        env = dict(self.env, TMPDIR="/nonexistent/dwarp-tmp")
+        env.pop("DWARP_DEBUG_TMPDIR")
+        result = subprocess.run(
+            [str(copied_script), "bash", "-c", 'printf "%s" "$CARGO_TARGET_DIR"'],
+            env=env, capture_output=True, text=True,
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(Path(result.stdout).parent, self.root / "target")
+        self.assertFalse(Path(result.stdout).exists())
+
+    def test_clean_removes_abandoned_output_but_preserves_active_and_shared_paths(self):
+        tools = self.root / "bin"
+        tools.mkdir()
+        pgrep = tools / "pgrep"
+        pgrep.write_text("#!/bin/sh\nexit 1\n")
+        pgrep.chmod(0o755)
+        abandoned = self.root / "dwarp-debug.12345678"
+        abandoned.mkdir()
+        (abandoned / "partial-build").write_text("incomplete")
+        active = self.root / "dwarp-debug.abcdefgh"
+        active.mkdir()
+        (active / ".owner-pid").write_text(str(os.getpid()))
+        link = self.root / "dwarp-debug.symlink1"
+        link.symlink_to(self.shared, target_is_directory=True)
+        result = subprocess.run(
+            [str(SCRIPT), "--clean", str(self.root)],
+            env=dict(self.env, PATH=f"{tools}:{os.environ['PATH']}"),
+            capture_output=True, text=True,
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertFalse(abandoned.exists())
+        self.assertTrue(active.exists())
+        self.assertTrue(link.is_symlink())
+        self.assertEqual((self.shared / "keep").read_text(), "existing build output")
+
+    def test_clean_refuses_while_a_build_is_running(self):
+        tools = self.root / "bin"
+        tools.mkdir()
+        pgrep = tools / "pgrep"
+        pgrep.write_text("#!/bin/sh\nexit 0\n")
+        pgrep.chmod(0o755)
+        abandoned = self.root / "dwarp-debug.12345678"
+        abandoned.mkdir()
+        result = subprocess.run(
+            [str(SCRIPT), "--clean", str(self.root)],
+            env=dict(self.env, PATH=f"{tools}:{os.environ['PATH']}"),
+            capture_output=True, text=True,
+        )
+        self.assertEqual(result.returncode, 1, result.stderr)
+        self.assertTrue(abandoned.exists())
 
     def test_termination_removes_output(self):
         ready = self.root / "ready"

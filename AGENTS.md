@@ -320,7 +320,7 @@ Under `app/src/`, there are 60+ flat product domain directories. Each directory 
 - Track task-created build directories and caches, including any moved outside the checkout. Remove those temporary artifacts after verification and remove any symlinks created for them.
 - Preserve pre-existing build caches, active builds, user files, installed applications, and logs the user requested to retain. Do not run a blanket `cargo clean` or delete a shared `target/` directory to clean up your own work.
 - Check free disk space before large builds. Prefer a task-specific temporary build directory for experiments, and clean it up when finished. If an artifact must remain for an unfinished check, report its exact path and why it remains.
-- Use `./script/cleanup-debug.sh COMMAND [ARGUMENT ...]` for disposable Cargo checks. It creates a private `CARGO_TARGET_DIR` and removes it when the command exits, including failures. Set `DWARP_DEBUG_TMPDIR` to an existing directory on a disk with enough free space.
+- Use `./script/cleanup-debug.sh COMMAND [ARGUMENT ...]` for disposable Cargo checks. It creates a private `CARGO_TARGET_DIR` under the repository's `target/` and removes it when the command exits, including out-of-space failures. This requires a fresh dependency build: check free disk space first. Set `DWARP_DEBUG_TMPDIR` to select another disk. Run `./script/cleanup-debug.sh --clean` to remove abandoned `dwarp-debug.*` directories from that location and `/tmp`; it preserves active runs, shared caches, and retained logs.
 
 ---
 
