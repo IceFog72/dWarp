@@ -315,6 +315,13 @@ Under `app/src/`, there are 60+ flat product domain directories. Each directory 
 - Split large tasks into parallel sub-agents with **non-overlapping write domains**. Information gathering tasks can also run in parallel.
 - Execute simple tasks directly without over-splitting.
 
+### 5.9 Debug cleanup
+- Before finishing, remove temporary debug code, instrumentation, test fixtures, scratch files, and debug build artifacts created only for the task.
+- Track task-created build directories and caches, including any moved outside the checkout. Remove those temporary artifacts after verification and remove any symlinks created for them.
+- Preserve pre-existing build caches, active builds, user files, installed applications, and logs the user requested to retain. Do not run a blanket `cargo clean` or delete a shared `target/` directory to clean up your own work.
+- Check free disk space before large builds. Prefer a task-specific temporary build directory for experiments, and clean it up when finished. If an artifact must remain for an unfinished check, report its exact path and why it remains.
+- Use `./script/cleanup-debug.sh COMMAND [ARGUMENT ...]` for disposable Cargo checks. It creates a private `CARGO_TARGET_DIR` and removes it when the command exits, including failures. Set `DWARP_DEBUG_TMPDIR` to an existing directory on a disk with enough free space.
+
 ---
 
 ## 6. Quick Reference for Common Entry Points
