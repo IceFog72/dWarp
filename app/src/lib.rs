@@ -706,7 +706,7 @@ fn run_internal(mut launch_mode: LaunchMode) -> Result<()> {
             private_preferences.deref()
         };
 
-    #[cfg(any(target_os = "linux", target_os = "freebsd"))]
+    #[cfg(any(target_os = "linux", target_os = "freebsd", windows))]
     apply_cpu_renderer_environment(prefs_for_public_settings);
 
     #[cfg(enable_crash_recovery)]
@@ -865,7 +865,7 @@ fn run_internal(mut launch_mode: LaunchMode) -> Result<()> {
     })
 }
 
-#[cfg(any(target_os = "linux", target_os = "freebsd"))]
+#[cfg(any(target_os = "linux", target_os = "freebsd", windows))]
 fn apply_cpu_renderer_environment(
     prefs_for_public_settings: &dyn warpui_extras::user_preferences::UserPreferences,
 ) {

@@ -6,11 +6,11 @@ define_settings_group!(GPUSettings, settings: [
    cpu_renderer: CpuRenderer {
        type: bool,
        default: false,
-       supported_platforms: SupportedPlatforms::LINUX,
+       supported_platforms: SupportedPlatforms::OR(SupportedPlatforms::LINUX.into(), SupportedPlatforms::WINDOWS.into()),
        sync_to_cloud: SyncToCloud::Never,
        private: false,
        toml_path: "system.cpu_renderer",
-       description: "Whether to use the CPU renderer on Linux.",
+       description: "Whether to use the CPU renderer.",
    },
    prefer_low_power_gpu: PreferLowPowerGPU {
        type: bool,
@@ -39,11 +39,11 @@ pub const DEFAULT_CPU_TERMINAL_FPS: u64 = 15;
 
 /// Whether the CPU (softbuffer) renderer is active, so terminal wakeups should be paced.
 pub fn cpu_renderer_active() -> bool {
-    #[cfg(any(target_os = "linux", target_os = "freebsd"))]
+    #[cfg(any(target_os = "linux", target_os = "freebsd", windows))]
     {
         warpui::rendering::cpu::cpu_renderer_requested()
     }
-    #[cfg(not(any(target_os = "linux", target_os = "freebsd")))]
+    #[cfg(not(any(target_os = "linux", target_os = "freebsd", windows)))]
     {
         false
     }

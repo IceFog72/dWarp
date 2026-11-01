@@ -1,4 +1,4 @@
-//! CPU raster backend for software rendering (Linux `cpu-renderer` feature).
+//! CPU raster backend for software rendering (`cpu-renderer` feature).
 //!
 //! `Scene` -> `u32` XRGB pixels -> `softbuffer`. Zero wgpu, zero llvmpipe.
 //!

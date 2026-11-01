@@ -13,8 +13,10 @@ and keeping every credential local.
 
 > ⚠️ Early development. No official release yet. **Not affiliated with Warp, Inc.**
 
-### 🖥️ Linux CPU Rendering
-Linux renders with the GPU (wgpu) by default. **Use CPU renderer** switches to Warp's CPU rasterizer with `softbuffer`, so the window uses no GPU or VRAM. Enable it under Settings → Features → System → Use CPU renderer, then restart Warp.
+### 🖥️ CPU Rendering
+GPU rendering remains the default. **Use CPU renderer** selects Warp's CPU rasterizer with `softbuffer`, without allocating a GPU rendering device for the window. Enable it under Settings → Features → System → Use CPU renderer, then restart Warp. The desktop compositor may still use the GPU.
+
+The shared Winit CPU path is implemented for Linux/FreeBSD and Windows. Windows native validation is pending. Native macOS CPU presentation is not implemented yet.
 
 While the CPU renderer is active, frames are paced to save CPU: 15 fps for steady terminal output, 30 fps while typing or clicking, 60 fps for short bursts such as resizing and scrolling. Override with environment variables:
 
@@ -76,7 +78,7 @@ the experience is identical to Warp, but every layer is yours.
 - **SSE streaming** — incremental block rendering identical to Warp's first-party path
 - **18 local tools** — shell / read / edit / search / mcp / drive docs / skills / ask, all executed locally
 - **System prompt templates** — eight model-family prompts ported from opencode (default / anthropic / gpt / beast / gemini / kimi / codex / trinity)
-- **CPU renderer** — opt-in `softbuffer` rendering on Linux with frame pacing, no VRAM use.
+- **CPU renderer** — opt-in `softbuffer` rendering with frame pacing. Windows code is included, with native validation pending.
 - **models.dev integration** — searchable Providers subpage with thousands of preloaded model entries
 - **Privacy first** — Cloud Agent / Computer Use / Referral disabled by default; no telemetry
 - **Warp experience preserved** — continuously merged with upstream; Blocks, Workflows, AI commands, Keymaps and themes all kept

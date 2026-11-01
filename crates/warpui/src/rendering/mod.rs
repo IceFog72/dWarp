@@ -1,7 +1,7 @@
 pub(crate) mod atlas;
 #[cfg(all(
     feature = "cpu-renderer",
-    any(target_os = "linux", target_os = "freebsd")
+    any(target_os = "linux", target_os = "freebsd", windows)
 ))]
 pub mod cpu;
 pub(crate) mod glyph_cache;

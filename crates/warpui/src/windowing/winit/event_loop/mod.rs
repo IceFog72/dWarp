@@ -628,12 +628,12 @@ impl EventLoop {
     fn compute_cpu_frame_policy() -> CpuFramePolicy {
         #[cfg(all(
             feature = "cpu-renderer",
-            any(target_os = "linux", target_os = "freebsd")
+            any(target_os = "linux", target_os = "freebsd", windows)
         ))]
         let cpu_renderer = crate::rendering::cpu::cpu_renderer_requested();
         #[cfg(not(all(
             feature = "cpu-renderer",
-            any(target_os = "linux", target_os = "freebsd")
+            any(target_os = "linux", target_os = "freebsd", windows)
         )))]
         let cpu_renderer = false;
 

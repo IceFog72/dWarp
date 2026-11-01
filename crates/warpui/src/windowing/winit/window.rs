@@ -311,6 +311,10 @@ impl platform::WindowManager for WindowManager {
             };
             for window in self.windows.values() {
                 if let Some(inner) = window.inner.borrow().as_ref() {
+                    #[cfg(feature = "cpu-renderer")]
+                    if inner.cpu_backend.is_some() {
+                        continue;
+                    }
                     inner.window.set_system_backdrop(new_backdrop_texture);
                 }
             }
@@ -702,7 +706,7 @@ struct Inner {
     /// `graphics_backend()` reports `Empty` for these windows.
     #[cfg(all(
         feature = "cpu-renderer",
-        any(target_os = "linux", target_os = "freebsd")
+        any(target_os = "linux", target_os = "freebsd", windows)
     ))]
     cpu_backend: Option<CpuBackend>,
     /// Callback that reports when a GPU device is selected. We need to store this on the window
@@ -721,6 +725,19 @@ struct Inner {
 }
 
 impl Inner {
+    #[cfg(windows)]
+    fn uncloak_after_present(&mut self) {
+        use crate::windowing::winit::windows::WindowExt;
+
+        // Uncloak the window upon successfully drawing a frame.
+        if self.is_cloaked {
+            match self.window.set_cloaked(false) {
+                Ok(()) => self.is_cloaked = false,
+                Err(err) => log::warn!("Failed to uncloak window: {err:#?}"),
+            }
+        }
+    }
+
     /// Returns the physical size of the current window.
     fn physical_size(&self) -> PhysicalSize<u32> {
         self.window.inner_size()
@@ -731,7 +748,7 @@ impl Inner {
 /// native resources (no borrow of `context`), so both live as siblings.
 #[cfg(all(
     feature = "cpu-renderer",
-    any(target_os = "linux", target_os = "freebsd")
+    any(target_os = "linux", target_os = "freebsd", windows)
 ))]
 struct CpuBackend {
     #[allow(dead_code)]
@@ -757,7 +774,7 @@ struct CpuBackend {
 
 #[cfg(all(
     feature = "cpu-renderer",
-    any(target_os = "linux", target_os = "freebsd")
+    any(target_os = "linux", target_os = "freebsd", windows)
 ))]
 impl CpuBackend {
     fn log_perf_if_due(&mut self) {
@@ -853,7 +870,7 @@ impl Window {
 
         #[cfg(all(
             feature = "cpu-renderer",
-            any(target_os = "linux", target_os = "freebsd")
+            any(target_os = "linux", target_os = "freebsd", windows)
         ))]
         if crate::rendering::cpu::cpu_renderer_requested() {
             use std::num::NonZeroU32;
@@ -928,7 +945,7 @@ impl Window {
             }),
             #[cfg(all(
                 feature = "cpu-renderer",
-                any(target_os = "linux", target_os = "freebsd")
+                any(target_os = "linux", target_os = "freebsd", windows)
             ))]
             cpu_backend: None,
             on_gpu_device_selected: window_options.on_gpu_device_info_reported,
@@ -952,7 +969,7 @@ impl Window {
 
         #[cfg(all(
             feature = "cpu-renderer",
-            any(target_os = "linux", target_os = "freebsd")
+            any(target_os = "linux", target_os = "freebsd", windows)
         ))]
         if inner.cpu_backend.is_some() {
             // CPU path has no swapchain to reconfigure; track size and
@@ -1012,7 +1029,7 @@ impl Window {
 
         #[cfg(all(
             feature = "cpu-renderer",
-            any(target_os = "linux", target_os = "freebsd")
+            any(target_os = "linux", target_os = "freebsd", windows)
         ))]
         if self
             .inner
@@ -1069,21 +1086,7 @@ impl Window {
             )?;
 
             #[cfg(windows)]
-            {
-                use crate::windowing::winit::windows::WindowExt;
-
-                // Uncloak the window upon successfully drawing a frame.
-                if inner.is_cloaked {
-                    match inner.window.set_cloaked(false) {
-                        Ok(_) => {
-                            inner.is_cloaked = false;
-                        }
-                        Err(e) => {
-                            log::warn!("Failed to uncloak window: {e:#?}");
-                        }
-                    }
-                }
-            }
+            inner.uncloak_after_present();
         }
 
         self.redraw_pending.set(false);
@@ -1100,7 +1103,7 @@ impl Window {
     /// breaking the redraw loop (spike policy).
     #[cfg(all(
         feature = "cpu-renderer",
-        any(target_os = "linux", target_os = "freebsd")
+        any(target_os = "linux", target_os = "freebsd", windows)
     ))]
     fn render_cpu(
         &self,
@@ -1203,6 +1206,10 @@ impl Window {
             cpu.last_presented_scene = Some(scene);
         }
         cpu.log_perf_if_due();
+        #[cfg(windows)]
+        if present_result.is_ok() {
+            inner.uncloak_after_present();
+        }
         Ok(())
     }
 
@@ -1219,7 +1226,7 @@ impl Window {
 
         #[cfg(all(
             feature = "cpu-renderer",
-            any(target_os = "linux", target_os = "freebsd")
+            any(target_os = "linux", target_os = "freebsd", windows)
         ))]
         if inner.cpu_backend.is_some() {
             // No wgpu instance to reset on the CPU path.
@@ -1245,7 +1252,7 @@ impl Window {
 
         #[cfg(all(
             feature = "cpu-renderer",
-            any(target_os = "linux", target_os = "freebsd")
+            any(target_os = "linux", target_os = "freebsd", windows)
         ))]
         if inner.cpu_backend.is_some() {
             // CPU path owns no GPU resources; nothing to recreate.
@@ -1621,12 +1628,12 @@ fn create_window(
     // reserved high byte / unpainted pixels.
     #[cfg(all(
         feature = "cpu-renderer",
-        any(target_os = "linux", target_os = "freebsd")
+        any(target_os = "linux", target_os = "freebsd", windows)
     ))]
     let transparent = !crate::rendering::cpu::cpu_renderer_requested();
     #[cfg(not(all(
         feature = "cpu-renderer",
-        any(target_os = "linux", target_os = "freebsd")
+        any(target_os = "linux", target_os = "freebsd", windows)
     )))]
     let transparent = true;
 
@@ -1669,7 +1676,7 @@ fn create_window(
 
         use winit::platform::windows::{IconExtWindows, WindowAttributesExtWindows};
 
-        let background_texture = if window_options.background_blur_texture {
+        let background_texture = if window_options.background_blur_texture && transparent {
             BackdropType::TransientWindow
         } else {
             BackdropType::None
