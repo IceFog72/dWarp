@@ -1,9 +1,7 @@
 //! Utility functions for working with skills.
 
-use super::{SkillDescriptor, SkillManager};
-use ai::skills::{
-    home_skills_path, provider_rank, ParsedSkill, SkillProvider, SKILL_PROVIDER_DEFINITIONS,
-};
+use super::SkillDescriptor;
+use ai::skills::{provider_rank, ParsedSkill};
 use lazy_static::lazy_static;
 use siphasher::sip::SipHasher;
 use std::collections::hash_map::Entry;
@@ -12,9 +10,6 @@ use std::hash::{Hash, Hasher};
 use std::path::Path;
 use std::path::PathBuf;
 use warp_core::ui::Icon;
-use warpui::{AppContext, SingletonEntity};
-
-use crate::warp_managed_paths_watcher::warp_managed_skill_dirs;
 
 lazy_static! {
     static ref CONTENT_HASHER: SipHasher = SipHasher::new_with_keys(0, 0);
@@ -79,57 +74,12 @@ pub(crate) fn unique_skills(
     dedup_map.into_values().collect()
 }
 
-/// 列出当前 working directory 适用的全部 skills。
-///
-/// **设计说明**:旧版 `list_skills_if_changed` 在云端协议下做差量发送(对比上轮已发的
-/// `conversation.latest_skills()`,未变化时返回 `None`)以节省上行 token —— warp 后端
-/// 维护会话状态,首轮收到后保留即可。项目去云端后,BYOP 走 OpenAI/Anthropic 等无状态
-/// `/chat/completions`,system prompt 每轮在客户端完整重渲染,数据必须每轮都送达,
-/// 否则第二轮起 system prompt 里 skills section 会消失。
-/// 因此简化为每轮全量返回。
-pub fn list_skills(working_directory: Option<&Path>, app: &AppContext) -> Vec<SkillDescriptor> {
-    SkillManager::as_ref(app).get_skills_for_working_directory(working_directory, app)
-}
-
 /// Returns a branded icon override for well-known skill names.
 pub fn icon_override_for_skill_name(name: &str) -> Option<Icon> {
     match name {
         "stripe-projects-cli" => Some(Icon::StripeLogo),
         _ => None,
     }
-}
-
-pub fn skill_path_from_file_path(file_path: &Path) -> Option<PathBuf> {
-    for definition in SKILL_PROVIDER_DEFINITIONS.iter() {
-        let home_skill_dirs = if definition.provider == SkillProvider::Warp {
-            warp_managed_skill_dirs()
-        } else {
-            home_skills_path(definition.provider).into_iter().collect()
-        };
-        for home_skills_path in home_skill_dirs {
-            if let Ok(relative_path) = file_path.strip_prefix(&home_skills_path) {
-                let skill_name = relative_path.components().next()?;
-                return Some(home_skills_path.join(skill_name).join("SKILL.md"));
-            }
-        }
-    }
-    let path_components: Vec<_> = file_path.components().collect();
-
-    for def in SKILL_PROVIDER_DEFINITIONS.iter() {
-        let skill_components: Vec<_> = def.skills_path.components().collect();
-
-        for (idx, window) in path_components.windows(skill_components.len()).enumerate() {
-            if window == skill_components.as_slice() {
-                let skill_dir = PathBuf::from_iter(
-                    file_path
-                        .components()
-                        .take(idx + skill_components.len() + 1),
-                );
-                return Some(skill_dir.join("SKILL.md"));
-            }
-        }
-    }
-    None
 }
 
 #[cfg(test)]

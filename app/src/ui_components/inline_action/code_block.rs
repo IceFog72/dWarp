@@ -7,7 +7,8 @@ use crate::ui_components::inline_action::inline_action_header::{
 use crate::ui_components::inline_action::inline_action_icons::icon_size;
 use std::iter;
 use warp_core::ui::theme::Fill;
-use warpui::elements::{ChildView, HighlightedRange, MouseStateHandle};
+use warpui::elements::{HighlightedRange, MouseStateHandle};
+use warpui::EventContext;
 use warpui::{
     elements::{
         Border, ConstrainedBox, Container, CornerRadius, CrossAxisAlignment, Empty, Expanded, Flex,
@@ -16,10 +17,8 @@ use warpui::{
     ui_components::components::UiComponent,
     AppContext, Element, SingletonEntity,
 };
-use warpui::{EventContext, ViewHandle};
 
 use super::ProgrammingLanguage;
-use crate::code::editor::view::CodeEditorView;
 use crate::ui_components::blended_colors;
 use crate::ui_components::buttons::icon_button;
 use crate::ui_components::buttons::icon_button_with_color;
@@ -35,14 +34,7 @@ pub struct CodeSnippetButtonHandles {
     pub insert_button: MouseStateHandle,
 }
 
-impl CodeSnippetButtonHandles {
-    // Resets the hover state of all buttons that trigger a focus change.
-    pub fn reset_hover_state_on_focus_change(&self) {
-        if let Ok(mut state) = self.open_button.lock() {
-            state.reset_hover_state();
-        }
-    }
-}
+impl CodeSnippetButtonHandles {}
 
 pub type HandleCode = Box<dyn FnMut(String, &mut EventContext)>;
 
@@ -101,18 +93,6 @@ pub struct CodeBlockOptions {
     pub footer_element: Option<Box<dyn Element>>,
     pub mouse_handles: Option<CodeSnippetButtonHandles>,
     pub file_path: Option<String>,
-}
-
-pub fn render_code_block_with_warp_text(
-    options: CodeBlockOptions,
-    view: &ViewHandle<CodeEditorView>,
-    app: &AppContext,
-    source: Option<CodeSource>,
-) -> Box<dyn Element> {
-    let code = view.as_ref(app).text(app);
-    let code_element = ChildView::new(view).finish();
-
-    render_code_block_internal(code.as_str(), code_element, options, app, source, true)
 }
 
 pub fn render_code_block_plain(

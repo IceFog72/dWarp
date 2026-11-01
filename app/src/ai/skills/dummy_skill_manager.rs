@@ -20,14 +20,6 @@ impl SkillManager {
         vec![]
     }
 
-    pub fn skill_by_path(&self, _skill_path: &Path) -> Option<&ParsedSkill> {
-        None
-    }
-
-    pub fn reference_for_skill_path(&self, skill_path: &Path) -> SkillReference {
-        SkillReference::Path(skill_path.to_path_buf())
-    }
-
     pub fn skill_by_reference(&self, _reference: &SkillReference) -> Option<&ParsedSkill> {
         None
     }

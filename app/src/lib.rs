@@ -4,7 +4,6 @@
 mod agent_notifications;
 mod ai;
 mod alloc;
-mod antivirus;
 #[cfg(target_os = "macos")]
 mod app_menus;
 mod app_services;
@@ -35,7 +34,6 @@ mod external_secrets;
 mod global_resource_handles;
 mod gpu_state;
 pub mod i18n;
-mod input_classifier;
 mod interval_timer;
 mod menu;
 mod modal;
@@ -81,7 +79,6 @@ mod vim_registers;
 mod voltron;
 mod warp_managed_paths_watcher;
 mod window_settings;
-mod word_block_editor;
 
 // PLEASE DO NOT ADD MORE PUBLIC MODULES!
 //
@@ -150,7 +147,6 @@ pub use warp_core::errors::{report_error, report_if_error};
 #[cfg(feature = "plugin_host")]
 pub use plugin::{run_plugin_host, PLUGIN_HOST_FLAG};
 use warp_core::user_preferences::GetUserPreferences as _;
-use warpui::modals::{AlertDialogWithCallbacks, AppModalCallback};
 use warpui::platform::app::ApproveTerminateResult;
 use window_settings::WindowSettings;
 
@@ -227,7 +223,6 @@ use warp_logging::LogDestination;
 // Re-export the safe logging macros at the crate root level for backwards compatibility
 pub use warp_core::{safe_debug, safe_error, safe_info, safe_warn};
 
-use crate::antivirus::AntivirusInfo;
 #[cfg(feature = "local_fs")]
 use warp_files::FileModel;
 use warpui::platform::TerminationMode;
@@ -1010,8 +1005,6 @@ fn initialize_app(
     // 与 ApiKeyManager (BYOK 转发给 warp-server) 解耦。
     ctx.add_singleton_model(crate::ai::agent_providers::AgentProviderSecrets::new);
 
-    ctx.add_singleton_model(AntivirusInfo::new);
-
     #[cfg(feature = "crash_reporting")]
     crash_reporting::init();
     timer.mark_interval_end("INIT_CRASH_REPORTING");
@@ -1309,8 +1302,6 @@ fn initialize_app(
     });
     ctx.add_singleton_model(move |_| persistence_writer);
 
-    ctx.add_singleton_model(input_classifier::InputClassifierModel::new);
-
     ctx.add_singleton_model(move |_| IgnoredSuggestionsModel::new(persisted_ignored_suggestions));
 
     // When running natively, add the http server singleton to the application.
@@ -1592,34 +1583,6 @@ fn app_callbacks(is_integration_test: bool) -> warpui::platform::AppCallbacks {
             ctx.dispatch_global_action("workspace:save_app", &());
         })),
         ..Default::default()
-    }
-}
-
-/// Focuses the active window or if there isn't one then a window with a running process
-/// and then shows the native modal.
-fn focus_running_window_and_show_native_modal(
-    sessions_summary: RunningSessionSummary,
-    dialog_with_callbacks: AlertDialogWithCallbacks<AppModalCallback>,
-    ctx: &mut AppContext,
-) {
-    let windowing_model = ctx.windows();
-    let active_window_id = windowing_model.active_window();
-    // Show the nav palette in the active window. If there is no active window,
-    // arbitrarily pick one of the windows having a running process.
-    let window_id_to_focus = active_window_id.unwrap_or_else(|| {
-        *sessions_summary
-            .windows_running()
-            .iter()
-            .next()
-            .expect("already checked len > 0")
-    });
-    ctx.windows().show_window_and_focus_app(window_id_to_focus);
-    if let Some(workspaces) = ctx.views_of_type::<Workspace>(window_id_to_focus) {
-        if let Some(handle) = workspaces.first() {
-            handle.update(ctx, |view, ctx| {
-                view.show_native_modal(dialog_with_callbacks, ctx);
-            });
-        }
     }
 }
 
@@ -1980,8 +1943,6 @@ pub fn enabled_features() -> HashSet<FeatureFlag> {
         FeatureFlag::AgentDecidesCommandExecution,
         #[cfg(feature = "context_line_review_comments")]
         FeatureFlag::ContextLineReviewComments,
-        #[cfg(feature = "nld_fasttext_model")]
-        FeatureFlag::NLDClassifierModelEnabled,
         #[cfg(feature = "fast_forward_autoexecute_button")]
         FeatureFlag::FastForwardAutoexecuteButton,
         #[cfg(feature = "code_find_replace")]
@@ -2044,8 +2005,6 @@ pub fn enabled_features() -> HashSet<FeatureFlag> {
         FeatureFlag::VimCodeEditor,
         #[cfg(feature = "allow_opening_file_links_using_editor_env")]
         FeatureFlag::AllowOpeningFileLinksUsingEditorEnv,
-        #[cfg(feature = "nld_improvements")]
-        FeatureFlag::NldImprovements,
         #[cfg(feature = "revert_diff_hunk")]
         FeatureFlag::RevertDiffHunk,
         #[cfg(feature = "code_review_save_changes")]

@@ -243,10 +243,6 @@ enum TerminalPrimaryLineFont {
     Monospace,
 }
 
-fn oz_icon_fill(theme: &WarpTheme) -> WarpThemeFill {
-    theme.main_text_color(theme.background())
-}
-
 fn render_pane_icon_with_status(
     variant: IconWithStatusVariant,
     theme: &WarpTheme,

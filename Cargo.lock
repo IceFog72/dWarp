@@ -14253,7 +14253,6 @@ dependencies = [
  "image",
  "indexmap 2.12.0",
  "infer",
- "input_classifier",
  "inquire",
  "instant",
  "inventory",

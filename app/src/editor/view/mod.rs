@@ -1,5 +1,4 @@
 mod element;
-mod figma_utils;
 mod model;
 mod movement;
 mod snapshot;
@@ -3424,16 +3423,6 @@ impl EditorView {
             view.set_current_autosuggestion(None);
         });
 
-        ctx.notify();
-    }
-
-    /// Clears any next command state. Autosuggestion (ghosted text) is not cleared.
-    fn clear_next_command_state(&mut self, ctx: &mut ViewContext<Self>) {
-        if let Some(next_command_model) = &self.next_command_model {
-            next_command_model.update(ctx, |model, _| {
-                model.clear_state();
-            });
-        }
         ctx.notify();
     }
 

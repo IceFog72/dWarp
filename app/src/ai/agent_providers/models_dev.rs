@@ -142,7 +142,6 @@ pub struct ModelCaps {
     pub vision: bool,
     pub pdf: bool,
     pub audio: bool,
-    pub attachment: bool,
 }
 
 impl ModelCaps {
@@ -151,7 +150,6 @@ impl ModelCaps {
             vision: m.modalities.supports_input("image"),
             pdf: m.modalities.supports_input("pdf") || m.attachment,
             audio: m.modalities.supports_input("audio"),
-            attachment: m.attachment,
         }
     }
 }

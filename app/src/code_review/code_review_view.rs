@@ -5468,11 +5468,6 @@ impl CodeReviewView {
         format!("diff_removed_{}", ctx.view_id())
     }
 
-    #[cfg(feature = "local_fs")]
-    fn attach_diff_not_allowed_toast_id(&self, ctx: &mut ViewContext<Self>) -> String {
-        format!("attach_diff_not_allowed_{}", ctx.view_id())
-    }
-
     fn attach_context_not_allowed_toast_id(&self, ctx: &mut ViewContext<Self>) -> String {
         format!("attach_context_not_allowed_{}", ctx.view_id())
     }
@@ -6175,22 +6170,6 @@ impl CodeReviewView {
             }
         }
         None
-    }
-
-    /// Format a diff hunk into a standard diff format string
-    fn format_diff_hunk_content(&self, hunk: &DiffHunk) -> String {
-        let mut diff_lines = Vec::new();
-
-        for line in &hunk.lines {
-            match line.line_type {
-                DiffLineType::Add => diff_lines.push(format!("+{}", line.text)),
-                DiffLineType::Delete => diff_lines.push(format!("-{}", line.text)),
-                DiffLineType::Context => diff_lines.push(line.text.clone()),
-                DiffLineType::HunkHeader => continue,
-            }
-        }
-
-        diff_lines.join("\n")
     }
 
     fn save_files(&mut self, paths: &[PathBuf], ctx: &mut ViewContext<Self>) {

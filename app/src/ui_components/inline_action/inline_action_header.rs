@@ -56,27 +56,6 @@ impl ExpandedConfig {
             expands_upwards: false,
         }
     }
-
-    pub fn with_expands_upwards(mut self) -> Self {
-        self.expands_upwards = true;
-        self
-    }
-
-    pub fn with_toggle_callback<F>(mut self, callback: F) -> Self
-    where
-        F: Fn(&mut EventContext) + 'static,
-    {
-        self.on_toggle_expanded = Some(Rc::new(callback));
-        self
-    }
-
-    pub fn with_right_click_callback<F>(mut self, callback: F) -> Self
-    where
-        F: Fn(&mut EventContext) + 'static,
-    {
-        self.on_right_click = Some(Rc::new(callback));
-        self
-    }
 }
 
 /// Configuration for when we want a right clickable element,
@@ -140,11 +119,6 @@ impl HeaderConfig {
         }
     }
 
-    pub fn with_soft_wrap_title(mut self) -> Self {
-        self.soft_wrap_title = true;
-        self
-    }
-
     pub fn with_font_family(mut self, font: FamilyId) -> Self {
         self.font_family = font;
         self
@@ -155,21 +129,6 @@ impl HeaderConfig {
         self
     }
 
-    pub fn with_badge(mut self, badge: String) -> Self {
-        self.badge = Some(badge);
-        self
-    }
-
-    pub fn with_interaction_mode(mut self, interaction_mode: InteractionMode) -> Self {
-        self.interaction_mode = Some(interaction_mode);
-        self
-    }
-
-    pub fn with_selectable_text(mut self) -> Self {
-        self.is_text_selectable = true;
-        self
-    }
-
     pub fn with_font_color(mut self, font_color: ColorU) -> Self {
         self.font_color_override = Some(font_color);
         self
@@ -177,12 +136,6 @@ impl HeaderConfig {
 
     pub fn with_corner_radius_override(mut self, corner_radius: CornerRadius) -> Self {
         self.corner_radius_override = Some(corner_radius);
-        self
-    }
-
-    /// Parses the title as markdown when rendering.
-    pub fn with_markdown(mut self) -> Self {
-        self.use_markdown = true;
         self
     }
 

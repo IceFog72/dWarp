@@ -1,4 +1,3 @@
-use warpui::Element;
 pub mod event;
 pub mod listener;
 #[cfg(not(target_family = "wasm"))]
@@ -63,33 +62,6 @@ impl CLIAgentSessionStatus {
     pub fn is_in_progress(&self) -> bool {
         matches!(self, CLIAgentSessionStatus::InProgress)
     }
-
-    pub fn is_blocked(&self) -> bool {
-        matches!(self, CLIAgentSessionStatus::Blocked { .. })
-    }
-}
-
-/// Renders a status icon on a tinted background, used by tabs and notifications.
-pub fn render_status_element(
-    status: &CLIAgentSessionStatus,
-    icon_size: f32,
-    appearance: &Appearance,
-) -> Box<dyn warpui::Element> {
-    use warp_core::ui::color::coloru_with_opacity;
-    use warp_core::ui::theme::Fill;
-    use warpui::elements::{ConstrainedBox, Container, CornerRadius, Radius};
-
-    let (icon, color) = status.status_icon_and_color(appearance.theme());
-    Container::new(
-        ConstrainedBox::new(icon.to_warpui_icon(Fill::from(color)).finish())
-            .with_width(icon_size)
-            .with_height(icon_size)
-            .finish(),
-    )
-    .with_uniform_padding(2.)
-    .with_background(coloru_with_opacity(color, 10))
-    .with_corner_radius(CornerRadius::with_all(Radius::Pixels(4.)))
-    .finish()
 }
 
 /// Rich context accumulated from CLI agent session events.

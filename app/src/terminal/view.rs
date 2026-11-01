@@ -41,9 +41,7 @@ use crate::util::file::external_editor::{settings::EditorLayout, EditorSettings}
 
 #[cfg(feature = "local_fs")]
 use crate::ai::persisted_workspace::PersistedWorkspace;
-use crate::code_review::comments::{
-    convert_insert_review_comments, AttachedReviewComment, PendingImportedReviewComment,
-};
+use crate::code_review::comments::{AttachedReviewComment, PendingImportedReviewComment};
 use crate::code_review::diff_state::{DiffMode, GitDeltaPreference};
 #[cfg(feature = "local_fs")]
 use crate::code_review::git_status_update::{
@@ -75,7 +73,6 @@ pub use self::link_detection::{RichContentLink, RichContentLinkTooltipInfo};
 use crate::code_review::agent_review::AgentReviewCommentBatch;
 use crate::settings::CodeSettings;
 pub use action::{AgentOnboardingVersion, OnboardingIntention, OnboardingVersion, TerminalAction};
-use ai::review::InsertReviewComment;
 pub use block_banner::{WithinBlockBanner, BLOCK_BANNER_HEIGHT};
 pub use init::{init, CANCEL_COMMAND_KEYBINDING};
 pub use inline_banner::{NotificationsDiscoveryBannerAction, NotificationsErrorBannerAction};
@@ -129,10 +126,6 @@ use crate::terminal::grid_size_util::grid_cell_dimensions;
 use crate::terminal::input::decorations::InputBackgroundJobOptions;
 use crate::terminal::input::{CommandExecutionSource, InputAction};
 use crate::terminal::ligature_settings::{should_use_ligature_rendering, LigatureSettings};
-#[cfg(feature = "local_tty")]
-use crate::terminal::local_tty::get_shell_starter;
-#[cfg(feature = "local_tty")]
-use crate::terminal::local_tty::shell::ShellStarter;
 #[cfg(all(windows, feature = "local_tty"))]
 use crate::terminal::local_tty::windows::get_user_and_system_env_variable;
 use crate::terminal::model::blockgrid::BlockGrid;
@@ -302,7 +295,7 @@ use crate::terminal::model::grid::grid_handler::{FragmentBoundary, TermMode};
 use crate::terminal::model::index::{Point, Side};
 use crate::terminal::model::mouse::MouseState;
 use crate::terminal::model::selection::{SelectAction, SelectionDirection};
-use crate::terminal::model::session::{BootstrapSessionType, SessionType, Sessions, SessionsEvent};
+use crate::terminal::model::session::{BootstrapSessionType, Sessions, SessionsEvent};
 use crate::terminal::model::terminal_model::{BlockIndex, TerminalInputState, TerminalOutputShape};
 use crate::terminal::model::terminal_model::{
     BlockSelectionCardinality, SelectedBlocks, WithinModel,
@@ -525,11 +518,7 @@ const SELECT_ALL_BINDING_NAME: &str = "editor_view:select_all";
 const MOVE_LINE_START_BINDING_NAME: &str = "editor_view:move_to_line_start";
 const MOVE_LINE_END_BINDING_NAME: &str = "editor_view:move_to_line_end";
 
-const DEFAULT_AI_BLOCK_HEIGHT: f32 = 96.;
-
 pub const DEFAULT_ASK_AI_AUTOSUGGESTION_TEXT: &str = "What happened here?";
-
-const WARP_MD_PATH: &str = "WARP.md";
 
 pub const LONG_RUNNING_AGENT_REQUESTED_COMMAND_CONTEXT_KEY: &str = "LongRunningRequestedCommand";
 pub const LONG_RUNNING_AGENT_REQUESTED_COMMAND_USER_TOOK_OVER_CONTEXT_KEY: &str =
@@ -2200,28 +2189,6 @@ impl TerminalView {
         }
     }
 
-    /// Marks rich content views as dirty if their metadata matches the given predicate.
-    ///
-    /// Rich content heights are stored in the blocklist sumtree. When a view's rendered height
-    /// changes (e.g., due to state changes that affect its layout), the sumtree entry becomes
-    /// stale. Marking items as dirty ensures they are re-measured on the next layout frame,
-    /// which happens unconditionally before viewport iteration. This is important for items
-    /// that may have 0 height in the sumtree, as the viewport iterator would otherwise skip
-    /// them entirely.
-    fn mark_all_rich_content_items_dirty_where(
-        &self,
-        model: &mut TerminalModel,
-        predicate: impl Fn(&RichContentMetadata) -> bool,
-    ) {
-        for content in &self.rich_content_views {
-            if content.metadata().is_some_and(&predicate) {
-                model
-                    .block_list_mut()
-                    .mark_rich_content_dirty(content.view_id());
-            }
-        }
-    }
-
     /// Receives a SyncEvent and performs actions dictated by that event
     /// on this terminal view.
     pub fn receive_sync_input_event(&mut self, event: &SyncEvent, ctx: &mut ViewContext<Self>) {
@@ -2954,14 +2921,6 @@ impl TerminalView {
         terminal_view
     }
 
-    /// Schedule a callback to run after the next [`ModelEvent::AfterBlockCompleted`] received.
-    fn on_next_block_completed<F>(&mut self, callback: F)
-    where
-        F: FnOnce(&mut Self, &mut ViewContext<Self>) + 'static,
-    {
-        self.block_completed_callbacks.push(Box::new(callback));
-    }
-
     #[cfg(feature = "local_fs")]
     fn handle_git_repo_status_event(&mut self, ctx: &mut ViewContext<Self>) {
         if let Some(deferred) = self.deferred_code_review_open.take() {
@@ -3096,13 +3055,6 @@ impl TerminalView {
         self.size_info.pane_width_px().as_f32() > MINIMUM_WIDTH_TO_AUTO_OPEN_PANE
     }
 
-    /// Returns true if conditions are met to auto-open the code review panel:
-    /// - Inside a git repository
-    /// - Window is wide enough to support the code review panel
-    fn can_auto_open_code_review_panel(&self, _ctx: &ViewContext<Self>) -> bool {
-        self.current_repo_path.is_some() && self.can_auto_open_panel()
-    }
-
     fn toggle_or_open_code_review_pane(
         &mut self,
         delta_pref: GitDeltaPreference,
@@ -3182,74 +3134,6 @@ impl TerminalView {
             Event::OpenCodeReviewPane,
             ctx,
         )
-    }
-
-    fn handle_insert_code_review_comments_event(
-        &mut self,
-        repo_path: &Path,
-        comments: &[InsertReviewComment],
-        base_branch: Option<&str>,
-        ctx: &mut ViewContext<Self>,
-    ) {
-        if !FeatureFlag::PRCommentsSlashCommand.is_enabled() {
-            return;
-        }
-        let pending_comments = convert_insert_review_comments(comments);
-
-        if pending_comments.is_empty() {
-            log::warn!("No valid comments to insert");
-            return;
-        }
-
-        // Determine DiffMode from the base branch.
-        if self.current_repo_path.is_none() {
-            log::error!("Cannot insert PR comments: not in a git repository");
-            return;
-        }
-
-        let diff_mode = self.diff_mode_for_branch(base_branch, ctx);
-
-        let open_code_review = if FeatureFlag::PRCommentsV2.is_enabled() {
-            None
-        } else {
-            Some(CodeReviewPanelArg {
-                repo_path: Some(repo_path.to_path_buf()),
-                terminal_view: self.view_handle.clone(),
-                entrypoint: CodeReviewPaneEntrypoint::InvokedByAgent,
-                focus_new_pane: false,
-                cli_agent: None,
-            })
-        };
-
-        ctx.emit(Event::InsertCodeReviewComments {
-            repo_path: repo_path.to_path_buf(),
-            comments: pending_comments,
-            diff_mode,
-            open_code_review,
-        });
-    }
-
-    /// Gets the DiffMode for the given branch name by fetching the main branch name
-    /// for this session and comparing it to the given branch name.
-    #[cfg_attr(not(feature = "local_fs"), allow(unused_variables))]
-    fn diff_mode_for_branch(
-        &self,
-        base_branch: Option<&str>,
-        ctx: &mut ViewContext<Self>,
-    ) -> DiffMode {
-        match base_branch {
-            Some(branch) => {
-                #[cfg(feature = "local_fs")]
-                let main_branch = self
-                    .git_status_metadata(ctx)
-                    .map(|m| m.main_branch_name.clone())
-                    .and_then(|mb| mb.strip_prefix("origin/").map(String::from));
-                #[cfg(not(feature = "local_fs"))]
-                let main_branch: Option<String> = None;
-                DiffMode::from_branch(branch, main_branch.as_deref())
-            }
-            None => DiffMode::MainBranch,
-        }
     }
 
     fn handle_windowing_state_update(
@@ -7004,45 +6888,6 @@ impl TerminalView {
 
         self.refresh_warp_prompt(ctx);
         ctx.emit(Event::SessionBootstrapped);
-    }
-
-    // Helper function to get the PATH variable for a local session.
-    fn local_session_path(session: &Session) -> Option<String> {
-        if matches!(session.session_type(), SessionType::Local) && session.subshell_info().is_none()
-        {
-            #[cfg(all(windows, feature = "local_tty"))]
-            let path = {
-                let path_result =
-                    get_user_and_system_env_variable("PATH").map(|entry| entry.into_string());
-                let result = match path_result {
-                    Some(Ok(path_result)) => Some(path_result),
-                    None => {
-                        log::warn!("Failed to get PATH for session on Windows.");
-                        None
-                    }
-                    Some(Err(e)) => {
-                        log::warn!("Failed to convert PATH for session on Windows: `{e:?}`");
-                        None
-                    }
-                };
-                if result.is_none() {
-                    if session.shell_family() == ShellFamily::PowerShell {
-                        // This is a fallback for if the OsString cannot be converted to a String.
-                        // We cannot accept a Posix PATH on Windows.
-                        session.path().clone()
-                    } else {
-                        None
-                    }
-                } else {
-                    result
-                }
-            };
-            #[cfg(not(all(windows, feature = "local_tty")))]
-            let path = session.path().clone();
-
-            return path;
-        }
-        None
     }
 
     fn should_display_vim_banner(
@@ -13276,94 +13121,9 @@ impl TerminalView {
         });
     }
 
-    fn reset_focus_after_rich_block(&mut self, ctx: &mut ViewContext<Self>) {
-        self.redetermine_terminal_focus(ctx);
-        self.input.update(ctx, |input, ctx| {
-            input.editor().update(ctx, |editor, ctx| {
-                editor.clear_autosuggestion(ctx);
-            });
-        });
-    }
-
-    fn display_non_local_environment_variable_error(
-        &self,
-        window_id: WindowId,
-        ctx: &mut ViewContext<Self>,
-    ) {
-        ToastStack::handle(ctx).update(ctx, |toast_stack, ctx| {
-            toast_stack.add_ephemeral_toast(
-                DismissibleToast::error(
-                    "Can not invoke environment variable subshell in a non-local session"
-                        .to_owned(),
-                ),
-                window_id,
-                ctx,
-            );
-        });
-    }
-
-    #[allow(unused_variables)]
-    fn get_shell_starter_local(&self, ctx: &mut ViewContext<Self>) -> Option<(String, ShellType)> {
-        #[cfg(feature = "local_tty")]
-        {
-            // TODO(CORE-2300): This appears to be used for invoking env vars.
-            // Before we close out CORE-2300, we should evaluate if we need to add
-            // shell info here.
-            let shell_starter = get_shell_starter(None, ctx)?;
-            let shell_path = match &shell_starter {
-                ShellStarter::Direct(direct_shell_starter)
-                | ShellStarter::MSYS2(direct_shell_starter) => direct_shell_starter
-                    .shell_path()
-                    .to_string_lossy()
-                    .to_string(),
-                ShellStarter::DockerSandbox(docker_shell_starter) => docker_shell_starter
-                    .direct
-                    .shell_path()
-                    .to_string_lossy()
-                    .to_string(),
-                ShellStarter::Wsl(wsl_shell_starter) => wsl_shell_starter.shell_path(),
-            };
-            Some((shell_path, shell_starter.shell_type()))
-        }
-
-        #[cfg(not(feature = "local_tty"))]
-        None
-    }
-
-    fn set_and_execute_subshell_command(
-        &mut self,
-        shell_command: &str,
-        shell_type: ShellType,
-        ctx: &mut ViewContext<Self>,
-    ) {
-        // Attempt to auto warpify the subshell when bootstrapped
-        self.pending_auto_bootstrap_shell_type = Some(shell_type);
-
-        self.input.update(ctx, |input, ctx| {
-            input.set_pending_command(shell_command, ctx);
-            input.execute_pending_command(ctx);
-        });
-    }
-
     #[cfg(feature = "integration_tests")]
     pub fn active_filter_editor_block_index(&self) -> Option<BlockIndex> {
         self.active_filter_editor_block_index
-    }
-
-    /// Handles when a user clicks on a block in the list of blocks attached to an AI block.
-    fn scroll_to_and_maybe_select_block(
-        &mut self,
-        block_index: BlockIndex,
-        ctx: &mut ViewContext<Self>,
-    ) {
-        // Selecting the block makes it clear which the user is looking at. We shouldn't select the
-        // block if they're in AI mode because that would affect their pending query's context block
-        // selection.
-        if !self.has_active_cli_agent_input_session(ctx) {
-            self.reset_selection_to_single_block(block_index, ctx);
-        }
-
-        self.scroll_to(block_index, ctx);
     }
 
     pub(crate) fn view_id(&self) -> EntityId {
@@ -15037,13 +14797,6 @@ impl View for TerminalView {
             content: terminal_session_content,
         })
     }
-}
-
-/// Readable summary for an AI block.
-struct AIBlockNotificationSummary {
-    title: String,
-    description: String,
-    success: bool,
 }
 
 /// A menu positioning provider for when the input is rendered within the terminal.

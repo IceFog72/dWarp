@@ -14,7 +14,6 @@ mod suggestions_mode_menu;
 pub mod suggestions_mode_model;
 mod terminal;
 mod terminal_message_bar;
-mod universal;
 
 use crate::ai::skills::SkillManager;
 use crate::context_chips::spacing;
@@ -206,7 +205,6 @@ pub use warpui::{
 use self::decorations::InputBackgroundJobOptions;
 use super::{
     alias::is_expandable_alias,
-    block_list_viewport::InputMode,
     event::{BlockCompletedEvent, BlockType, UserBlockCompleted},
     ligature_settings::LigatureSettings,
     model::{
@@ -276,7 +274,6 @@ pub(super) const CLI_AGENT_RICH_INPUT_EDITOR_TOP_PADDING: f32 = 10.;
 pub(super) const CLI_AGENT_RICH_INPUT_EDITOR_BOTTOM_PADDING: f32 = 8.;
 pub(super) const CLI_AGENT_RICH_INPUT_HINT_KEY: &str = "terminal-input-cli-agent-rich-input-hint";
 
-const CLOUD_MODE_V2_HINT_KEY: &str = "terminal-input-cloud-agent-hint";
 const SHORT_CIRCUIT_HIGHLIGHTING_ACTIONS: [Option<PlainTextEditorViewAction>; 7] = [
     Some(PlainTextEditorViewAction::Space),
     Some(PlainTextEditorViewAction::NonExpandingSpace),
@@ -305,40 +302,9 @@ pub const AI_COMMAND_SEARCH_HINT_KEY: &str = "terminal-input-ai-command-search-h
 const AGENT_MODE_AI_DISABLED_AUTODETECTION_DISABLED_HINT_KEY: &str =
     "terminal-input-run-commands-hint";
 
-// Rotating hint text options for new Agent Mode conversations
-const AGENT_MODE_HINT_KEYS: &[&str] = &[
-    "terminal-input-agent-hint-deploy-react-vercel",
-    "terminal-input-agent-hint-debug-python-ci",
-    "terminal-input-agent-hint-setup-microservice",
-    "terminal-input-agent-hint-fix-node-memory-leak",
-    "terminal-input-agent-hint-backup-postgres",
-    "terminal-input-agent-hint-migrate-mysql-postgres",
-    "terminal-input-agent-hint-monitor-aws",
-    "terminal-input-agent-hint-build-fastapi",
-    "terminal-input-agent-hint-optimize-sql",
-    "terminal-input-agent-hint-github-actions",
-    "terminal-input-agent-hint-redis-cache",
-    "terminal-input-agent-hint-kubernetes-pods",
-    "terminal-input-agent-hint-bigquery-pipeline",
-    "terminal-input-agent-hint-ssl-https",
-    "terminal-input-agent-hint-refactor-legacy-code",
-    "terminal-input-agent-hint-unit-tests",
-    "terminal-input-agent-hint-elk-logs",
-    "terminal-input-agent-hint-oauth-express",
-    "terminal-input-agent-hint-optimize-docker",
-    "terminal-input-agent-hint-ab-testing",
-];
-
 fn translate_input_key(key: &'static str) -> String {
     crate::i18n::t_or(key, key)
 }
-
-const AGENT_MODE_AI_ENABLED_STEER_HINT_KEY_UDI: &str = "terminal-input-steer-agent-hint";
-const AGENT_MODE_AI_ENABLED_STEER_HINT_KEY_CLASSIC: &str =
-    "terminal-input-steer-agent-backspace-hint";
-const AGENT_MODE_AI_ENABLED_FOLLOW_UP_HINT_KEY_UDI: &str = "terminal-input-follow-up-hint";
-const AGENT_MODE_AI_ENABLED_FOLLOW_UP_HINT_KEY_CLASSIC: &str =
-    "terminal-input-follow-up-backspace-hint";
 
 /// Action name for setting input mode to agent mode
 pub const SET_INPUT_MODE_AGENT_ACTION_NAME: &str = "input:set_mode_agent";
@@ -361,9 +327,6 @@ const HISTORY_DETAILS_VIEW_WIDTH_REQUIREMENT: f32 = 1100.;
 const MIN_BUFFER_LEN_TO_SHOW_COMPLETIONS_WHILE_TYPING: usize = 2;
 
 const AI_COMMAND_SEARCH_TRIGGER: &str = "#";
-
-/// If the editor buffer matches this prefix, AI input is enabled.
-const AI_INPUT_PREFIX: &str = "* ";
 
 /// If the editor buffer matches this prefix, terminal input is enabled and locked.
 const TERMINAL_INPUT_PREFIX: &str = "!";
@@ -596,40 +559,6 @@ impl InputSuggestionsMode {
                 Some(crate::t!("terminal-input-search-indexed-repos"))
             }
             _ => None,
-        }
-    }
-
-    fn to_telemetry_mode(&self) -> TelemetryInputSuggestionsMode {
-        match *self {
-            InputSuggestionsMode::HistoryUp {
-                search_mode: HistorySearchMode::Prefix,
-                ..
-            } => TelemetryInputSuggestionsMode::HistoryUp,
-            InputSuggestionsMode::HistoryUp {
-                search_mode: HistorySearchMode::Fuzzy,
-                ..
-            } => TelemetryInputSuggestionsMode::HistoryFuzzySearch,
-            InputSuggestionsMode::CompletionSuggestions { .. } => {
-                TelemetryInputSuggestionsMode::CompletionSuggestions
-            }
-            InputSuggestionsMode::StaticWorkflowEnumSuggestions { .. } => {
-                TelemetryInputSuggestionsMode::StaticWorkflowEnumSuggestions
-            }
-            InputSuggestionsMode::DynamicWorkflowEnumSuggestions { .. } => {
-                TelemetryInputSuggestionsMode::DynamicWorkflowEnumSuggestions
-            }
-            InputSuggestionsMode::AIContextMenu { .. } => {
-                TelemetryInputSuggestionsMode::AIContextMenu
-            }
-            InputSuggestionsMode::SlashCommands => TelemetryInputSuggestionsMode::SlashCommands,
-            InputSuggestionsMode::SkillMenu => TelemetryInputSuggestionsMode::SkillMenu,
-            InputSuggestionsMode::InlineHistoryMenu => {
-                TelemetryInputSuggestionsMode::InlineHistoryMenu
-            }
-            InputSuggestionsMode::IndexedReposMenu => {
-                TelemetryInputSuggestionsMode::IndexedReposMenu
-            }
-            InputSuggestionsMode::Closed => unreachable!(),
         }
     }
 }
@@ -2290,16 +2219,6 @@ impl Input {
         self.is_processing_attached_images = is_processing;
         self.update_image_context_options(ctx);
         ctx.notify();
-    }
-
-    fn select_image(&mut self, ctx: &mut ViewContext<Self>) {
-        if !self.is_cli_agent_input_open(ctx) {
-            return;
-        }
-        self.focus_input_box(ctx);
-        self.update_image_context_options(ctx);
-        self.editor
-            .update(ctx, |editor, ctx| editor.attach_files(ctx));
     }
 
     fn handle_pasted_image_data(
@@ -8490,40 +8409,6 @@ impl Input {
         })
     }
 
-    fn apply_input_banner_padding(
-        &self,
-        banner: Box<dyn Element>,
-        is_compact_mode: bool,
-        input_mode: InputMode,
-        appearance: &Appearance,
-        app: &AppContext,
-    ) -> Box<dyn Element> {
-        let constrained_banner = ConstrainedBox::new(banner)
-            .with_height(2. * appearance.line_height_ratio() * appearance.monospace_font_size())
-            .finish();
-        let should_use_udi_spacing = self.should_show_universal_developer_input(app);
-        let mut container: Container = Container::new(constrained_banner);
-        let (suggestion_to_prompt_padding, suggestion_to_input_border_padding) =
-            if should_use_udi_spacing {
-                (0., 0.)
-            } else if is_compact_mode {
-                (0., 8.)
-            } else {
-                (-12., 8.)
-            };
-
-        container = match input_mode {
-            InputMode::PinnedToTop => container
-                .with_padding_top(suggestion_to_prompt_padding)
-                .with_padding_bottom(suggestion_to_input_border_padding),
-            InputMode::PinnedToBottom | InputMode::Waterfall => container
-                .with_padding_bottom(suggestion_to_prompt_padding)
-                .with_padding_top(suggestion_to_input_border_padding),
-        };
-
-        container.finish()
-    }
-
     fn render_input_box(
         &self,
         show_vim_status: bool,
@@ -8712,15 +8597,6 @@ impl Input {
 
     pub fn should_show_universal_developer_input(&self, app: &AppContext) -> bool {
         InputSettings::as_ref(app).is_universal_developer_input_enabled(app)
-    }
-
-    /// Returns whether the input box is currently pinned to the top of the screen.
-    fn is_input_at_top(&self, model: &TerminalModel, ctx: &AppContext) -> bool {
-        match InputModeSettings::as_ref(ctx).input_mode.value() {
-            InputMode::PinnedToBottom => false,
-            InputMode::PinnedToTop => true,
-            InputMode::Waterfall => model.is_block_list_empty(),
-        }
     }
 }
 

@@ -1,7 +1,6 @@
 use serde::{de, Deserialize, Serialize};
 use settings::Setting as _;
-use std::collections::{HashMap, HashSet};
-use warp_core::ui::icons::Icon;
+use std::collections::HashMap;
 use warpui::{AppContext, Entity, ModelContext, SingletonEntity};
 
 pub use ai::LLMId;
@@ -21,20 +20,7 @@ pub enum DisableReason {
     Unavailable,
 }
 
-impl DisableReason {
-    /// Returns a user-facing tooltip explaining why the model is disabled.
-    pub fn tooltip_text(&self) -> &'static str {
-        match self {
-            DisableReason::AdminDisabled => "This model has been disabled by your team admin.",
-            DisableReason::OutOfRequests => "Please upgrade your plan to make more requests.",
-            DisableReason::ProviderOutage => {
-                "This model is temporarily unavailable due to a provider outage."
-            }
-            DisableReason::RequiresUpgrade => "Please upgrade your plan to access this model.",
-            DisableReason::Unavailable => "This model is unavailable.",
-        }
-    }
-}
+impl DisableReason {}
 
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub struct LLMSpec {
@@ -52,18 +38,7 @@ pub enum LLMProvider {
     Unknown,
 }
 
-impl LLMProvider {
-    /// Maps an LLMProvider to its corresponding icon.
-    pub fn icon(&self) -> Option<Icon> {
-        match self {
-            LLMProvider::OpenAI => Some(Icon::OpenAILogo),
-            LLMProvider::Anthropic => Some(Icon::ClaudeLogo),
-            LLMProvider::Google => Some(Icon::GeminiLogo),
-            LLMProvider::Xai => None,
-            LLMProvider::Unknown => None,
-        }
-    }
-}
+impl LLMProvider {}
 
 /// The host where an LLM can be routed to.
 #[derive(Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -195,20 +170,6 @@ impl<'de> Deserialize<'de> for LLMInfo {
     }
 }
 
-/// Deduplicates a list of LLMInfo choices by base_model_name and returns an alphabetically sorted
-/// list of display names.
-pub fn dedupe_model_display_names<'a>(
-    choices: impl IntoIterator<Item = &'a LLMInfo>,
-) -> Vec<String> {
-    let names: HashSet<String> = choices
-        .into_iter()
-        .map(|choice| choice.base_model_name.clone())
-        .collect();
-    let mut sorted: Vec<String> = names.into_iter().collect();
-    sorted.sort();
-    sorted
-}
-
 impl LLMInfo {
     /// Returns the display name for the LLM, to be used in the LLM selector menu.
     pub fn menu_display_name(&self) -> String {
@@ -220,23 +181,6 @@ impl LLMInfo {
             Some(desc) => format!("{} ({})", self.display_name, desc),
             None => self.display_name.clone(),
         }
-    }
-
-    /// Returns the given model's base name.
-    /// For non-reasoning models, this is the same as the display name.
-    /// E.g. gpt-5.1 (low reasoning) -> gpt-5.1
-    pub fn base_model_name(&self) -> &str {
-        &self.base_model_name
-    }
-
-    /// Returns true if this model has a reasoning level configured.
-    pub fn has_reasoning_level(&self) -> bool {
-        self.reasoning_level.is_some()
-    }
-
-    /// Returns the reasoning level label formatted for display.
-    pub fn reasoning_level(&self) -> Option<String> {
-        self.reasoning_level.clone()
     }
 
     #[cfg(feature = "integration_tests")]
@@ -350,16 +294,6 @@ pub struct ModelsByFeature {
     /// This field is optional during deserialization, as older clients might not have this field.
     #[serde(default)]
     pub computer_use: Option<AvailableLLMs>,
-}
-
-impl ModelsByFeature {
-    /// Returns the info about the LLM identified by `id`, if we have it.
-    ///
-    /// For models that are available across multiple features,
-    /// any one of the metadata will be returned.
-    fn info_for_id(&self, id: &LLMId) -> Option<&LLMInfo> {
-        self.agent_mode.info_for_id(id)
-    }
 }
 
 /// Returns the default AvailableLLMs for computer use.
@@ -550,11 +484,6 @@ impl LLMPreferences {
                 report_if_error!(settings.byop_last_used_model_id.set_value(llm_id_str, ctx));
             }
         });
-    }
-
-    /// Returns metadata about an LLM, if the client knows about it.
-    pub fn get_llm_info(&self, id: &LLMId) -> Option<&LLMInfo> {
-        self.models_by_feature.info_for_id(id)
     }
 
     /// Rebuilds the model list from settings.agent_providers + AgentProviderSecrets.

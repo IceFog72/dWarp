@@ -28,18 +28,6 @@ pub enum DisplayMode {
 }
 
 impl DisplayMode {
-    pub fn with_embedded(max_height: f32) -> Self {
-        DisplayMode::Embedded { max_height }
-    }
-
-    pub fn with_inline_banner(max_height: f32) -> Self {
-        DisplayMode::InlineBanner {
-            max_height,
-            is_expanded: false,
-            is_dismissed: false,
-        }
-    }
-
     pub fn max_height(&self) -> Option<f32> {
         match self {
             DisplayMode::FullPane => None,
@@ -95,23 +83,10 @@ impl DisplayMode {
             _ => None,
         }
     }
-
-    pub fn is_full_pane(&self) -> bool {
-        matches!(self, DisplayMode::FullPane)
-    }
-
-    pub fn is_embedded(&self) -> bool {
-        matches!(self, DisplayMode::Embedded { .. })
-    }
-
-    pub fn is_inline_banner(&self) -> bool {
-        matches!(self, DisplayMode::InlineBanner { .. })
-    }
 }
 
 /// A shared trait for views that display an inline diff.
-/// Implemented by both `LocalCodeEditorView` (for native file-backed diffs)
-/// and `InlineDiffView` (for mocked/WASM diffs).
+/// Implemented by `LocalCodeEditorView` for native file-backed diffs.
 pub trait DiffViewer
 where
     Self: Sized + View,

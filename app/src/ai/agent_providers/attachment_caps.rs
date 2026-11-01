@@ -49,21 +49,6 @@ impl AttachmentCaps {
     }
 }
 
-/// 优先查 models.dev catalog,catalog miss 时按 (api_type, model_id 子串) 兜底。
-///
-/// catalog 是真实模型能力的权威来源(用户在 settings 里点了 "Sync from models.dev"
-/// 或 24h 自动刷新会拉到);兜底规则保证离线 / 还没拉到时主流模型也能用。
-pub fn caps_for(api_type: AgentProviderApiType, model_id: &str) -> AttachmentCaps {
-    if let Some(c) = models_dev::lookup_caps("", model_id) {
-        return AttachmentCaps {
-            images: c.vision,
-            pdf: c.pdf,
-            audio: c.audio,
-        };
-    }
-    caps_for_by_substring(api_type, model_id)
-}
-
 /// 解析单个模型的最终 capability,**带用户三态覆盖**。三层优先级:
 /// 1. 用户在 settings 显式 `Some(_)` → 直接用,绕过推断
 /// 2. `None` → models.dev catalog 推断

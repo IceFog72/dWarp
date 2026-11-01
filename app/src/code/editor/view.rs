@@ -922,10 +922,6 @@ impl CodeEditorView {
         self.display_options.starting_line_number
     }
 
-    pub(crate) fn set_starting_line_number(&mut self, starting_line_number: Option<usize>) {
-        self.display_options.starting_line_number = starting_line_number;
-    }
-
     fn handle_searcher_event(&mut self, _event: &SearchEvent, ctx: &mut ViewContext<Self>) {
         // Only update decorations if the find bar is open.
         if self.find_bar_open(ctx) {
@@ -1498,12 +1494,6 @@ impl CodeEditorView {
         });
     }
 
-    pub fn system_append_autoscroll_vertical_only(&self, text: &str, ctx: &mut ViewContext<Self>) {
-        self.model.update(ctx, |model, ctx| {
-            model.system_insert_autoscroll_vertical_only(text, ctx);
-        });
-    }
-
     pub fn truncate(&self, len: usize, ctx: &mut ViewContext<Self>) {
         self.model.update(ctx, |model, ctx| {
             model.truncate(len, ctx);
@@ -1874,12 +1864,6 @@ impl CodeEditorView {
             .map(|d| d.to_string())
             .unwrap_or_default();
         result_parts.join(&delimiter)
-    }
-
-    pub fn diff_hunks_changed_lines(&self, app: &AppContext) -> (usize, usize) {
-        let model = self.model.as_ref(app);
-        let diff = model.diff().as_ref(app);
-        diff.diff_status().get_diff_lines()
     }
 
     /// If there's a single selection, returns its starting and ending line numbers.

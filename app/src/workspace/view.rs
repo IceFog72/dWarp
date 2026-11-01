@@ -181,9 +181,7 @@ use ::settings::{Setting, ToggleableSetting};
 use warp_core::features::FeatureFlag;
 
 use crate::search::{self, QueryFilter};
-use crate::terminal::view::{
-    SyncEvent, SyncInputType, TerminalAction, NOTIFICATIONS_TROUBLESHOOT_URL,
-};
+use crate::terminal::view::{SyncEvent, SyncInputType, NOTIFICATIONS_TROUBLESHOOT_URL};
 use crate::terminal::{BlockListSettings, TerminalModel};
 use crate::themes::theme::{AnsiColorIdentifier, RespectSystemTheme, ThemeKind};
 use crate::themes::theme_chooser::{ThemeChooser, ThemeChooserEvent, ThemeChooserMode};
@@ -444,7 +442,6 @@ const KEYBINDINGS_TO_CACHE: [&str; 3] = [
 ];
 
 const WORKFLOW_AND_ENV_VAR_SPLIT_RATIO: f32 = 0.56;
-const NOTEBOOK_SMART_SPLIT_RATIO: f32 = 0.42;
 
 #[cfg(target_family = "wasm")]
 const MOBILE_OVERLAY_PANEL_WIDTH_RATIO: f32 = 0.9;
@@ -453,9 +450,6 @@ const MOBILE_OVERLAY_SCRIM_ALPHA: u8 = 128;
 
 pub const NEW_TAB_BUTTON_POSITION_ID: &str = "new_tab_button";
 pub const NEW_SESSION_MENU_BUTTON_POSITION_ID: &str = "new_session_menu_button";
-
-// The max length of the title of a fork toast (after which we truncate it).
-const MAX_FORK_TOAST_TITLE_LENGTH: usize = 100;
 
 // The max length of the window title (matching conversation title truncation).
 const MAX_WINDOW_TITLE_LENGTH: usize = 80;
@@ -1523,16 +1517,6 @@ impl Workspace {
         _selection: &crate::tab_configs::session_config::SessionConfigSelection,
         _ctx: &mut ViewContext<Self>,
     ) {
-    }
-
-    /// Opens the vertical tabs panel if the setting was enabled.
-    /// Called from the onboarding flow before the session config modal is shown.
-    pub(crate) fn open_vertical_tabs_panel_if_enabled(&mut self, ctx: &mut ViewContext<Self>) {
-        if FeatureFlag::VerticalTabs.is_enabled() && *TabSettings::as_ref(ctx).use_vertical_tabs {
-            self.vertical_tabs_panel_open = true;
-            self.sync_window_button_visibility(ctx);
-            ctx.notify();
-        }
     }
 
     fn show_hoa_onboarding_flow(&mut self, ctx: &mut ViewContext<Self>) {
@@ -4760,24 +4744,6 @@ impl Workspace {
                         })
                 })
             })
-    }
-
-    /// If the user is new and therefore has not seen the in app onboarding,
-    /// triggers the welcome block to be shown after bootstrapping is completed.
-
-    fn dispatch_onboarding(&self, action: TerminalAction, ctx: &mut ViewContext<Self>) {
-        if let Some(pane_group_handle) = self.get_pane_group_view(self.active_tab_index) {
-            pane_group_handle.update(ctx, |pane_group, ctx| {
-                if let Some(terminal_view_handle) = pane_group.active_session_view(ctx) {
-                    let window_id = ctx.window_id();
-                    ctx.dispatch_typed_action_for_view(
-                        window_id,
-                        terminal_view_handle.id(),
-                        &action,
-                    );
-                }
-            });
-        }
     }
 
     fn open_settings_pane(
@@ -8484,7 +8450,6 @@ impl Workspace {
     /// group. If a pane already exists for the current window, refreshes its
     /// snapshot from the in-memory model and focuses it instead of opening
     /// another one.
-
     pub(crate) fn handle_file_tree_event(
         &mut self,
         pane_group: ViewHandle<PaneGroup>,

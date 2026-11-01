@@ -357,11 +357,6 @@ where
         ctx.notify();
     }
 
-    pub fn set_selected_to_none(&mut self, ctx: &mut ViewContext<Self>) {
-        self.selected_item = None;
-        ctx.notify();
-    }
-
     pub fn set_top_bar_max_width(&mut self, max_width: f32) {
         self.top_bar_max_width = max_width;
     }
@@ -369,13 +364,6 @@ where
     pub fn set_menu_width(&mut self, width: f32, ctx: &mut ViewContext<Self>) {
         self.dropdown.update(ctx, |menu, ctx| {
             menu.set_width(width);
-            ctx.notify();
-        })
-    }
-
-    pub fn set_menu_max_height(&mut self, height: f32, ctx: &mut ViewContext<Self>) {
-        self.dropdown.update(ctx, |menu, ctx| {
-            menu.set_height(height);
             ctx.notify();
         })
     }

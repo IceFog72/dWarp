@@ -858,7 +858,6 @@ impl TerminalView {
                 },
                 ctx,
             );
-        } else {
         }
     }
 
@@ -1342,39 +1341,6 @@ impl TerminalView {
     pub(crate) fn restore_pty_to_sharer_size(&mut self, ctx: &mut ViewContext<Self>) {
         self.active_viewer_driven_size = None;
         self.refresh_size(ctx);
-    }
-
-    /// Forces a fresh viewer-size report to the sharer by clearing the dedup cache and
-    /// refreshing size. No-op when not an active viewer or when viewer-driven sizing is
-    /// not eligible. Used when a new process (e.g. the harness CLI starting for a non-oz
-    /// Cloud Mode run) needs the sharer to resize its PTY so the new process picks up
-    /// correct terminal dimensions at startup.
-    pub(in crate::terminal::view) fn force_report_viewer_terminal_size(
-        &mut self,
-        ctx: &mut ViewContext<Self>,
-    ) {
-        if let Some(viewer) = self.shared_session_viewer_mut() {
-            viewer.last_reported_natural_size = None;
-        }
-        self.refresh_size(ctx);
-    }
-
-    /// Resizes the sharer's terminal to match the viewer's reported size,
-    /// going through the normal view/model/PTY resize pipeline.
-    #[cfg(not(target_arch = "wasm32"))]
-    pub(crate) fn resize_from_viewer_report(
-        &mut self,
-        viewer_size: WindowSize,
-        ctx: &mut ViewContext<Self>,
-    ) {
-        self.active_viewer_driven_size = Some((viewer_size.num_rows, viewer_size.num_cols));
-        let size_update = SizeUpdateBuilder::for_viewer_size_report(
-            *self.size_info,
-            viewer_size.num_rows,
-            viewer_size.num_cols,
-        )
-        .build(self, ctx);
-        self.resize_internal(size_update, ctx);
     }
 
     pub fn render_input_request_edit_access_button(

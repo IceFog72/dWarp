@@ -43,7 +43,6 @@ use crate::{
         BackingView, PaneConfiguration, PaneEvent,
     },
     safe_warn,
-    server::telemetry::NotebookTelemetryMetadata,
     settings::FontSettings,
     terminal::model::session::Session,
     ui_components::icons::Icon,
@@ -330,18 +329,6 @@ impl FileNotebookView {
                 model.set_document_path(doc_path, ctx);
             });
         });
-    }
-
-    #[cfg(feature = "local_fs")]
-    fn open_telemetry_metadata(&self, ctx: &ViewContext<Self>) -> NotebookTelemetryMetadata {
-        NotebookTelemetryMetadata::new(None, None, NotebookLocation::LocalFile, None)
-            .with_markdown_table_count(
-                self.editor
-                    .as_ref(ctx)
-                    .model()
-                    .as_ref(ctx)
-                    .markdown_table_count(ctx),
-            )
     }
 
     /// Set the notebook's location context.

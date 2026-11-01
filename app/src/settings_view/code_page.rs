@@ -2,8 +2,8 @@
 use super::features::external_editor::ExternalEditorView;
 use super::{
     settings_page::{
-        build_sub_header, render_body_item, MatchData, PageType, SettingsPageMeta,
-        SettingsPageViewHandle, SettingsWidget, HEADER_PADDING,
+        render_body_item, MatchData, PageType, SettingsPageMeta, SettingsPageViewHandle,
+        SettingsWidget,
     },
     SettingsSection, ToggleState,
 };
@@ -55,7 +55,6 @@ use warpui::{
 const MAIN_SECTION_MARGIN: f32 = 12.;
 const SUB_SECTION_MARGIN: f32 = 8.;
 
-const STATUS_ICON_SIZE: f32 = 16.;
 const LSP_STATUS_INDICATOR_SIZE: f32 = 8.;
 
 /// Identifies which subpage of the Code settings the user is viewing.
@@ -1094,30 +1093,6 @@ impl CodePageWidget {
     }
 }
 
-/// A simple widget that renders a subheader title for a Code subpage.
-struct CodeSubpageHeaderWidget {
-    title: String,
-}
-
-impl SettingsWidget for CodeSubpageHeaderWidget {
-    type View = CodeSettingsPageView;
-
-    fn search_terms(&self) -> &str {
-        &self.title
-    }
-
-    fn render(
-        &self,
-        _view: &Self::View,
-        appearance: &Appearance,
-        _app: &AppContext,
-    ) -> Box<dyn Element> {
-        build_sub_header(appearance, self.title.clone(), None)
-            .with_padding_bottom(HEADER_PADDING)
-            .finish()
-    }
-}
-
 #[cfg(feature = "local_fs")]
 struct ExternalEditorCodeWidget;
 
@@ -1140,44 +1115,6 @@ impl SettingsWidget for ExternalEditorCodeWidget {
         } else {
             Empty::new().finish()
         }
-    }
-}
-
-#[derive(Default)]
-struct AutoOpenCodeReviewPaneCodeWidget {
-    switch_state: SwitchStateHandle,
-}
-
-impl SettingsWidget for AutoOpenCodeReviewPaneCodeWidget {
-    type View = CodeSettingsPageView;
-
-    fn search_terms(&self) -> &str {
-        "oz auto open code review pane panel agent mode change first time accepted diff view conversation"
-    }
-
-    fn render(
-        &self,
-        _view: &Self::View,
-        appearance: &Appearance,
-        app: &AppContext,
-    ) -> Box<dyn Element> {
-        let general_settings = GeneralSettings::as_ref(app);
-        render_body_item::<CodeSettingsPageAction>(
-            crate::t!("settings-code-auto-open-review-panel"),
-            None,
-            ToggleState::Enabled,
-            appearance,
-            appearance
-                .ui_builder()
-                .switch(self.switch_state.clone())
-                .check(*general_settings.auto_open_code_review_pane_on_first_agent_change)
-                .build()
-                .on_click(move |ctx, _, _| {
-                    ctx.dispatch_typed_action(CodeSettingsPageAction::ToggleAutoOpenCodeReviewPane);
-                })
-                .finish(),
-            Some(crate::t!("settings-code-auto-open-review-panel-desc")),
-        )
     }
 }
 

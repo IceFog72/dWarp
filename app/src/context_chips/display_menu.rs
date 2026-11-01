@@ -2,6 +2,7 @@ use std::cmp;
 use std::collections::HashMap;
 use std::fmt::Debug;
 use std::sync::Arc;
+use std::time::Duration;
 
 use instant::Instant;
 
@@ -11,7 +12,6 @@ use crate::{
         TextOptions,
     },
     ui_components::icons::Icon,
-    view_components::copyable_text_field::COPY_FEEDBACK_DURATION,
 };
 use fuzzy_match::{match_indices_case_insensitive, FuzzyMatchResult};
 use warp_core::ui::theme::color::internal_colors;
@@ -40,6 +40,8 @@ use warpui::{
 
 use warpui::clipboard::ClipboardContent;
 use warpui::r#async::Timer;
+
+const COPY_FEEDBACK_DURATION: Duration = Duration::from_secs(2);
 
 /// Trait for items that can be displayed in a generic menu
 pub trait GenericMenuItem: Debug + 'static {

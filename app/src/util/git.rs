@@ -512,21 +512,6 @@ pub async fn get_commit_files(_repo_path: &Path, _hash: &str) -> Result<Vec<File
     Err(anyhow!("Not supported on wasm"))
 }
 
-/// Maximum number of characters of diff content to send to AI for commit
-/// message / PR title / PR description generation.
-#[cfg(feature = "local_fs")]
-const MAX_DIFF_CHARS_FOR_AI: usize = 16_000;
-
-/// Per-file cap for untracked-file content we synthesise into the diff sent
-/// to AI. Keeps any one new file from dominating the budget.
-#[cfg(feature = "local_fs")]
-const MAX_UNTRACKED_FILE_BYTES: usize = 4_000;
-
-/// Number of leading bytes examined when classifying an untracked file as
-/// binary, mirroring the heuristic in `count_lines_if_text_file`.
-#[cfg(feature = "local_fs")]
-const BINARY_CHECK_BYTES: usize = 1_024;
-
 /// Maximum number of bytes in a PR title passed to `gh pr create`. GitHub's
 /// hard limit is 256; we cap short of that to leave headroom for an
 /// ellipsis marker. Measured in bytes because it's fed to

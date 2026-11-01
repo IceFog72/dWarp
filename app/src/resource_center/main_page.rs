@@ -26,8 +26,6 @@ use super::{
     Section, TipsCompleted,
 };
 
-const SEND_SVG_PATH: &str = "bundled/svg/send.svg";
-
 #[derive(Default)]
 struct MouseStateHandles {
     copy_version: MouseStateHandle,

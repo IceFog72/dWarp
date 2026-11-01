@@ -14,7 +14,7 @@ use crate::remote_server::ssh_transport::SshTransport;
 use crate::terminal::model::session::{IsLegacySSHSession, SessionInfo};
 use crate::terminal::model_events::{ModelEvent, ModelEventDispatcher};
 use crate::terminal::warpify::settings::WarpifySettings;
-use remote_server::setup::{PreinstallCheckResult, PreinstallStatus, RemoteLibc, RemotePlatform};
+use remote_server::setup::{PreinstallCheckResult, PreinstallStatus, RemotePlatform};
 
 use super::pty_controller::{EventLoopSender, PtyController};
 
@@ -480,14 +480,5 @@ impl<T: EventLoopSender> RemoteServerController<T> {
         RemoteServerManager::handle(ctx).update(ctx, |mgr, ctx| {
             mgr.connect_session(session_id, transport, auth_context, ctx);
         });
-    }
-}
-
-/// Describes a [`RemoteLibc`] as a short string for telemetry.
-fn describe_libc(libc: &RemoteLibc) -> String {
-    match libc {
-        RemoteLibc::Glibc(version) => format!("glibc {version}"),
-        RemoteLibc::NonGlibc { name } => name.clone(),
-        RemoteLibc::Unknown => "unknown".to_string(),
     }
 }

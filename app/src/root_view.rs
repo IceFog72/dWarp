@@ -14,7 +14,7 @@ use crate::terminal::general_settings::GeneralSettings;
 use crate::terminal::keys_settings::KeysSettings;
 use crate::terminal::shell::ShellType;
 use crate::terminal::view::cell_size_and_padding;
-use crate::themes::theme::{AnsiColorIdentifier, Blend, Fill};
+use crate::themes::theme::AnsiColorIdentifier;
 use crate::util::bindings::{self, is_binding_pty_compliant};
 use crate::window_settings::WindowSettings;
 use crate::workspace::WorkspaceAction;
@@ -43,7 +43,6 @@ use warp_core::context_flag::ContextFlag;
 use warpui::keymap::{EditableBinding, FixedBinding};
 use warpui::windowing::WindowManager;
 
-use warpui::elements::Border;
 use warpui::{id, AddWindowOptions, DisplayId, SingletonEntity};
 use warpui::{
     platform::{WindowBounds, WindowStyle},
@@ -57,21 +56,6 @@ const WINDOW_TITLE: &str = "dWarp";
 lazy_static! {
     static ref FALLBACK_WINDOW_SIZE: Vector2F = vec2f(800.0, 600.0);
     static ref QUAKE_STATE: Arc<Mutex<Option<QuakeModeState>>> = Arc::new(Mutex::new(None));
-}
-
-/// This is the color of the border wrapping the whole window.
-///
-/// On MacOS, this is drawn for us by the OS. On other platforms, we must draw it ourselves. Note
-/// that this is hard-coded for the default Dark theme. This is because it is only used by the
-/// AuthView and OnboardingSurveyModal which do not respect the chosen theme. So, do not use this for Views
-/// which respect themes.
-pub(crate) fn unthemed_window_border() -> Border {
-    if cfg!(all(not(target_os = "macos"), not(target_family = "wasm"))) {
-        // The 15% blend of fg into bg is the "ui surface" color.
-        Border::all(1.).with_border_fill(Fill::black().blend(&Fill::white().with_opacity(15)))
-    } else {
-        Border::all(1.).with_border_fill(Fill::black().with_opacity(0))
-    }
 }
 
 #[derive(Debug, Clone)]

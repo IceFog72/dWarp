@@ -13,7 +13,7 @@ mod warpify_footer;
 pub use crate::terminal::CLIAgent;
 use warpify_footer::{WarpifyFooterView, WarpifyFooterViewEvent};
 
-use std::sync::{Arc, LazyLock};
+use std::sync::Arc;
 use std::time::Duration;
 
 use warpui::r#async::Timer;
@@ -35,13 +35,11 @@ use warp_core::{
 
 use warpui::{
     elements::{ChildView, Container, Empty},
-    keymap::Keystroke,
     AppContext, Element, Entity, EntityId, ModelHandle, SingletonEntity, TypedActionView, View,
     ViewContext, ViewHandle,
 };
 
 use crate::{
-    cmd_or_ctrl_shift,
     settings::{
         AISettings, AISettingsChangedEvent, CompiledCommandsForCodingAgentToolbar,
         InputModeSettings,
@@ -116,9 +114,6 @@ fn rich_input_submit_strategy(agent: CLIAgent) -> RichInputSubmitStrategy {
         }
     }
 }
-
-static USE_AGENT_KEYSTROKE: LazyLock<Keystroke> =
-    LazyLock::new(|| Keystroke::parse(cmd_or_ctrl_shift("enter")).expect("valid keystroke"));
 
 impl TerminalView {
     pub(super) fn register_subscriptions_for_use_agent_footer(
@@ -433,36 +428,6 @@ impl TerminalView {
         } else {
             self.paste_images_then_submit_text(images, text_bytes, strategy, ctx);
         }
-    }
-
-    /// Submits `text` as a prompt to the active CLI agent on this terminal by
-    /// writing it to the PTY using the agent-specific submission strategy
-    /// (the same pipeline as the CLI agent rich input composer).
-    ///
-    /// Intended for callers that produce prompts outside the rich input
-    /// editor (e.g. shared-session viewer follow-up prompts). Returns
-    /// without writing if there is no active CLI agent session or the text
-    /// is empty.
-    #[cfg(feature = "local_tty")]
-    pub(crate) fn submit_text_to_cli_agent_pty(
-        &mut self,
-        text: String,
-        ctx: &mut ViewContext<Self>,
-    ) {
-        let Some(agent) = CLIAgentSessionsModel::as_ref(ctx)
-            .session(self.view_id)
-            .map(|s| s.agent)
-        else {
-            return;
-        };
-
-        let text_bytes = text.into_bytes();
-        if text_bytes.is_empty() {
-            return;
-        }
-
-        let strategy = rich_input_submit_strategy(agent);
-        self.write_cli_agent_text_then_submit(text_bytes, strategy, ctx);
     }
 
     /// Simulates clipboard image paste for each pending image attachment by

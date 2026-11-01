@@ -14,10 +14,6 @@ impl RepoOutlines {
     pub fn get_outline(&self, _path: &Path) -> Option<(&OutlineStatus, PathBuf)> {
         None
     }
-
-    pub fn is_directory_indexed(&self, _directory: &Path) -> bool {
-        false
-    }
 }
 
 impl Entity for RepoOutlines {

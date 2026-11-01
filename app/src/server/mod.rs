@@ -1,4 +1,3 @@
-pub mod block;
 pub mod datetime_ext;
 pub mod ids;
 pub mod server_api;

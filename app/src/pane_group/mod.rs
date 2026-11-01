@@ -41,7 +41,6 @@ use session_sharing_protocol::common::{
     ParticipantId, Role, RoleRequestId, RoleRequestRejectedReason, RoleRequestResponse,
 };
 use typed_path::TypedPath;
-use url::Url;
 use uuid::Uuid;
 use warp_core::command::ExitCode;
 use warp_core::context_flag::ContextFlag;
@@ -1578,12 +1577,6 @@ impl PaneGroup {
             .map(move |pane| (pane.id(), pane.file_view(app)))
     }
 
-    fn close_panes(&mut self, pane_ids: Vec<PaneId>, ctx: &mut ViewContext<Self>) {
-        for pane_id in pane_ids {
-            self.close_pane(pane_id, ctx);
-        }
-    }
-
     pub fn has_active_code_pane_with_unsaved_changes(&self, ctx: &AppContext) -> bool {
         self.focused_pane_id(ctx).is_code_pane()
             && self
@@ -2129,29 +2122,6 @@ impl PaneGroup {
         ctx.notify();
 
         pane_group
-    }
-
-    /// Helper that creates the initial [`PaneData`] and [`InitialFocus`] given a terminal view.
-    /// This is a common case in creating a new pane group with a single terminal session.
-    fn terminal_pane_data(
-        uuid: Vec<u8>,
-        view: ViewHandle<TerminalView>,
-        terminal_manager: ModelHandle<Box<dyn TerminalManager>>,
-        model_event_sender: Option<SyncSender<ModelEvent>>,
-        pane_contents: &mut HashMap<PaneId, Box<dyn AnyPaneContent>>,
-        pane_history: &mut Vec<PaneId>,
-        ctx: &mut ViewContext<Self>,
-    ) -> (PaneData, InitialFocus) {
-        let pane_data = TerminalPane::new(uuid, terminal_manager, view, model_event_sender, ctx);
-        let terminal_pane_id = pane_data.terminal_pane_id();
-        let pane_id = terminal_pane_id.into();
-        pane_contents.insert(pane_id, Box::new(pane_data));
-        pane_history.push(pane_id);
-        let focus = InitialFocus {
-            focused_pane: Some(pane_id),
-            active_session: Some(terminal_pane_id),
-        };
-        (PaneData::new(pane_id), focus)
     }
 
     /// Initial layout for a [`PaneGroup`] with a single terminal pane.
@@ -4149,16 +4119,6 @@ impl PaneGroup {
                 self.update_browser_url(ctx);
             }
         }
-    }
-
-    fn handle_pane_link_updated(&self, pane_id: PaneId, url: Option<Url>, ctx: &AppContext) {
-        log::debug!("Url for pane should be updated pane_id: {pane_id:?}, url: {url:?}");
-        #[cfg(target_family = "wasm")]
-        if pane_id == self.focused_pane_id(ctx) {
-            update_browser_url(url, false);
-        }
-
-        let _ = ctx;
     }
 
     #[cfg(target_family = "wasm")]

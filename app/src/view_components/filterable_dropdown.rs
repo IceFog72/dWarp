@@ -148,13 +148,6 @@ where
         });
     }
 
-    pub fn clear_footer(&mut self, ctx: &mut ViewContext<Self>) {
-        self.has_pinned_footer = false;
-        self.dropdown.update(ctx, |menu, _| {
-            menu.clear_pinned_footer_builder();
-        });
-    }
-
     /// Set the main_axis_size behavior for the dropdown header button.
     ///
     /// Default is MainAxisSize::Max, set to MainAxisSize::Min if you want to wrap the dropdown to
@@ -170,14 +163,6 @@ where
 
     pub fn set_style(&mut self, style: UiComponentStyles) {
         self.style_override = Some(style);
-    }
-
-    pub fn set_button_variant(&mut self, button_variant: ButtonVariant) {
-        self.button_variant = button_variant;
-    }
-
-    pub fn set_orientation(&mut self, orientation: FilterableDropdownOrientation) {
-        self.orientation = orientation;
     }
 
     pub fn add_items(&mut self, items: Vec<DropdownItem<A>>, ctx: &mut ViewContext<Self>) {
