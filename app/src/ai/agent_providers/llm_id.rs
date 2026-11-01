@@ -31,11 +31,6 @@ pub fn decode(id: &LLMId) -> Option<(String, String)> {
     Some((pid.to_owned(), mid.to_owned()))
 }
 
-/// 这个 `LLMId` 是不是 BYOP 编码(供调用方在不需要拆字段时快速判断)。
-pub fn is_byop(id: &LLMId) -> bool {
-    id.as_str().starts_with(BYOP_PREFIX)
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -66,7 +61,6 @@ mod tests {
     fn non_byop_returns_none() {
         let id = LLMId::from("gpt-5.2");
         assert_eq!(decode(&id), None);
-        assert!(!is_byop(&id));
     }
 
     #[test]

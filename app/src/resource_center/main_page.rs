@@ -29,7 +29,6 @@ use super::{
 #[derive(Default)]
 struct MouseStateHandles {
     copy_version: MouseStateHandle,
-    invite_people: MouseStateHandle,
     skip_tips: MouseStateHandle,
 }
 

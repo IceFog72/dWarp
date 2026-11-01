@@ -108,31 +108,8 @@ impl RenderableAction {
         }
     }
 
-    pub fn with_icon(mut self, icon: Box<dyn Element>) -> Self {
-        self.icon = Some(icon);
-        self
-    }
-
-    pub fn with_font_color(mut self, color: ColorU) -> Self {
-        if let FormattedTextOrElement::FormattedText(formatted_text) = self.body {
-            self.body =
-                FormattedTextOrElement::FormattedText(Box::new(formatted_text.with_color(color)));
-        }
-        self
-    }
-
     pub fn with_background_color(mut self, color: ColorU) -> Self {
         self.background_color = color;
-        self
-    }
-
-    pub fn with_action_button(mut self, button: Box<dyn Element>) -> Self {
-        self.action_button = Some(button);
-        self
-    }
-
-    pub fn with_content_item_spacing(mut self) -> Self {
-        self.should_override_with_content_item_spacing = true;
         self
     }
 

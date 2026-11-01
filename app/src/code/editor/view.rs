@@ -538,15 +538,6 @@ impl CodeEditorView {
         ctx.notify();
     }
 
-    pub fn changed_lines(&self, app: &AppContext) -> Vec<Range<usize>> {
-        self.model
-            .as_ref(app)
-            .diff()
-            .as_ref(app)
-            .modified_lines()
-            .collect()
-    }
-
     pub fn close_find_bar(&mut self, should_focus_editor: bool, ctx: &mut ViewContext<Self>) {
         if let Some(find_bar) = &self.find_bar {
             let should_update = find_bar.update(ctx, |find_bar, _ctx| {
@@ -916,10 +907,6 @@ impl CodeEditorView {
     ) -> Self {
         self.display_options.horizontal_scrollbar_appearance = scrollbar_appearance;
         self
-    }
-
-    pub(crate) fn starting_line_number(&self) -> Option<usize> {
-        self.display_options.starting_line_number
     }
 
     fn handle_searcher_event(&mut self, _event: &SearchEvent, ctx: &mut ViewContext<Self>) {
@@ -1482,24 +1469,6 @@ impl CodeEditorView {
         self.model.as_ref(ctx).buffer_version(ctx)
     }
 
-    /// Append text to the end of the buffer regardless of cursor position.
-    /// This is used for streaming content where we always want to append at the end,
-    /// not at the current cursor position since the user may select text while it's streaming.
-    pub fn append_at_end(&self, text: &str, ctx: &mut ViewContext<Self>) {
-        self.model.update(ctx, |model, ctx| {
-            // Use append_at_end to insert at the end of buffer regardless of cursor position.
-            // This ensures streaming code blocks always append at the end, even when user
-            // has clicked somewhere else in the editor.
-            model.append_at_end(text, ctx);
-        });
-    }
-
-    pub fn truncate(&self, len: usize, ctx: &mut ViewContext<Self>) {
-        self.model.update(ctx, |model, ctx| {
-            model.truncate(len, ctx);
-        });
-    }
-
     pub fn retrieve_unified_diff(&self, file_name: String, ctx: &mut ViewContext<Self>) {
         self.model.update(ctx, |model, ctx| {
             model.retrieve_unified_diff(file_name, ctx);
@@ -1541,18 +1510,6 @@ impl CodeEditorView {
 
     pub fn is_editable(&self, app: &AppContext) -> bool {
         self.model.as_ref(app).interaction_state() == InteractionState::Editable
-    }
-
-    pub fn navigate_next_diff_hunk(&self, ctx: &mut ViewContext<Self>) {
-        self.nav_bar.update(ctx, |nav_bar, ctx| {
-            nav_bar.navigate_down(ctx);
-        });
-    }
-
-    pub fn navigate_previous_diff_hunk(&self, ctx: &mut ViewContext<Self>) {
-        self.nav_bar.update(ctx, |nav_bar, ctx| {
-            nav_bar.navigate_up(ctx);
-        });
     }
 
     fn navigate_current_diff_hunk(&self, ctx: &mut ViewContext<Self>) {

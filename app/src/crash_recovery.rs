@@ -19,11 +19,6 @@ lazy_static! {
     static ref IS_CRASH_RECOVERY_PROCESS_RUNNING: RwLock<bool> = RwLock::new(false);
 }
 
-#[cfg_attr(not(feature = "crash_reporting"), allow(dead_code))]
-pub fn is_crash_recovery_process_running() -> bool {
-    *IS_CRASH_RECOVERY_PROCESS_RUNNING.read()
-}
-
 pub enum Event {
     /// User has acknowledged the fact that the application crashed and
     /// recovered from the crash.

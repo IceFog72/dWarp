@@ -119,21 +119,6 @@ impl HeaderConfig {
         }
     }
 
-    pub fn with_font_family(mut self, font: FamilyId) -> Self {
-        self.font_family = font;
-        self
-    }
-
-    pub fn with_icon(mut self, icon: warpui::elements::Icon) -> Self {
-        self.icon = Some(icon);
-        self
-    }
-
-    pub fn with_font_color(mut self, font_color: ColorU) -> Self {
-        self.font_color_override = Some(font_color);
-        self
-    }
-
     pub fn with_corner_radius_override(mut self, corner_radius: CornerRadius) -> Self {
         self.corner_radius_override = Some(corner_radius);
         self

@@ -27,27 +27,7 @@ pub struct AttachmentCaps {
     pub audio: bool,
 }
 
-impl AttachmentCaps {
-    /// 任何 multimodal 能力都没有 → 上游必须降级到纯文本路径。
-    pub fn is_text_only(&self) -> bool {
-        !self.images && !self.pdf && !self.audio
-    }
-
-    /// 给定 mime,问该模型能否吃下这条 binary 附件。
-    pub fn supports_mime(&self, mime: &str) -> bool {
-        let lower = mime.trim().to_ascii_lowercase();
-        if lower.starts_with("image/") {
-            return self.images;
-        }
-        if lower == "application/pdf" {
-            return self.pdf;
-        }
-        if lower.starts_with("audio/") {
-            return self.audio;
-        }
-        false
-    }
-}
+impl AttachmentCaps {}
 
 /// 解析单个模型的最终 capability,**带用户三态覆盖**。三层优先级:
 /// 1. 用户在 settings 显式 `Some(_)` → 直接用,绕过推断
@@ -207,7 +187,7 @@ mod tests {
     #[test]
     fn openai_3_5_text_only() {
         let caps = caps_for_by_substring(AgentProviderApiType::OpenAi, "gpt-3.5-turbo");
-        assert!(caps.is_text_only());
+        assert!(!caps.images && !caps.pdf && !caps.audio);
     }
 
     #[test]
@@ -228,7 +208,7 @@ mod tests {
     #[test]
     fn ollama_default_text_only() {
         let caps = caps_for_by_substring(AgentProviderApiType::Ollama, "qwen2.5:7b");
-        assert!(caps.is_text_only());
+        assert!(!caps.images && !caps.pdf && !caps.audio);
     }
 
     #[test]
@@ -241,20 +221,6 @@ mod tests {
     #[test]
     fn deepseek_chat_text_only() {
         let caps = caps_for_by_substring(AgentProviderApiType::DeepSeek, "deepseek-chat");
-        assert!(caps.is_text_only());
-    }
-
-    #[test]
-    fn supports_mime_routing() {
-        let full = AttachmentCaps {
-            images: true,
-            pdf: true,
-            audio: true,
-        };
-        assert!(full.supports_mime("image/png"));
-        assert!(full.supports_mime("application/pdf"));
-        assert!(full.supports_mime("audio/mp3"));
-        assert!(!full.supports_mime("application/zip"));
-        assert!(!full.supports_mime("text/plain"));
+        assert!(!caps.images && !caps.pdf && !caps.audio);
     }
 }

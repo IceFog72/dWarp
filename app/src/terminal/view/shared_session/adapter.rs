@@ -188,10 +188,6 @@ impl Adapter {
         )
     }
 
-    pub fn started_at(&self) -> &DateTime<Local> {
-        &self.started_at
-    }
-
     pub fn presence_manager(&self) -> &ModelHandle<PresenceManager> {
         &self.presence_manager
     }

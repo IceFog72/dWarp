@@ -520,12 +520,6 @@ impl GlobalBufferModel {
         })
     }
 
-    /// Remove a tracked buffer, cleaning up FileModel and LSP state.
-    /// Used when a new file is deleted before ever being saved to a permanent location.
-    pub fn remove(&mut self, file_id: FileId, ctx: &mut ModelContext<Self>) {
-        self.cleanup_file_id(file_id, ctx);
-    }
-
     /// Look up the file path for a tracked buffer.
     pub fn file_path(&self, file_id: FileId) -> Option<&Path> {
         self.path_to_id

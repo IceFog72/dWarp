@@ -173,9 +173,6 @@ const SELECTED_BLOCK_AVATAR_EDGE_OFFSET: f32 = 25.;
 /// Space between multiple avatars on a selected block.
 const SPACE_BETWEEN_SELECTED_BLOCK_AVATARS: f32 = 2.;
 
-const CLI_SUBAGENT_HORIZONTAL_MARGIN: f32 = 8.;
-const CLI_SUBAGENT_VERTICAL_MARGIN: f32 = 8.;
-
 pub type LabelBuilderFn = dyn Fn(
     Vec<BlockIndex>,
     &HashMap<BlockIndex, MouseStateHandle>,

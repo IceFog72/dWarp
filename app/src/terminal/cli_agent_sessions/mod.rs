@@ -7,8 +7,7 @@ use std::collections::{HashMap, HashSet};
 
 use warpui::{Entity, EntityId, ModelContext, ModelHandle, SingletonEntity};
 
-use warp_core::ui::appearance::Appearance;
-use warp_core::ui::theme::{AnsiColorIdentifier, WarpTheme};
+use warp_core::ui::theme::WarpTheme;
 use warpui::color::ColorU;
 
 use crate::ui_components::icons::Icon;
@@ -43,24 +42,6 @@ impl CLIAgentSessionStatus {
             CLIAgentSessionStatus::Success => (Icon::Check, theme.ansi_fg_green()),
             CLIAgentSessionStatus::Blocked { .. } => (Icon::StopFilled, theme.ansi_fg_yellow()),
         }
-    }
-
-    pub fn render_icon(&self, appearance: &Appearance) -> warpui::elements::Icon {
-        let (icon, color) = match self {
-            CLIAgentSessionStatus::InProgress => (Icon::Circle, AnsiColorIdentifier::Magenta),
-            CLIAgentSessionStatus::Success => (Icon::Check, AnsiColorIdentifier::Green),
-            CLIAgentSessionStatus::Blocked { .. } => {
-                (Icon::StopFilled, AnsiColorIdentifier::Yellow)
-            }
-        };
-        warpui::elements::Icon::new(
-            icon.into(),
-            color.to_ansi_color(&appearance.theme().terminal_colors().normal),
-        )
-    }
-
-    pub fn is_in_progress(&self) -> bool {
-        matches!(self, CLIAgentSessionStatus::InProgress)
     }
 }
 

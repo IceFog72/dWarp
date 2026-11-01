@@ -26,24 +26,12 @@ impl CommandBindingDataSource {
         // Tantivy 默认 tokenizer 不切 CJK,会把整段中文描述当成单 token 做前缀匹配,
         // 导致 zh-CN 下搜"主题"无法命中"打开主题选择器"。
         // 同时 fuzzy 还能让英文 keyword 经子序列匹配命中 binding.name(见下方 search 实现)。
-        let _ = warp_core::features::FeatureFlag::UseTantivySearch.is_enabled();
         Self::new_fuzzy(binding_source, ctx)
     }
 
     #[cfg(target_family = "wasm")]
     pub fn new(binding_source: ModelHandle<BindingSource>, ctx: &mut ModelContext<Self>) -> Self {
         Self::new_fuzzy(binding_source, ctx)
-    }
-
-    #[cfg(not(target_family = "wasm"))]
-    fn new_full_text(
-        binding_source: ModelHandle<BindingSource>,
-        ctx: &mut ModelContext<Self>,
-    ) -> Self {
-        ctx.observe(&binding_source, Self::on_binding_source_changed);
-
-        let searcher = Box::new(full_text_searcher::FullTextActionSearcher::new());
-        Self { searcher }
     }
 
     fn new_fuzzy(binding_source: ModelHandle<BindingSource>, ctx: &mut ModelContext<Self>) -> Self {
@@ -146,10 +134,6 @@ impl ActionSearcher for FuzzyActionSearcher {
             .all_bindings
             .values()
             .filter_map(move |binding| {
-                if is_excluded_binding(binding) {
-                    return None;
-                }
-
                 // Binding descriptions are almost always upper case. If a user searches with
                 // lowercase text, the fuzzy matcher will weight this match lower because the case
                 // between the search term and the description differ. As a result, we lowercase
@@ -201,134 +185,4 @@ impl ActionSearcher for FuzzyActionSearcher {
     fn bindings_mut(&mut self) -> &mut HashMap<BindingId, Arc<CommandBinding>> {
         &mut self.all_bindings
     }
-}
-
-#[cfg(not(target_family = "wasm"))]
-mod full_text_searcher {
-    use crate::define_search_schema;
-    use crate::search::action::{
-        data_source::{is_excluded_binding, ActionSearcher, SearcherAction},
-        search_item::MatchedBinding,
-    };
-    use crate::search::data_source::QueryResult;
-    use crate::search::searcher::{
-        SimpleFullTextSearcher, DEFAULT_MEMORY_BUDGET, SCORE_CONVERSION_FACTOR,
-    };
-    use crate::util::bindings::CommandBinding;
-    use fuzzy_match::FuzzyMatchResult;
-    use std::collections::HashMap;
-    use std::sync::Arc;
-    use warpui::keymap::{BindingId, DescriptionContext};
-
-    define_search_schema!(
-        schema_name: ACTION_SEARCH_SCHEMA,
-        config_name: ActionSearchConfig,
-        search_doc: ActionDocument,
-        identifying_doc: ActionIdDocument,
-        search_fields: [action: 1.0],
-        id_fields: [id: u64]
-    );
-
-    pub(crate) struct FullTextActionSearcher {
-        searcher: SimpleFullTextSearcher<ActionSearchConfig>,
-        all_bindings: HashMap<BindingId, Arc<CommandBinding>>,
-    }
-
-    impl ActionSearcher for FullTextActionSearcher {
-        fn search(&self, search_term: &str) -> anyhow::Result<Vec<QueryResult<SearcherAction>>> {
-            // If the search term is empty, return all bindings (except excluded ones)
-            if search_term.is_empty() {
-                return Ok(self
-                    .all_bindings
-                    .values()
-                    .filter_map(|binding| {
-                        if is_excluded_binding(binding) {
-                            return None;
-                        }
-                        let matched_binding =
-                            MatchedBinding::new(FuzzyMatchResult::no_match(), binding.clone());
-                        Some(QueryResult::from(matched_binding))
-                    })
-                    .collect());
-            }
-
-            // Execute the full-text search
-            let matched_bindings = self.searcher.search_id(search_term)?;
-            Ok(matched_bindings
-                .into_iter()
-                .filter_map(|match_result| {
-                    let binding = self
-                        .all_bindings
-                        .get(&BindingId(match_result.values.id as usize))?;
-
-                    if is_excluded_binding(binding) {
-                        return None;
-                    }
-
-                    let matched_indices = match_result.highlights.action;
-                    Some(
-                        MatchedBinding::new(
-                            FuzzyMatchResult {
-                                score: (match_result.score * SCORE_CONVERSION_FACTOR) as i64,
-                                matched_indices,
-                            },
-                            binding.clone(),
-                        )
-                        .into(),
-                    )
-                })
-                .collect())
-        }
-
-        fn build_index(&mut self) {
-            if self.rebuild_search_index().is_err() {
-                log::error!("Failed to create search index writer for actions");
-                self.clear_search_index();
-            }
-        }
-
-        fn bindings(&self) -> &HashMap<BindingId, Arc<CommandBinding>> {
-            &self.all_bindings
-        }
-        fn bindings_mut(&mut self) -> &mut HashMap<BindingId, Arc<CommandBinding>> {
-            &mut self.all_bindings
-        }
-    }
-
-    impl FullTextActionSearcher {
-        pub(crate) fn new() -> Self {
-            Self {
-                searcher: ACTION_SEARCH_SCHEMA.create_searcher(DEFAULT_MEMORY_BUDGET),
-                all_bindings: Default::default(),
-            }
-        }
-
-        fn rebuild_search_index(&mut self) -> Result<(), anyhow::Error> {
-            self.clear_search_index();
-            let documents = self.all_bindings.iter().map(|(id, binding)| {
-                let binding_description = binding
-                    .description
-                    .in_context(DescriptionContext::Default)
-                    .to_lowercase();
-
-                ActionDocument {
-                    action: binding_description,
-                    id: id.0 as u64,
-                }
-            });
-            self.searcher.build_index(documents)
-        }
-
-        fn clear_search_index(&mut self) {
-            if self.searcher.clear_search_index().is_err() {
-                // As a workaround, we can create a new index and replace the old one.
-                self.searcher = ACTION_SEARCH_SCHEMA.create_searcher(DEFAULT_MEMORY_BUDGET);
-            }
-        }
-    }
-}
-
-// Context on why the search_drive action is excluded can be seen here: https://github.com/warpdotdev/warp-internal/pull/11705
-fn is_excluded_binding(binding: &CommandBinding) -> bool {
-    binding.name == *"workspace:search_drive"
 }

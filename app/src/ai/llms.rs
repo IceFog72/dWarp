@@ -182,28 +182,6 @@ impl LLMInfo {
             None => self.display_name.clone(),
         }
     }
-
-    #[cfg(feature = "integration_tests")]
-    fn new_for_test(llm_name: &str) -> Self {
-        Self {
-            display_name: llm_name.to_string(),
-            base_model_name: llm_name.to_string(),
-            id: llm_name.into(),
-            reasoning_level: None,
-            usage_metadata: LLMUsageMetadata {
-                request_multiplier: 1,
-                credit_multiplier: None,
-            },
-            description: None,
-            disable_reason: None,
-            vision_supported: false, // Default to false for tests
-            spec: None,
-            provider: LLMProvider::Unknown,
-            host_configs: HashMap::new(),
-            discount_percentage: None,
-            context_window: LLMContextWindow::default(),
-        }
-    }
 }
 
 /// The set of LLMs available for a feature.
@@ -260,15 +238,6 @@ impl AvailableLLMs {
     fn default_llm_info(&self) -> &LLMInfo {
         self.info_for_id(&self.default_id)
             .expect("Default LLM ID must be present in choices")
-    }
-
-    #[cfg(feature = "integration_tests")]
-    pub fn new_for_test(llm_name: &str) -> Self {
-        Self {
-            default_id: llm_name.into(),
-            choices: vec![LLMInfo::new_for_test(llm_name)],
-            preferred_codex_model_id: None,
-        }
     }
 }
 

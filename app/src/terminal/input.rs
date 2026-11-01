@@ -13,7 +13,6 @@ pub mod slash_commands;
 mod suggestions_mode_menu;
 pub mod suggestions_mode_model;
 mod terminal;
-mod terminal_message_bar;
 
 use crate::ai::skills::SkillManager;
 use crate::context_chips::spacing;
@@ -40,7 +39,6 @@ use crate::terminal::input::slash_commands::{InlineSlashCommandView, SlashComman
 use crate::terminal::input::suggestions_mode_model::{
     InputSuggestionsModeEvent, InputSuggestionsModeModel,
 };
-use crate::terminal::input::terminal_message_bar::TerminalInputMessageBar;
 use crate::terminal::model::session::active_session::ActiveSession;
 use crate::terminal::package_installers::command_at_cursor_has_common_package_installer_prefix;
 use crate::terminal::prompt_render_helper::should_render_ps1_prompt;
@@ -101,7 +99,7 @@ use crate::{
         },
         QueryFilter,
     },
-    server::{server_api::ServerApi, telemetry::CommandXRayTrigger},
+    server::telemetry::CommandXRayTrigger,
     session_management::SessionNavigationPromptElements,
     settings::{
         AISettings, AISettingsChangedEvent, AliasExpansionSettings, AppEditorSettings,
@@ -1082,7 +1080,6 @@ pub struct Input {
     menu_positioning_provider: Arc<dyn MenuPositioningProvider>,
     tips_completed: ModelHandle<TipsCompleted>,
     editor: ViewHandle<EditorView>,
-    server_api: Arc<ServerApi>,
     input_suggestions: ViewHandle<InputSuggestions>,
     suggestions_mode_model: ModelHandle<InputSuggestionsModeModel>,
     completions_menu_resizable_width: ResizableStateHandle,
@@ -1169,8 +1166,6 @@ pub struct Input {
     conn: Option<Arc<Mutex<SqliteConnection>>>,
 
     universal_developer_input_button_bar: ViewHandle<UniversalDeveloperInputButtonBar>,
-
-    terminal_input_message_bar: ViewHandle<TerminalInputMessageBar>,
 
     agent_input_footer: ViewHandle<AgentInputFooter>,
 
@@ -1497,7 +1492,6 @@ impl Input {
     pub(crate) fn new(
         model: Arc<FairMutex<TerminalModel>>,
         tips_completed: ModelHandle<TipsCompleted>,
-        server_api: Arc<ServerApi>,
         sessions: ModelHandle<Sessions>,
         size_info: SizeInfo,
         menu_positioning_provider: Arc<dyn MenuPositioningProvider>,
@@ -1859,12 +1853,6 @@ impl Input {
                 me.handle_inline_history_menu_event(event, ctx);
             });
         }
-        let inline_history_model = inline_history_menu_view.as_ref(ctx).model().clone();
-
-        let terminal_input_message_bar = ctx.add_view(|ctx| {
-            TerminalInputMessageBar::new(suggestions_mode_model.clone(), inline_history_model, ctx)
-        });
-
         current_prompt.update(ctx, |prompt_type, ctx| {
             if let PromptType::Dynamic { prompt } = prompt_type {
                 prompt.update(ctx, |current_prompt, ctx| {
@@ -2055,7 +2043,6 @@ impl Input {
             tips_completed,
             editor,
             model,
-            server_api,
             sessions,
             focus_handle: None,
             active_block_metadata: None,
@@ -2074,7 +2061,6 @@ impl Input {
             completions_abort_handle: None,
             menu_positioning_provider,
             universal_developer_input_button_bar,
-            terminal_input_message_bar,
             prompt_render_helper,
             prompt_type: current_prompt,
             enable_autosuggestions_setting: *editor_settings_handle

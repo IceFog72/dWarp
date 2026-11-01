@@ -97,10 +97,6 @@ impl TerminalView {
         Some(self.shared_session.as_ref()?.session_id())
     }
 
-    fn shared_session_source_type(&self) -> Option<&SessionSourceType> {
-        Some(self.shared_session.as_ref()?.source_type())
-    }
-
     pub(super) fn handle_viewer_role_change_menu_event(
         &mut self,
         event: &MenuEvent,

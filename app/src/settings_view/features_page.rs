@@ -737,10 +737,6 @@ fn block_maximum_rows_description() -> String {
     )
 }
 
-fn to_string(b: bool) -> String {
-    format!("{b}")
-}
-
 impl FeaturesPageAction {}
 
 #[derive(Default)]

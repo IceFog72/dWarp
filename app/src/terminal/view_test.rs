@@ -49,29 +49,6 @@ use crate::test_util::{add_window_with_terminal, assert_eventually};
 
 use super::*;
 
-struct TestTerminalManager {
-    model: Arc<FairMutex<TerminalModel>>,
-    view: ViewHandle<TerminalView>,
-}
-
-impl TerminalManager for TestTerminalManager {
-    fn model(&self) -> Arc<FairMutex<TerminalModel>> {
-        self.model.clone()
-    }
-
-    fn view(&self) -> ViewHandle<TerminalView> {
-        self.view.clone()
-    }
-
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-
-    fn as_any_mut(&mut self) -> &mut dyn Any {
-        self
-    }
-}
-
 /// Test to verify that blocks created through normal execution
 /// have the correct local status set
 #[test]

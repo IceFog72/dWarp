@@ -1,10 +1,8 @@
-use std::ops::Range;
-
 use ai::diff_validation::DiffType;
 use warp_editor::render::element::VerticalExpansionBehavior;
 use warpui::elements::new_scrollable::ScrollableAppearance;
 use warpui::elements::ScrollbarWidth;
-use warpui::{AppContext, View, ViewContext, ViewHandle};
+use warpui::{View, ViewContext, ViewHandle};
 
 use super::editor::scroll::ScrollWheelBehavior;
 use super::editor::view::CodeEditorView;
@@ -28,14 +26,6 @@ pub enum DisplayMode {
 }
 
 impl DisplayMode {
-    pub fn max_height(&self) -> Option<f32> {
-        match self {
-            DisplayMode::FullPane => None,
-            DisplayMode::Embedded { max_height } => Some(*max_height),
-            DisplayMode::InlineBanner { max_height, .. } => Some(*max_height),
-        }
-    }
-
     pub(crate) fn scroll_wheel_behavior(&self) -> ScrollWheelBehavior {
         match self {
             DisplayMode::InlineBanner {
@@ -76,13 +66,6 @@ impl DisplayMode {
     pub(crate) fn show_nav_bar(&self) -> bool {
         !matches!(self, DisplayMode::InlineBanner { .. })
     }
-
-    pub fn title(&self) -> Option<&str> {
-        match self {
-            DisplayMode::InlineBanner { .. } => Some("Suggested fixes based on your last command:"),
-            _ => None,
-        }
-    }
 }
 
 /// A shared trait for views that display an inline diff.
@@ -93,16 +76,6 @@ where
 {
     fn editor(&self) -> &ViewHandle<CodeEditorView>;
     fn diff(&self) -> Option<&DiffType>;
-
-    #[cfg_attr(target_family = "wasm", allow(dead_code))]
-    fn was_edited(&self) -> bool {
-        false
-    }
-
-    #[cfg_attr(target_family = "wasm", allow(dead_code))]
-    fn changed_lines(&self, ctx: &AppContext) -> Vec<Range<usize>> {
-        self.editor().as_ref(ctx).changed_lines(ctx)
-    }
 
     fn set_display_mode(&self, mode: DisplayMode, ctx: &mut ViewContext<Self>) {
         let is_delete = matches!(self.diff(), Some(DiffType::Delete { .. }));
@@ -117,21 +90,5 @@ where
         });
     }
 
-    fn navigate_next_diff_hunk(&self, ctx: &mut ViewContext<Self>) {
-        self.editor()
-            .update(ctx, |editor, ctx| editor.navigate_next_diff_hunk(ctx));
-    }
-
-    fn navigate_previous_diff_hunk(&self, ctx: &mut ViewContext<Self>) {
-        self.editor()
-            .update(ctx, |editor, ctx| editor.navigate_previous_diff_hunk(ctx));
-    }
-
-    fn accept_and_save_diff(&self, _ctx: &mut ViewContext<Self>) {}
-
     fn reject_diff(&mut self, _ctx: &mut ViewContext<Self>) {}
-
-    fn restore_diff_base(&mut self, _ctx: &mut ViewContext<Self>) -> Result<(), String> {
-        Ok(())
-    }
 }

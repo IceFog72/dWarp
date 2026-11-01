@@ -128,13 +128,6 @@ where
         }
     }
 
-    pub fn set_menu_header_text_override<F>(&mut self, formatter: F)
-    where
-        F: Fn(&str) -> String + 'static,
-    {
-        self.menu_header_text_override = Some(Box::new(formatter));
-    }
-
     pub fn set_footer<F>(&mut self, builder: F, ctx: &mut ViewContext<Self>)
     where
         F: Fn(&AppContext) -> Box<dyn Element> + 'static,
@@ -146,19 +139,6 @@ where
         self.dropdown.update(ctx, |menu, _| {
             menu.set_pinned_footer_builder(builder);
         });
-    }
-
-    /// Set the main_axis_size behavior for the dropdown header button.
-    ///
-    /// Default is MainAxisSize::Max, set to MainAxisSize::Min if you want to wrap the dropdown to
-    /// the text that's filling it.
-    pub fn set_main_axis_size(
-        &mut self,
-        main_axis_size: MainAxisSize,
-        ctx: &mut ViewContext<Self>,
-    ) {
-        self.main_axis_size = main_axis_size;
-        ctx.notify();
     }
 
     pub fn set_style(&mut self, style: UiComponentStyles) {
@@ -186,43 +166,6 @@ where
             self.selected_item = None;
             ctx.notify();
         }
-    }
-
-    /// Set items from rich menu items (MenuItem). This passes the rich menu items to the
-    /// internal dropdown but also extracts searchable DropdownItem objects for filtering.
-    pub fn set_rich_items(
-        &mut self,
-        items: Vec<MenuItem<DropdownAction<A>>>,
-        ctx: &mut ViewContext<Self>,
-    ) {
-        // Extract simple DropdownItem objects from MenuItem for filtering
-        self.items = items
-            .iter()
-            .filter_map(|item| match item {
-                MenuItem::Item(fields) => {
-                    let label = fields.label().to_string();
-                    fields.on_select_action().and_then(|action| {
-                        if let DropdownAction::SelectActionAndClose(a) = action {
-                            Some(DropdownItem::new(label, a.clone()))
-                        } else {
-                            None
-                        }
-                    })
-                }
-                _ => None, // Skip headers and separators
-            })
-            .collect();
-
-        // Set the full rich items on the internal dropdown
-        self.dropdown.update(ctx, |dropdown, ctx| {
-            dropdown.set_items(items, ctx);
-        });
-        ctx.notify();
-    }
-
-    /// The number of items in the dropdown.
-    pub fn len(&self) -> usize {
-        self.items.len()
     }
 
     #[expect(dead_code)]
@@ -261,21 +204,6 @@ where
         self.dropdown.update(ctx, |dropdown, ctx| {
             dropdown.set_selected_by_index(selected_index, ctx);
             ctx.notify();
-        });
-        self.selected_item = self.selected_item_in_dropdown(ctx);
-        ctx.notify();
-    }
-
-    /// Select the dropdown item whose on-select action equals the given action. If no such item exists,
-    /// this clears the selection.
-    ///
-    /// This is primarily useful when items are dynamically generated and correspond to some backing data that's captured by the action.
-    pub fn set_selected_by_action(&mut self, action: A, ctx: &mut ViewContext<Self>)
-    where
-        A: PartialEq,
-    {
-        self.dropdown.update(ctx, |dropdown, ctx| {
-            dropdown.set_selected_by_action(&DropdownAction::SelectActionAndClose(action), ctx);
         });
         self.selected_item = self.selected_item_in_dropdown(ctx);
         ctx.notify();

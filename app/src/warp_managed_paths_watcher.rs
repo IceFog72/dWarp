@@ -1,4 +1,3 @@
-use dirs::home_dir;
 use std::path::{Path, PathBuf};
 #[cfg(not(target_family = "wasm"))]
 use std::{fs, sync::Arc, time::Duration};
@@ -60,23 +59,8 @@ pub(crate) fn warp_home_mcp_config_file_path() -> Option<PathBuf> {
     warp_core::paths::warp_home_mcp_config_file_path()
 }
 
-#[cfg_attr(target_family = "wasm", allow(dead_code))]
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct WarpMcpConfigPath {
-    pub(crate) root_path: PathBuf,
-    pub(crate) config_path: PathBuf,
-}
-
 pub(crate) fn warp_managed_skill_dirs() -> Vec<PathBuf> {
     warp_home_skills_dir().into_iter().collect()
-}
-
-#[cfg_attr(target_family = "wasm", allow(dead_code))]
-pub(crate) fn warp_managed_mcp_config_path() -> Option<WarpMcpConfigPath> {
-    Some(WarpMcpConfigPath {
-        root_path: home_dir()?,
-        config_path: warp_home_mcp_config_file_path()?,
-    })
 }
 
 #[cfg_attr(target_family = "wasm", allow(dead_code))]
@@ -358,15 +342,14 @@ impl SingletonEntity for WarpManagedPathsWatcher {}
 
 #[cfg(test)]
 mod tests {
-    use dirs::home_dir;
+
     use std::collections::{HashMap, HashSet};
     use std::path::PathBuf;
 
     use repo_metadata::{RepositoryUpdate, TargetFile};
 
     use super::{
-        filter_repository_update_by_prefix, warp_home_mcp_config_file_path, warp_home_skills_dir,
-        warp_managed_mcp_config_path, warp_managed_skill_dirs,
+        filter_repository_update_by_prefix, warp_home_skills_dir, warp_managed_skill_dirs,
     };
 
     #[test]
@@ -375,22 +358,6 @@ mod tests {
         match warp_home_skills_dir() {
             Some(warp_home_skills_dir) => assert_eq!(dirs, vec![warp_home_skills_dir]),
             None => assert!(dirs.is_empty()),
-        }
-    }
-
-    #[test]
-    fn warp_managed_mcp_config_path_contains_only_warp_home_path() {
-        match (
-            home_dir(),
-            warp_home_mcp_config_file_path(),
-            warp_managed_mcp_config_path(),
-        ) {
-            (Some(home_dir), Some(warp_home_mcp_config_path), Some(path)) => {
-                assert_eq!(path.root_path, home_dir);
-                assert_eq!(path.config_path, warp_home_mcp_config_path);
-            }
-            (_, _, None) => {}
-            _ => panic!("Expected Warp MCP path when home directory is available"),
         }
     }
 

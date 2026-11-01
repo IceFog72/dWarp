@@ -81,7 +81,7 @@ use repo_metadata::repositories::{DetectedRepositories, RepoDetectionSource};
 use session_sharing_protocol::common::LongRunningCommandAgentInteractionState;
 use session_sharing_protocol::sharer::{RoleUpdateReason, SessionEndedReason};
 use ssh_file_upload::{FileUpload, FileUploadEvent};
-use warpui::elements::{shimmering_text::ShimmeringTextStateHandle, ChildView};
+use warpui::elements::ChildView;
 use warpui::fonts::Properties;
 use warpui::ViewHandle;
 
@@ -227,7 +227,6 @@ use warpui::event::ModifiersState;
 use warpui::keymap::Keystroke;
 use warpui::notification::{NotificationSendError, RequestPermissionsOutcome, UserNotification};
 use warpui::platform::{Cursor, OperatingSystem};
-use warpui::r#async::executor::Background;
 use warpui::r#async::Timer;
 use warpui::windowing::WindowManager;
 
@@ -270,7 +269,6 @@ use crate::pane_group::{
 use crate::resource_center::{
     mark_feature_used_and_write_to_user_defaults, Tip, TipHint, TipsCompleted,
 };
-use crate::server::server_api::ServerApi;
 use crate::server::telemetry::PaletteSource;
 use crate::session_management::{CommandContext, SessionNavigationPromptElements};
 use crate::settings::{cpu_renderer_active, cpu_terminal_frame_interval};
@@ -926,16 +924,6 @@ impl SizeUpdateBuilder {
         // Shared session updates don't change the actual pane / content sizes.
         Self {
             update_reason: SizeUpdateReason::SharerSizeChanged { num_rows, num_cols },
-            last_size,
-            new_pane_size_px: last_size.pane_size_px(),
-        }
-    }
-
-    #[cfg(not(target_arch = "wasm32"))]
-    fn for_viewer_size_report(last_size: SizeInfo, num_rows: usize, num_cols: usize) -> Self {
-        // Viewer size reports don't change the sharer's actual pane size.
-        Self {
-            update_reason: SizeUpdateReason::ViewerSizeReported { num_rows, num_cols },
             last_size,
             new_pane_size_px: last_size.pane_size_px(),
         }
@@ -1837,8 +1825,6 @@ pub struct TerminalView {
 
     mouse_states: TerminalViewMouseStates,
 
-    server_api: Arc<ServerApi>,
-
     /// A sender used to handle messages for whenever the entire terminal view
     /// changes size.  Note that this size contains not just the content element
     /// but also the input.
@@ -1854,7 +1840,6 @@ pub struct TerminalView {
 
     last_hover_fragment_boundary: Option<WithinModel<FragmentBoundary>>,
 
-    bootstrap_start: Option<Instant>,
     is_login_shell_bootstrapped: bool,
     /// Set when a pending command is submitted to the shell. Cleared on the
     /// next `AfterBlockCompleted`, at which point `Event::PendingCommandCompleted`
@@ -1891,10 +1876,6 @@ pub struct TerminalView {
     active_block_metadata: Option<BlockMetadata>,
 
     block_text_selection_start_position: Option<Vector2F>,
-
-    /// Background executor for sending telemetry when a TerminalView is
-    /// dropped.
-    background_executor: Arc<Background>,
 
     inline_banners_state: InlineBannersState,
 
@@ -2087,10 +2068,6 @@ pub struct TerminalView {
     /// Used by `SizeUpdateBuilder::build()` to prevent `AfterLayout` from
     /// overriding the viewer-reported size back to the sharer's natural pane size.
     active_viewer_driven_size: Option<(usize, usize)>,
-
-    /// State handle for the shimmering text animation in the remote server loading footer.
-    /// Persisted across renders so the animation doesn't restart.
-    remote_server_shimmer_handle: ShimmeringTextStateHandle,
 }
 
 /// Parameters stashed when a code review pane open is requested with
@@ -2379,7 +2356,6 @@ impl TerminalView {
             Input::new(
                 model.clone(),
                 resources.tips_completed.clone(),
-                resources.server_api.clone(),
                 sessions.clone(),
                 size_info,
                 menu_positioning_provider,
@@ -2724,13 +2700,11 @@ impl TerminalView {
             mouse_states: Default::default(),
             open_grid_link_tool_tip: None,
             open_rich_content_link_tool_tip: None,
-            server_api: resources.server_api.clone(),
             find_bar,
             resize_tx,
             find_link_tx,
             highlighted_link: HighlightedLinkOption::default(),
             last_hover_fragment_boundary: None,
-            bootstrap_start: None,
             is_login_shell_bootstrapped: false,
             awaiting_pending_command_completion: false,
             pending_launch_command: None,
@@ -2745,10 +2719,8 @@ impl TerminalView {
             pane_configuration,
             focus_handle: None,
             sessions,
-            remote_server_shimmer_handle: ShimmeringTextStateHandle::new(),
             active_block_metadata: None,
             block_text_selection_start_position: None,
-            background_executor: ctx.background_executor().clone(),
             inline_banners_state: Default::default(),
             bookmarked_blocks: Default::default(),
             file_link_scanning_join_handle: None,
@@ -7748,15 +7720,6 @@ impl TerminalView {
         ToastStack::handle(ctx).update(ctx, |toast_stack, ctx| {
             let toast = DismissibleToast::new(text, flavor);
             toast_stack.add_persistent_toast(toast, window_id, ctx);
-        });
-    }
-
-    /// Adds ephemeral error toast to toast stack.
-    fn show_error_toast(&mut self, text: String, ctx: &mut ViewContext<Self>) {
-        let window_id = ctx.window_id();
-        ToastStack::handle(ctx).update(ctx, |toast_stack, ctx| {
-            let toast = DismissibleToast::error(text);
-            toast_stack.add_ephemeral_toast(toast, window_id, ctx);
         });
     }
 
@@ -13124,10 +13087,6 @@ impl TerminalView {
     #[cfg(feature = "integration_tests")]
     pub fn active_filter_editor_block_index(&self) -> Option<BlockIndex> {
         self.active_filter_editor_block_index
-    }
-
-    pub(crate) fn view_id(&self) -> EntityId {
-        self.view_id
     }
 
     fn cursor_position_id(&self) -> String {
