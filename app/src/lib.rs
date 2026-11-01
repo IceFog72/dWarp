@@ -748,10 +748,20 @@ fn run_internal(mut launch_mode: LaunchMode) -> Result<()> {
 
     #[cfg(any(target_os = "linux", target_os = "freebsd"))]
     {
+        use crate::channel::Channel;
         use crate::settings::ForceX11;
         use warpui::platform::linux::{self, AppBuilderExt};
 
-        app_builder.set_window_class(ChannelState::app_id().to_string());
+        app_builder.set_window_class(ChannelState::channel().desktop_file_id().to_owned());
+        if ChannelState::channel() == Channel::Oss {
+            let icon = image::load_from_memory_with_format(
+                include_bytes!("../channels/oss/icon/no-padding/64x64.png"),
+                image::ImageFormat::Png,
+            )?
+            .into_rgba8();
+            let (width, height) = icon.dimensions();
+            app_builder.set_window_icon(icon.into_raw(), width, height)?;
+        }
 
         let force_x11 = ForceX11::read_from_preferences(prefs_for_public_settings)
             .unwrap_or(ForceX11::default_value());

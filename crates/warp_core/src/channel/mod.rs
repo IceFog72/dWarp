@@ -34,6 +34,18 @@ impl Channel {
         }
     }
 
+    /// Returns the installed Linux desktop entry ID, independently of the data domain.
+    pub fn desktop_file_id(&self) -> &'static str {
+        match self {
+            Channel::Stable => "dev.warp.Warp",
+            Channel::Preview => "dev.warp.WarpPreview",
+            Channel::Dev => "dev.warp.WarpDev",
+            Channel::Local => "dev.warp.WarpLocal",
+            Channel::Oss => "dev.warp.OpenWarp",
+            Channel::Integration => "dev.warp.WarpIntegration",
+        }
+    }
+
     /// Returns the CLI command name corresponding to this channel.
     pub fn cli_command_name(&self) -> &'static str {
         match self {
@@ -59,3 +71,7 @@ impl fmt::Display for Channel {
         })
     }
 }
+
+#[cfg(test)]
+#[path = "desktop_id_tests.rs"]
+mod desktop_id_tests;

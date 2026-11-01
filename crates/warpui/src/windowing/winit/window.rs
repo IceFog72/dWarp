@@ -829,6 +829,7 @@ impl Window {
         window_target: &ActiveEventLoop,
         window_options: WindowOptions,
         window_class: &Option<String>,
+        window_icon: &Option<winit::window::Icon>,
         tiling_window_manager: bool,
         downrank_non_nvidia_vulkan_adapters: bool,
     ) -> Result<winit::window::WindowId> {
@@ -836,6 +837,7 @@ impl Window {
             window_target,
             &window_options,
             window_class,
+            window_icon,
             tiling_window_manager,
         )?;
 
@@ -1572,6 +1574,7 @@ fn create_window(
     window_target: &ActiveEventLoop,
     _window_options: &WindowOptions,
     _window_class: &Option<String>,
+    _window_icon: &Option<winit::window::Icon>,
     _tiling_window_manager: bool,
 ) -> Result<winit::window::Window> {
     use winit::platform::web::WindowAttributesExtWebSys;
@@ -1607,6 +1610,7 @@ fn create_window(
     window_target: &ActiveEventLoop,
     window_options: &WindowOptions,
     _window_class: &Option<String>,
+    window_icon: &Option<winit::window::Icon>,
     tiling_window_manager: bool,
 ) -> Result<winit::window::Window> {
     let decorations = !window_options.hide_title_bar;
@@ -1630,7 +1634,8 @@ fn create_window(
         .with_min_inner_size(MIN_WINDOW_SIZE)
         .with_decorations(decorations)
         .with_window_level(window_level_for_style(window_options.style))
-        .with_transparent(transparent);
+        .with_transparent(transparent)
+        .with_window_icon(window_icon.clone());
 
     if let Some(title) = &window_options.title {
         window_attributes.title = title.to_owned();

@@ -2,6 +2,8 @@
 // for the linux platform.
 pub use crate::windowing::winit::app::App;
 
+use anyhow::Result;
+
 use crate::{
     windowing::{self, WindowingSystem},
     AppContext,
@@ -19,6 +21,9 @@ pub trait AppBuilderExt {
     /// .desktop file and associated resources (like app icons).
     fn set_window_class(&mut self, window_class: String);
 
+    /// Sets the native window icon from RGBA pixels.
+    fn set_window_icon(&mut self, rgba: Vec<u8>, width: u32, height: u32) -> Result<()>;
+
     /// Whether or not to force the use of XWayland for users running Wayland.
     fn force_x11(&mut self, force_x11: bool);
 }
@@ -28,6 +33,13 @@ impl AppBuilderExt for super::AppBuilder {
         match self.as_inner_mut() {
             AppBackend::CurrentPlatform(app) => app.set_window_class(window_class),
             AppBackend::Headless(_) => (),
+        }
+    }
+
+    fn set_window_icon(&mut self, rgba: Vec<u8>, width: u32, height: u32) -> Result<()> {
+        match self.as_inner_mut() {
+            AppBackend::CurrentPlatform(app) => app.set_window_icon(rgba, width, height),
+            AppBackend::Headless(_) => Ok(()),
         }
     }
 

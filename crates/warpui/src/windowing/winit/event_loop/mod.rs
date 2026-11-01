@@ -572,6 +572,7 @@ pub(super) struct EventLoop {
     callbacks: AppCallbackDispatcher,
     init_fn: Option<platform::app::AppInitCallbackFn>,
     window_class: Option<String>,
+    window_icon: Option<winit::window::Icon>,
     state: State,
     proxy: EventLoopProxy<CustomEvent>,
     ime_enabled: bool,
@@ -600,6 +601,7 @@ impl EventLoop {
         callbacks: platform::AppCallbacks,
         init_fn: impl FnOnce(&mut AppContext, LocalBoxFuture<'static, crate::App>) + 'static,
         window_class: Option<String>,
+        window_icon: Option<winit::window::Icon>,
         proxy: EventLoopProxy<CustomEvent>,
     ) -> Self {
         let cpu_frame_policy = Self::compute_cpu_frame_policy();
@@ -609,6 +611,7 @@ impl EventLoop {
             callbacks: AppCallbackDispatcher::new(callbacks, ui_app),
             init_fn: Some(Box::new(init_fn)),
             window_class,
+            window_icon,
             state: Default::default(),
             proxy,
             ime_enabled: false,
@@ -758,6 +761,7 @@ impl EventLoop {
                     window_target,
                     window_options,
                     &self.window_class,
+                    &self.window_icon,
                     is_tiling_window_manager,
                     self.downrank_non_nvidia_vulkan_adapters,
                 ) {
