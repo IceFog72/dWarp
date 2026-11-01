@@ -52,16 +52,7 @@ pub fn with_conn<R>(f: impl FnOnce(&mut SqliteConnection) -> Result<R>) -> Resul
     let mut guard = mtx
         .lock()
         .map_err(|_| anyhow!("warp_ssh_manager db mutex poisoned"))?;
-    f(&mut *guard)
-}
-
-/// Injects a pre-built connection for use in tests (bypasses the `OnceLock`).
-/// **Not repeatable** — once set the `OnceLock` cannot be overwritten.
-/// Tests intentionally share the same in-memory DB; each test is responsible
-/// for its own cleanup.
-#[cfg(test)]
-pub(crate) fn install_for_test(conn: SqliteConnection) {
-    let _ = CONN.set(Mutex::new(conn));
+    f(&mut guard)
 }
 
 /// Initialises an in-memory SQLite database for tests that instantiate views

@@ -1678,8 +1678,7 @@ impl EventLoop {
             return ApproveTerminateResult::Terminate;
         }
 
-        let approve_terminate_result = self.callbacks.should_terminate_app();
-        approve_terminate_result
+        self.callbacks.should_terminate_app()
     }
 
     fn handle_ime_event(&mut self, winit_window_id: WinitWindowId, event: ImeEvent) {
