@@ -26,6 +26,18 @@ pub enum Channel {
 }
 
 impl Channel {
+    /// The product name, independent of persistent storage identifiers.
+    pub fn display_name(&self) -> &'static str {
+        match self {
+            Channel::Stable => "Warp",
+            Channel::Preview => "WarpPreview",
+            Channel::Dev => "WarpDev",
+            Channel::Local => "WarpLocal",
+            Channel::Oss => "dWarp",
+            Channel::Integration => "WarpIntegration",
+        }
+    }
+
     /// Whether or not this channel is for internal use only
     pub fn is_dogfood(&self) -> bool {
         match self {
@@ -41,7 +53,7 @@ impl Channel {
             Channel::Preview => "dev.warp.WarpPreview",
             Channel::Dev => "dev.warp.WarpDev",
             Channel::Local => "dev.warp.WarpLocal",
-            Channel::Oss => "dev.warp.OpenWarp",
+            Channel::Oss => "dev.warp.dWarp",
             Channel::Integration => "dev.warp.WarpIntegration",
         }
     }
@@ -54,7 +66,7 @@ impl Channel {
             Channel::Preview => "oz-preview",
             Channel::Local => "oz-local",
             Channel::Integration => "oz-integration",
-            Channel::Oss => "warp-oss",
+            Channel::Oss => "dwarp",
         }
     }
 }

@@ -172,7 +172,7 @@ Workspace: {{ cwd }}
 {% endif %}
 Reply concisely in {{ locale }}.`;
   const rendered = `You are an expert Rust engineer.
-Workspace: ~/projects/openwarp
+Workspace: ~/projects/dwarp
 Reply concisely in zh-CN.`;
   return (
     <motion.div {...fadeIn} className="absolute inset-0 flex items-center p-8">
@@ -250,11 +250,11 @@ function StepUse() {
           <span className="h-2.5 w-2.5 rounded-full bg-[#febc2e]" />
           <span className="h-2.5 w-2.5 rounded-full bg-[#28c840]" />
           <span className="ml-3 text-[10px] text-zinc-500">
-            openwarp · ready
+            dwarp · ready
           </span>
         </div>
         {[
-          { t: "$ openwarp", delay: 0 },
+          { t: "$ dwarp", delay: 0 },
           { t: "✓ deepseek-r1 connected · 42ms", tone: "lime", delay: 0.4 },
           { t: "❯ /model qwen2.5-coder", delay: 0.85 },
           { t: "◆ switched · context preserved", tone: "cyan", delay: 1.2 },

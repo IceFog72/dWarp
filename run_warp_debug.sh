@@ -9,8 +9,8 @@ export MALLOC_TRIM_THRESHOLD_=131072
 export RUST_LOG="info,wgpu=warn,wgpu_hal=warn,naga=warn,warp::terminal::view=info"
 
 echo "Starting Warp with the CPU renderer (Zero VRAM)..."
-echo "Target: target/release/warp-oss"
+echo "Target: target/release/dwarp"
 
 # Build and run the OSS version
 # Using --release for better CPU renderer performance
-cargo run --release -p warp --bin warp-oss --features gui -- "$@"
+cargo run --release -p warp --bin dwarp --features gui -- "$@"

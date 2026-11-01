@@ -1,8 +1,8 @@
 export const zhCN = {
   meta: {
-    title: "OpenWarp — 为 Warp 解锁自定义 AI 提供商",
+    title: "dWarp — 为 Warp 解锁自定义 AI 提供商",
     description:
-      "OpenWarp 是 Warp 的开放式增强项目。通过 genai 适配层原生接入 OpenAI / Anthropic / Gemini / DeepSeek / Ollama 等多协议提供商,自定义系统提示词,享受真正属于你的智能终端。",
+      "dWarp 是 Warp 的开放式增强项目。通过 genai 适配层原生接入 OpenAI / Anthropic / Gemini / DeepSeek / Ollama 等多协议提供商,自定义系统提示词,享受真正属于你的智能终端。",
   },
   nav: {
     how: "工作方式",
@@ -18,7 +18,7 @@ export const zhCN = {
     title_em: "任意 AI 模型",
     title_2: "接入你的终端",
     subtitle:
-      "OpenWarp 是 Warp 的开源增强版,引入 BYOP(自带提供商)层,通过 genai 原生支持 6 种 API 协议,自定义模型、提示词与界面语言。",
+      "dWarp 是 Warp 的开源增强版,引入 BYOP(自带提供商)层,通过 genai 原生支持 6 种 API 协议,自定义模型、提示词与界面语言。",
     cta_primary: "查看 GitHub",
     cta_secondary: "阅读文档",
     note: "当前项目处于早期开发,尚未发布正式版本",
@@ -64,7 +64,7 @@ export const zhCN = {
     eyebrow: "自定义提供商",
     title: "一次配置,接入任意模型",
     subtitle:
-      "OpenWarp 通过 genai 适配层原生支持 6 种 API 协议:OpenAI / OpenAI Responses / Anthropic / Gemini / Ollama / DeepSeek。协议显式指定,不依赖模型名识别,凭证与请求直连服务商,无中间转发。",
+      "dWarp 通过 genai 适配层原生支持 6 种 API 协议:OpenAI / OpenAI Responses / Anthropic / Gemini / Ollama / DeepSeek。协议显式指定,不依赖模型名识别,凭证与请求直连服务商,无中间转发。",
     fields: {
       name: "提供商名称",
       protocol: "API 协议",
@@ -169,19 +169,19 @@ export const zhCN = {
   },
   faq: {
     eyebrow: "常见问题",
-    title: "关于 OpenWarp",
+    title: "关于 dWarp",
     items: [
       {
-        q: "OpenWarp 与 Warp 官方是什么关系?",
-        a: "OpenWarp 是基于 Warp 开源代码的社区分支,与 Warp 官方公司无附属关系,遵循上游的 AGPL / MIT 双许可。",
+        q: "dWarp 与 Warp 官方是什么关系?",
+        a: "dWarp 是基于 Warp 开源代码的社区分支,与 Warp 官方公司无附属关系,遵循上游的 AGPL / MIT 双许可。",
       },
       {
         q: "我的 API Key 会被上传吗?",
-        a: "不会。所有自定义提供商凭证仅保存在本地配置文件中,直接由 OpenWarp 与你指定的 Base URL 通信,不经任何中转。",
+        a: "不会。所有自定义提供商凭证仅保存在本地配置文件中,直接由 dWarp 与你指定的 Base URL 通信,不经任何中转。",
       },
       {
         q: "支持哪些模型提供商?",
-        a: "OpenWarp 内置 genai 多协议适配,原生支持 OpenAI / OpenAI Responses / Anthropic / Gemini / Ollama / DeepSeek 共 6 种协议;OpenAI 兼容端点(Qwen / Groq / Together / OpenRouter / SiliconFlow / LM Studio 等)选 OpenAI 协议并填 Base URL 即可接入。",
+        a: "dWarp 内置 genai 多协议适配,原生支持 OpenAI / OpenAI Responses / Anthropic / Gemini / Ollama / DeepSeek 共 6 种协议;OpenAI 兼容端点(Qwen / Groq / Together / OpenRouter / SiliconFlow / LM Studio 等)选 OpenAI 协议并填 Base URL 即可接入。",
       },
       {
         q: "能继续收到 Warp 上游更新吗?",
@@ -235,11 +235,11 @@ export const zhCN = {
     },
   },
   roadmap: {
-    meta_title: "OpenWarp 路线图 — 进行中与计划中的增强",
+    meta_title: "dWarp 路线图 — 进行中与计划中的增强",
     meta_description:
-      "OpenWarp 在 Warp 上游之上的增强路线图:国际化、客户端分词器多语言、提供商扩展、SSH 管理器。",
+      "dWarp 在 Warp 上游之上的增强路线图:国际化、客户端分词器多语言、提供商扩展、SSH 管理器。",
     eyebrow: "路线图",
-    title: "OpenWarp 路线图",
+    title: "dWarp 路线图",
     subtitle:
       "每一条都对应仓库中已合并或进行中的 commit。绿色=已交付,蓝色=进行中,灰色=计划中。",
     legend: {
@@ -398,7 +398,7 @@ export const zhCN = {
         eyebrow: "05 · 解耦云端",
         title: "切断默认云端依赖",
         summary:
-          "OpenWarp 是纯本地分支:云账号刷新、远端用户持久化、Plan 同步、passive suggestions HTTP 等连回 Warp Inc 的链路均已就地禁用,凭证与请求只发往你配置的服务商。",
+          "dWarp 是纯本地分支:云账号刷新、远端用户持久化、Plan 同步、passive suggestions HTTP 等连回 Warp Inc 的链路均已就地禁用,凭证与请求只发往你配置的服务商。",
         progress: 75,
         items: [
           { status: "shipped", text: "移除 Cloud Agent / Computer Use 入口" },
@@ -433,7 +433,7 @@ export const zhCN = {
         eyebrow: "06 · 体验 & 稳定性",
         title: "体验打磨与稳定性",
         summary:
-          "围绕 BYOP 多协议补齐细节:多轮 tool_use 配对、Take over Agent 切回、长命令 alt-screen 防卡死、命令面板中英双向搜索,以及 OpenWarp 打包与 Release 工作流。",
+          "围绕 BYOP 多协议补齐细节:多轮 tool_use 配对、Take over Agent 切回、长命令 alt-screen 防卡死、命令面板中英双向搜索,以及 dWarp 打包与 Release 工作流。",
         progress: 65,
         items: [
           {

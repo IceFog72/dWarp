@@ -52,6 +52,10 @@ if [ "$RELEASE_CHANNEL" = "stable" ]; then
   fi
 fi
 
+if [[ "$RELEASE_CHANNEL" == "oss" ]]; then
+  PACKAGE_NAME="dwarp"
+fi
+
 BUILD_ARCH="${BUILD_ARCH:-$(uname -m)}"
 if [ "$BUILD_ARCH" = "aarch64" ]; then
   ARCH="arm64"
@@ -87,11 +91,11 @@ DEBIAN_DIR="$PKGDIR/DEBIAN"
 VERSION="$(echo "$GIT_RELEASE_TAG" | sed -E "s/^v//; s/([a-z]+)_/\1./")"
 mkdir "$DEBIAN_DIR"
 sed \
-    "s#@@CHANNEL_SUFFIX@@#$CHANNEL_SUFFIX#g; s#@@VERSION@@#$VERSION#g; s#@@ARCH@@#$ARCH#g" \
+    "s#@@PACKAGE_NAME@@#$PACKAGE_NAME#g; s#@@CHANNEL_SUFFIX@@#$CHANNEL_SUFFIX#g; s#@@VERSION@@#$VERSION#g; s#@@ARCH@@#$ARCH#g" \
     < "$TEMPLATE_DIR/control.template" \
     > "$DEBIAN_DIR/control"
 sed \
-    "s#@@CHANNEL_SUFFIX@@#$CHANNEL_SUFFIX#g; s#@@BINARY_NAME@@#$BINARY_NAME#g; s#@@OPTDIR@@#$OPT_DIR#g; s#@@REPO_NAME@@#$REPO_NAME#g; s#@@CHANNEL@@#$RELEASE_CHANNEL#g; s#@@ARCH@@#$ARCH#g" \
+    "s#@@PACKAGE_NAME@@#$PACKAGE_NAME#g; s#@@CHANNEL_SUFFIX@@#$CHANNEL_SUFFIX#g; s#@@BINARY_NAME@@#$BINARY_NAME#g; s#@@OPTDIR@@#$OPT_DIR#g; s#@@REPO_NAME@@#$REPO_NAME#g; s#@@CHANNEL@@#$RELEASE_CHANNEL#g; s#@@ARCH@@#$ARCH#g" \
     < "$TEMPLATE_DIR/postinst.template" \
     > "$DEBIAN_DIR/postinst"
 sed \
@@ -99,13 +103,22 @@ sed \
     < "$WORKSPACE_ROOT_DIR/resources/linux/debian/common/postinst.repo.template" \
     >> "$DEBIAN_DIR/postinst"
 sed \
-    "s#@@CHANNEL_SUFFIX@@#$CHANNEL_SUFFIX#g; s#@@OPTDIR@@#$OPT_DIR#g; s#@@REPO_NAME@@#$REPO_NAME#g" \
+    "s#@@PACKAGE_NAME@@#$PACKAGE_NAME#g; s#@@CHANNEL_SUFFIX@@#$CHANNEL_SUFFIX#g; s#@@OPTDIR@@#$OPT_DIR#g; s#@@REPO_NAME@@#$REPO_NAME#g" \
     < "$TEMPLATE_DIR/postrm.template" \
     > "$DEBIAN_DIR/postrm"
 sed \
     "s#@@REPO_NAME@@#$REPO_NAME#g" \
     < "$WORKSPACE_ROOT_DIR/resources/linux/debian/common/postrm.repo.template" \
     >> "$DEBIAN_DIR/postrm"
+
+if [[ "$RELEASE_CHANNEL" == "oss" ]]; then
+  if [[ "$ARTIFACT" == "app" ]]; then
+    printf '\nConflicts: warp-terminal-oss\nReplaces: warp-terminal-oss\n' >> "$DEBIAN_DIR/control"
+  fi
+  # OSS releases come from this fork, never the first-party Warp repository.
+  sed -i '/# Determine the path to the apt-config command/,$d' "$DEBIAN_DIR/postinst"
+  sed -i '/# Determine the path to the apt-config command/,$d' "$DEBIAN_DIR/postrm"
+fi
 
 # Make the package scripts executable.
 chmod 755 \

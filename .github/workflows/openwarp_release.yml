@@ -15,7 +15,7 @@
 #                    → publish_release (全部 build 成功后下载 artifact 并创建 Release)
 # 任意 build job 失败 → publish_release 因 needs 跳过 → 不会留下没有安装包的 Release。
 
-name: OpenWarp Release
+name: dWarp Release
 
 on:
   push:
@@ -124,7 +124,7 @@ jobs:
       - name: Upload DMG artifact
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: openwarp-macos-${{ matrix.dmg_name_suffix }}
+          name: dwarp-macos-${{ matrix.dmg_name_suffix }}
           path: ${{ steps.bundle_app.outputs.dmg_path }}
           if-no-files-found: error
           retention-days: 7
@@ -163,7 +163,7 @@ jobs:
       - name: Upload installer artifact
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: openwarp-windows-x64
+          name: dwarp-windows-x64
           path: ${{ steps.bundle_app.outputs.installer_path }}
           if-no-files-found: error
           retention-days: 7
@@ -212,7 +212,7 @@ jobs:
       - name: Upload AppImage artifact
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: openwarp-linux-x86_64
+          name: dwarp-linux-x86_64
           path: ${{ steps.bundle_app.outputs.appimage_path }}
           if-no-files-found: error
           retention-days: 7

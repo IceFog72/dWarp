@@ -1,10 +1,10 @@
 <div align="center">
 
-# OpenWarp
+# dWarp
 
 **把任意 AI 模型,装进你的终端**
 
-OpenWarp 是基于 [Warp](https://github.com/warpdotdev/warp) 开源代码的社区分支 ——
+dWarp 是基于 [Warp](https://github.com/warpdotdev/warp) 开源代码的社区分支 ——
 在保留 Warp 全部终端体验的同时,加入 **BYOP(Bring Your Own Provider)** 能力,
 让 AI 层完全开放:密钥、模型、提示词全部由你掌控。
 
@@ -16,12 +16,12 @@ OpenWarp 是基于 [Warp](https://github.com/warpdotdev/warp) 开源代码的社
 
 ---
 
-## ✨ 为什么选 OpenWarp
+## ✨ 为什么选 dWarp
 
 Warp 官方客户端依赖云端 Agent 服务,AI 能力默认必须经过 Warp 后端。
-OpenWarp 把这层完全打开:
+dWarp 把这层完全打开:
 
-| 维度 | Warp 上游 | OpenWarp |
+| 维度 | Warp 上游 | dWarp |
 | --- | --- | --- |
 | AI 提供商 | Warp 官方网关 | **任意 OpenAI 兼容端点** |
 | 凭证存储 | 云端账户 | **本地配置文件,零外发** |
@@ -79,15 +79,15 @@ cd openwarp
 若要直接用 `cargo`,**必须显式指定 OSS 二进制**:
 
 ```bash
-cargo build --release --bin warp-oss
-cargo run   --release --bin warp-oss
+cargo build --release --bin dwarp
+cargo run   --release --bin dwarp
 ```
 
 > ⚠️ 不要不带过滤地跑 `cargo build --release`,也不要 `--bin {warp,stable,dev,preview}` ——
 > 这些入口(`local.rs` / `stable.rs` / `dev.rs` / `preview.rs`)通过 Warp 私有的
 > `warp-channel-config` 二进制加载 channel 配置,而该二进制位于闭源私仓。编译能过,
 > 但运行时会 panic 提示 `./script/install_channel_config`,而那个脚本会去 clone 只有 Warp
-> 员工才有 SSH 权限的私仓。OpenWarp 用户只需要 `warp-oss` 这一个 bin。
+> 员工才有 SSH 权限的私仓。dWarp 用户只需要 `dwarp` 这一个 bin。
 
 详见 [WARP.md](WARP.md) 获取完整工程指南(代码风格、测试、平台说明)。
 
@@ -104,7 +104,7 @@ cargo run   --release --bin warp-oss
 
 | 分支 | 跟踪 | 用途 |
 | --- | --- | --- |
-| `main` | `zerx-lab/warp:main`(默认分支) | OpenWarp 主开发线,**所有 PR 都提到这条分支**。 |
+| `main` | `zerx-lab/warp:main`(默认分支) | dWarp 主开发线,**所有 PR 都提到这条分支**。 |
 | `warp-upstream` | `warpdotdev/warp:master` | 上游 Warp 的纯净镜像,用于拉取上游更新,**不在此分支做 fork 自有改动**。 |
 
 **贡献者须知**
@@ -113,7 +113,7 @@ PR 请提到 **`main`**,不要提到 `warp-upstream`。
 
 **维护者须知(具有写权限)**
 
-⚠️ **不要在 GitHub 网页上点 `main` 分支的 "Sync fork" 按钮**。这会把上游整段历史直接合并进 OpenWarp 主线,造成大规模冲突。拉取上游更新请通过镜像分支:
+⚠️ **不要在 GitHub 网页上点 `main` 分支的 "Sync fork" 按钮**。这会把上游整段历史直接合并进 dWarp 主线,造成大规模冲突。拉取上游更新请通过镜像分支:
 
 ```bash
 # 一次性配置
@@ -138,6 +138,6 @@ git cherry-pick <sha>             # 或在需要整体同步时 merge warp-upstr
 
 ## 🙏 致谢
 
-OpenWarp 站在 Warp 团队和众多开源项目的肩膀上:
+dWarp 站在 Warp 团队和众多开源项目的肩膀上:
 
 [Warp](https://github.com/warpdotdev/warp) · [genai](https://github.com/jeremychone/rust-genai) · [opencode](https://github.com/opencode-ai/opencode) · [models.dev](https://models.dev) · [Tokio](https://github.com/tokio-rs/tokio) · [NuShell](https://github.com/nushell/nushell) · [Alacritty](https://github.com/alacritty/alacritty) · [Hyper](https://github.com/hyperium/hyper) · [minijinja](https://github.com/mitsuhiko/minijinja)

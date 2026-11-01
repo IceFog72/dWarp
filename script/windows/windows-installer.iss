@@ -106,7 +106,24 @@ Source: "{#AssetsDir}\{#Arch}\dxcompiler.dll"; DestDir: "{app}"
 Source: "{#AssetsDir}\{#Arch}\dxil.dll"; DestDir: "{app}"
 Source: "{#TargetProfileDir}\resources\*"; DestDir: "{app}\resources"; Flags: ignoreversion recursesubdirs
 
+#if ReleaseChannel == "oss"
+[InstallDelete]
+Type: files; Name: "{app}\warp-oss.exe"
+Type: files; Name: "{app}\bin\warp-oss.cmd"
+Type: files; Name: "{autoprograms}\OpenWarp.lnk"
+Type: files; Name: "{autodesktop}\OpenWarp.lnk"
+#endif
+
 [Registry]
+#if ReleaseChannel == "oss"
+Root: HKA; Subkey: "Software\Classes\Directory\shell\OpenWarpTab"; Flags: deletekey
+Root: HKA; Subkey: "Software\Classes\Directory\shell\OpenWarpWindow"; Flags: deletekey
+Root: HKA; Subkey: "Software\Classes\Directory\Background\shell\OpenWarpTab"; Flags: deletekey
+Root: HKA; Subkey: "Software\Classes\Directory\Background\shell\OpenWarpWindow"; Flags: deletekey
+Root: HKCU; Subkey: "Software\Warp.dev\OpenWarp"; Flags: deletekey
+Root: HKCU; Subkey: "Software\Classes\dwarp"; Flags: uninsdeletekey
+Root: HKCU; Subkey: "Software\Classes\openwarp"; Flags: uninsdeletekey
+#endif
 Root: HKCU; Subkey: "SOFTWARE\Warp.dev\{#MyAppName}"; Flags: uninsdeletekey
 ; cleanup "Open Warp Here" registry entries
 Root: HKA; Subkey: "Software\Classes\Directory\shell\{#MyAppName}"; Flags: deletekey
@@ -231,7 +248,7 @@ begin
 #if ReleaseChannel == "stable"
     CmdScriptName := 'oz.cmd'
 #elif ReleaseChannel == "oss"
-    CmdScriptName := 'warp-oss.cmd';
+    CmdScriptName := 'dwarp.cmd';
 #else
     CmdScriptName := 'oz-{#ReleaseChannel}.cmd';
 #endif
@@ -239,7 +256,9 @@ begin
     { Create the helper CMD script }
     CmdScriptPath := BinDir + '\' + CmdScriptName;
     CmdScriptContent := '@echo off' + #13#10 +
+#if ReleaseChannel != "oss"
                        'set "WARP_CLI_MODE=1"' + #13#10 +
+#endif
                        '"' + ExpandConstant('{app}\{#MyAppExeName}') + '" %*' + #13#10;
     
     SaveStringToFile(CmdScriptPath, CmdScriptContent, False);

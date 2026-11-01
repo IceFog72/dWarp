@@ -172,7 +172,7 @@ fn openwarp_build_version() -> Option<String> {
         })
         .filter(|commit| !commit.is_empty())?;
 
-    Some(format!("OpenWarp {}+{commit}", env!("CARGO_PKG_VERSION")))
+    Some(format!("dWarp {}+{commit}", env!("CARGO_PKG_VERSION")))
 }
 
 /// If `warp-channel-config` is available on PATH and the `release_bundle` feature is enabled,

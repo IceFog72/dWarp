@@ -2,9 +2,9 @@ import type { Dict } from "./zh-CN";
 
 export const en: Dict = {
   meta: {
-    title: "OpenWarp — Unlock custom AI providers for Warp",
+    title: "dWarp — Unlock custom AI providers for Warp",
     description:
-      "OpenWarp is the open enhancement layer for Warp. Plug in OpenAI / Anthropic / Gemini / DeepSeek / Ollama natively via the genai adapter, craft your own prompts, and own your terminal AI.",
+      "dWarp is the open enhancement layer for Warp. Plug in OpenAI / Anthropic / Gemini / DeepSeek / Ollama natively via the genai adapter, craft your own prompts, and own your terminal AI.",
   },
   nav: {
     how: "How it works",
@@ -20,7 +20,7 @@ export const en: Dict = {
     title_em: "any AI model",
     title_2: "into your terminal",
     subtitle:
-      "OpenWarp adds BYOP (Bring Your Own Provider) on top of Warp — 6 native API protocols via the genai adapter, your own models and prompts, first-class i18n.",
+      "dWarp adds BYOP (Bring Your Own Provider) on top of Warp — 6 native API protocols via the genai adapter, your own models and prompts, first-class i18n.",
     cta_primary: "View on GitHub",
     cta_secondary: "Read docs",
     note: "Early development — no public release yet",
@@ -66,7 +66,7 @@ export const en: Dict = {
     eyebrow: "Custom Providers",
     title: "Configure once, every model unlocked",
     subtitle:
-      "OpenWarp speaks 6 native API protocols via the genai adapter: OpenAI / OpenAI Responses / Anthropic / Gemini / Ollama / DeepSeek — protocol is explicit, no model-name guessing, keys go straight to the provider.",
+      "dWarp speaks 6 native API protocols via the genai adapter: OpenAI / OpenAI Responses / Anthropic / Gemini / Ollama / DeepSeek — protocol is explicit, no model-name guessing, keys go straight to the provider.",
     fields: {
       name: "Provider name",
       protocol: "API protocol",
@@ -171,19 +171,19 @@ export const en: Dict = {
   },
   faq: {
     eyebrow: "FAQ",
-    title: "About OpenWarp",
+    title: "About dWarp",
     items: [
       {
-        q: "How is OpenWarp related to Warp the company?",
-        a: "OpenWarp is a community fork of Warp's open-source code. It is not affiliated with Warp Inc. and follows the upstream AGPL / MIT dual license.",
+        q: "How is dWarp related to Warp the company?",
+        a: "dWarp is a community fork of Warp's open-source code. It is not affiliated with Warp Inc. and follows the upstream AGPL / MIT dual license.",
       },
       {
         q: "Will my API keys be uploaded?",
-        a: "No. Custom provider credentials live only in your local config file. OpenWarp talks directly to the Base URL you configure, with no relay.",
+        a: "No. Custom provider credentials live only in your local config file. dWarp talks directly to the Base URL you configure, with no relay.",
       },
       {
         q: "Which providers are supported?",
-        a: "OpenWarp ships a genai-based multi-protocol client: OpenAI / OpenAI Responses / Anthropic / Gemini / Ollama / DeepSeek run as native protocols. OpenAI-compatible endpoints (Qwen / Groq / Together / OpenRouter / SiliconFlow / LM Studio, etc.) plug in by selecting the OpenAI protocol and pointing Base URL at them.",
+        a: "dWarp ships a genai-based multi-protocol client: OpenAI / OpenAI Responses / Anthropic / Gemini / Ollama / DeepSeek run as native protocols. OpenAI-compatible endpoints (Qwen / Groq / Together / OpenRouter / SiliconFlow / LM Studio, etc.) plug in by selecting the OpenAI protocol and pointing Base URL at them.",
       },
       {
         q: "Will I keep getting upstream Warp updates?",
@@ -237,9 +237,9 @@ export const en: Dict = {
     },
   },
   roadmap: {
-    meta_title: "OpenWarp Roadmap — Shipped & in-flight enhancements",
+    meta_title: "dWarp Roadmap — Shipped & in-flight enhancements",
     meta_description:
-      "The OpenWarp roadmap on top of upstream Warp: i18n, multilingual client tokenizer, expanded providers, SSH manager.",
+      "The dWarp roadmap on top of upstream Warp: i18n, multilingual client tokenizer, expanded providers, SSH manager.",
     eyebrow: "Roadmap",
     title: "Opening Warp up, one merge at a time",
     subtitle:
@@ -409,7 +409,7 @@ export const en: Dict = {
         eyebrow: "05 · Decouple cloud",
         title: "Cut the default Warp Inc lines",
         summary:
-          "OpenWarp is a strictly local fork. Cloud-account refresh, persistent user storage, Plan sync, passive-suggestion HTTP — all disabled in place, so credentials and requests only go to providers you configure.",
+          "dWarp is a strictly local fork. Cloud-account refresh, persistent user storage, Plan sync, passive-suggestion HTTP — all disabled in place, so credentials and requests only go to providers you configure.",
         progress: 75,
         items: [
           {
@@ -447,7 +447,7 @@ export const en: Dict = {
         eyebrow: "06 · Polish & stability",
         title: "Local-first UX and crash fixes",
         summary:
-          "Filling the rough edges around BYOP multi-protocol: tool_use pairing, Take-over Agent handoff, alt-screen long-command resilience, command palette bilingual search, OpenWarp packaging & release pipeline.",
+          "Filling the rough edges around BYOP multi-protocol: tool_use pairing, Take-over Agent handoff, alt-screen long-command resilience, command palette bilingual search, dWarp packaging & release pipeline.",
         progress: 65,
         items: [
           {

@@ -258,14 +258,19 @@ impl ChannelState {
     }
 
     pub fn url_scheme() -> &'static str {
+        Self::url_schemes()[0]
+    }
+
+    /// The primary URL scheme followed by supported legacy aliases.
+    pub fn url_schemes() -> &'static [&'static str] {
         match Self::channel() {
-            Channel::Stable => "warp",
-            Channel::Preview => "warppreview",
-            Channel::Dev => "warpdev",
+            Channel::Stable => &["warp"],
+            Channel::Preview => &["warppreview"],
+            Channel::Dev => &["warpdev"],
             // Dummy value--integration tests shouldn't support URL schemes.
-            Channel::Integration => "warpintegration",
-            Channel::Local => "warplocal",
-            Channel::Oss => "openwarp",
+            Channel::Integration => &["warpintegration"],
+            Channel::Local => &["warplocal"],
+            Channel::Oss => &["dwarp", "openwarp"],
         }
     }
 }

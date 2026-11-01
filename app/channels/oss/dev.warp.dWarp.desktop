@@ -4,15 +4,15 @@ Version=1.0
 
 Type=Application
 
-Name=OpenWarp
+Name=dWarp
 GenericName=TerminalEmulator
 
-Exec=warp-terminal-oss %U
-StartupWMClass=dev.warp.OpenWarp
+Exec=dwarp %U
+StartupWMClass=dev.warp.dWarp
 
 Keywords=shell;prompt;command;commandline;cmd;
 
-Icon=dev.warp.OpenWarp
+Icon=dev.warp.dWarp
 
 Categories=System;TerminalEmulator;
 X-TerminalArgExec=--execute
@@ -21,5 +21,5 @@ X-TerminalArgDir=--working-directory
 # Don't run this application within a terminal.
 Terminal=false
 
-# Register ourselves as the handler for openwarp:// URLs.
-MimeType=x-scheme-handler/openwarp;
+# Register the current URL scheme and the legacy alias.
+MimeType=x-scheme-handler/dwarp;x-scheme-handler/openwarp;

@@ -192,7 +192,7 @@ impl RemoteTransport for SshTransport {
 
     fn install_binary(&self) -> Pin<Box<dyn Future<Output = Result<(), String>> + Send>> {
         Box::pin(async {
-            Err("Deploy the OpenWarp remote server with script/deploy_remote_server before connecting.".to_owned())
+            Err("Deploy the dWarp remote server with script/deploy_remote_server before connecting.".to_owned())
         })
     }
 

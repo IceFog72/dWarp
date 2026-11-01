@@ -5,10 +5,10 @@ instance. `--new-window` requests a window in that instance. Development data
 profiles use separate IPC endpoints.
 
 ```sh
-warp-terminal-oss --working-directory /path/to/project
-warp-terminal-oss --new-window --working-directory /path/to/project
-warp-terminal-oss --working-directory /path/to/project --execute python3 script.py --verbose
-warp-terminal-oss -d /path/to/project -e sh -lc 'printf "%s\n" "$PWD"'
+dwarp --working-directory /path/to/project
+dwarp --new-window --working-directory /path/to/project
+dwarp --working-directory /path/to/project --execute python3 script.py --verbose
+dwarp -d /path/to/project -e sh -lc 'printf "%s\n" "$PWD"'
 ```
 
 Put `--execute` (`-e`) last. Everything after it is part of the executable's
@@ -29,11 +29,11 @@ requested terminal without adding an extra default window.
 The OSS desktop entry declares `X-TerminalArgExec=--execute` and
 `X-TerminalArgDir=--working-directory` for
 [xdg-terminal-exec](https://github.com/Vladimir-csp/xdg-terminal-exec).
-When that launcher is installed, users can select `dev.warp.OpenWarp.desktop`
+When that launcher is installed, users can select `dev.warp.dWarp.desktop`
 through its configuration.
 
 `script/build-and-install.sh` also installs an XFCE terminal helper. Select
-OpenWarp in XFCE's Default Applications chooser. On supported XFCE installations,
+dWarp in XFCE's Default Applications chooser. On supported XFCE installations,
 Warp's default-terminal Settings action opens that chooser. Cancelling the chooser
 does not mark Warp as selected. This integration does not change a system-wide
 `x-terminal-emulator` alternative.

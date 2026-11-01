@@ -27,6 +27,10 @@ PACKAGE_NAME="warp-terminal$CHANNEL_SUFFIX"
 
 # Adding NO_STRIP to stop linuxdeploy from attempting to strip symbols
 # from binaries built on a different arch than the current symbol.
+if [[ "$RELEASE_CHANNEL" == "oss" ]]; then
+  PACKAGE_NAME="dwarp"
+fi
+
 BUILD_ARCH="${BUILD_ARCH:-$(uname -m)}"
 if [ "$BUILD_ARCH" != "$(uname -m)" ]; then
   export NO_STRIP=1

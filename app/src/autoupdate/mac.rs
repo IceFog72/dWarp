@@ -425,14 +425,13 @@ async fn download_oss_to_downloads(client: &http_client::Client) -> Result<Downl
 }
 
 fn oss_dmg_name() -> String {
-    // 与 script/macos/bundle 在 OSS 分支生成的命名对齐:
-    //   FINAL_DMG_NAME="OpenWarp-${arch}.dmg"  (workflow 当前只构建 arm64)
+    // Match the dWarp-${arch}.dmg asset produced by script/macos/bundle.
     let arch = if cfg!(target_arch = "aarch64") {
         "arm64"
     } else {
         "x86_64"
     };
-    format!("OpenWarp-{arch}.dmg")
+    format!("dWarp-{arch}.dmg")
 }
 
 /// Apply the downloaded update.
@@ -825,7 +824,7 @@ fn app_name_prefix(channel: Channel) -> &'static str {
         Channel::Local => "warp",
         Channel::Integration => "integration",
         Channel::Dev => "WarpDev",
-        Channel::Oss => "warp-oss",
+        Channel::Oss => "dWarp",
     }
 }
 
@@ -836,7 +835,7 @@ fn executable_name(channel: Channel) -> &'static str {
         Channel::Local => "warp",
         Channel::Integration => "integration",
         Channel::Dev => "dev",
-        Channel::Oss => "warp-oss",
+        Channel::Oss => "dwarp",
     }
 }
 

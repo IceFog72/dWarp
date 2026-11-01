@@ -44,8 +44,8 @@ require a Google Cloud login.
 
 ## Output and CPU mode
 
-The installer is written to `script\windows\Output\OpenWarpSetup.exe`, or
-`OpenWarpSetup-arm64.exe` for ARM64. Cargo build output honors `CARGO_TARGET_DIR`.
+The installer is written to `script\windows\Output\dWarpSetup.exe`, or
+`dWarpSetup-arm64.exe` for ARM64. Cargo build output honors `CARGO_TARGET_DIR`.
 The build includes both renderers. GPU rendering stays the default. Enable
 **Use CPU renderer** in Settings and restart the installed app to select CPU mode.
 

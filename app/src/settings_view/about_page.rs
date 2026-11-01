@@ -74,7 +74,7 @@ impl SettingsWidget for AboutPageWidget {
 
         let version = ChannelState::app_version()
             .or(option_env!("OPENWARP_BUILD_VERSION"))
-            .unwrap_or("OpenWarp local");
+            .unwrap_or("dWarp local");
 
         let version_text = ui_builder
             .span(version.to_string())

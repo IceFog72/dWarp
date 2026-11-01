@@ -1,10 +1,10 @@
 <div align="center">
 
-# warp-cpu
+# dWarp
 
 **Bring any AI model into your terminal (CPU Rendered)**
 
-warp-cpu is a fork of [OpenWarp](https://github.com/zerx-lab/warp) (a community fork of [Warp](https://github.com/warpdotdev/warp)) with an opt-in CPU renderer on Linux. It draws frames with `softbuffer` instead of wgpu, which saves VRAM on machines whose GPU memory is needed for other tasks like AI models or gaming.
+dWarp is a fork of [OpenWarp](https://github.com/zerx-lab/warp) (a community fork of [Warp](https://github.com/warpdotdev/warp)) with an opt-in CPU renderer on Linux. It draws frames with `softbuffer` instead of wgpu, which saves VRAM on machines whose GPU memory is needed for other tasks like AI models or gaming.
 Keep the full Warp terminal experience — blocks, workflows, keymaps — while plugging in
 **any OpenAI-compatible provider**, customizing system prompts with minijinja templates,
 and keeping every credential local.
@@ -21,9 +21,9 @@ The shared Winit CPU path is implemented for Linux/FreeBSD and Windows. Windows 
 While the CPU renderer is active, frames are paced to save CPU: 15 fps for steady terminal output, 30 fps while typing or clicking, 60 fps for short bursts such as resizing and scrolling. Override with environment variables:
 
 ```bash
-WARP_CPU_RENDERER=1 warp-terminal-oss          # one-off CPU renderer
-WARP_CPU_FPS=30 warp-terminal-oss              # one cap for every frame class
-WARP_CPU_TERMINAL_FPS=10 warp-terminal-oss     # steady-output cap only
+WARP_CPU_RENDERER=1 dwarp          # one-off CPU renderer
+WARP_CPU_FPS=30 dwarp              # one cap for every frame class
+WARP_CPU_TERMINAL_FPS=10 dwarp     # steady-output cap only
 ```
 Also available: `WARP_CPU_IDLE_FPS`, `WARP_CPU_INTERACTIVE_FPS`, `WARP_CPU_BURST_FPS`.
 
@@ -31,12 +31,12 @@ Also available: `WARP_CPU_IDLE_FPS`, `WARP_CPU_INTERACTIVE_FPS`, `WARP_CPU_BURST
 
 ---
 
-## ✨ Why OpenWarp
+## ✨ Why dWarp
 
 The official Warp client routes AI through Warp's cloud agent service.
-OpenWarp opens that layer entirely:
+dWarp opens that layer entirely:
 
-| | Upstream Warp | OpenWarp |
+| | Upstream Warp | dWarp |
 | --- | --- | --- |
 | AI provider | Warp gateway | **Any OpenAI-compatible endpoint** |
 | Credentials | Cloud account | **Local config file, never leaves device** |
@@ -97,8 +97,8 @@ cd warp-cpu
 If you prefer raw `cargo`, **always target the OSS binary explicitly**:
 
 ```bash
-cargo build --release --bin warp-oss
-cargo run   --release --bin warp-oss
+cargo build --release --bin dwarp
+cargo run   --release --bin dwarp
 ```
 
 To build the optimized `release-lto` binary and install it system-wide, use [`script/build-and-install.sh`](script/build-and-install.sh). It installs the OSS launcher, compatibility symlink, desktop entry, and icons; `sudo` is used for the system install:
@@ -109,7 +109,7 @@ To build the optimized `release-lto` binary and install it system-wide, use [`sc
 ./script/build-and-install.sh --channel oss
 ```
 
-The script also accepts `dev` or `local` channels. The OSS launcher is installed as `warp-terminal-oss` with `warp-oss` as a compatibility command.
+The script also accepts `dev` or `local` channels. The OSS launcher is installed as `dwarp`.
 
 On Windows, run [`script/build-and-install.bat`](script/build-and-install.bat) to build the OSS installer and open its installation wizard. Use `-BuildOnly` to produce the installer without installing it. Prerequisites and options are in [Windows build instructions](docs/windows-build.md).
 
@@ -118,7 +118,7 @@ On Windows, run [`script/build-and-install.bat`](script/build-and-install.bat) t
 > their channel config through Warp's private `warp-channel-config` binary, which lives in a
 > closed-source repo. Compilation succeeds, but the resulting executables panic at startup
 > asking you to run `./script/install_channel_config`. That script clones an SSH repo only
-> Warp employees can access. warp-cpu users only need the `warp-oss` binary.
+> Warp employees can access. dWarp users only need the `dwarp` binary.
 
 See [WARP.md](WARP.md) for the full engineering guide (style, testing, platform notes).
 
@@ -135,7 +135,7 @@ Same as upstream Warp:
 
 | Branch | Tracks | Purpose |
 | --- | --- | --- |
-| `main` | `zerx-lab/warp:main` (default) | OpenWarp's main development line. **All PRs target this.** |
+| `main` | `zerx-lab/warp:main` (default) | dWarp's main development line. **All PRs target this.** |
 | `warp-upstream` | `warpdotdev/warp:master` | Pristine mirror of upstream Warp, used to pull in new commits. **No fork-local changes.** |
 
 **For contributors**
@@ -144,7 +144,7 @@ Open PRs against **`main`**. Never against `warp-upstream`.
 
 **For maintainers (write access)**
 
-⚠️ **Do not click the "Sync fork" button** on `main` in the GitHub web UI. It would merge the entire upstream history straight into OpenWarp's main line and trigger large-scale conflicts. Pull upstream changes through the mirror branch instead:
+⚠️ **Do not click the "Sync fork" button** on `main` in the GitHub web UI. It would merge the entire upstream history straight into dWarp's main line and trigger large-scale conflicts. Pull upstream changes through the mirror branch instead:
 
 ```bash
 # one-time setup
@@ -170,6 +170,6 @@ Security vulnerabilities should be reported privately per
 
 ## 🙏 Acknowledgements
 
-OpenWarp stands on the shoulders of the Warp team and many open-source projects:
+dWarp stands on the shoulders of the Warp team and many open-source projects:
 
 [Warp](https://github.com/warpdotdev/warp) · [genai](https://github.com/jeremychone/rust-genai) · [opencode](https://github.com/opencode-ai/opencode) · [models.dev](https://models.dev) · [Tokio](https://github.com/tokio-rs/tokio) · [NuShell](https://github.com/nushell/nushell) · [Alacritty](https://github.com/alacritty/alacritty) · [Hyper](https://github.com/hyperium/hyper) · [minijinja](https://github.com/mitsuhiko/minijinja)

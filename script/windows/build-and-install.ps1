@@ -51,10 +51,10 @@ try {
 
     if ($Arch -eq 'arm64') {
         $target = 'aarch64-pc-windows-msvc'
-        $installerName = 'OpenWarpSetup-arm64.exe'
+        $installerName = 'dWarpSetup-arm64.exe'
     } else {
         $target = 'x86_64-pc-windows-msvc'
-        $installerName = 'OpenWarpSetup.exe'
+        $installerName = 'dWarpSetup.exe'
     }
     & rustup target add $target
     if ($LASTEXITCODE -ne 0) { throw "Could not install Rust target $target" }
@@ -84,7 +84,7 @@ try {
         } elseif ($setup.ExitCode -ne 0) {
             throw "Installation was cancelled or failed with exit code $($setup.ExitCode)"
         } else {
-            Write-Host 'OpenWarp installation completed.'
+            Write-Host 'dWarp installation completed.'
         }
     }
 } finally {

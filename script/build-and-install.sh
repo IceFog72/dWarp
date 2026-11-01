@@ -28,11 +28,11 @@ CARGO_PROFILE="release-lto"
 
 case "$CHANNEL" in
   oss)
-    WARP_BIN="warp-oss"
-    BINARY_NAME="warp-oss"
-    DESKTOP_COMMAND="warp-terminal-oss"
-    APP_NAME="OpenWarp"
-    BUNDLE_ID="dev.warp.OpenWarp"
+    WARP_BIN="dwarp"
+    BINARY_NAME="dwarp"
+    DESKTOP_COMMAND="dwarp"
+    APP_NAME="dWarp"
+    BUNDLE_ID="dev.warp.dWarp"
     FEATURES="release_bundle,gui,nld_improvements,pprof_cpu_profiling"
     ;;
   dev)
@@ -103,9 +103,11 @@ else
   echo "  Installed executable: $REAL_COMMAND"
   echo "  Installed runtime symlink: $RUNTIME_COMMAND"
 fi
-sudo ln -sf "/usr/local/bin/$DESKTOP_COMMAND" "/usr/local/bin/$BINARY_NAME"
+if [[ "$BINARY_NAME" != "$DESKTOP_COMMAND" ]]; then
+  sudo ln -sf "$RUNTIME_COMMAND" "/usr/local/bin/$BINARY_NAME"
+fi
 echo "  Installed binary: /usr/local/bin/$DESKTOP_COMMAND"
-echo "  Installed compatibility symlink: /usr/local/bin/$BINARY_NAME"
+
 
 # Install .desktop file
 DESKTOP_SRC="$WORKSPACE_ROOT_DIR/app/channels/$CHANNEL/$BUNDLE_ID.desktop"

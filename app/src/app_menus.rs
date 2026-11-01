@@ -25,6 +25,7 @@ use enclose::enclose;
 use itertools::Itertools;
 use settings::manager::SettingsManager;
 use settings::Setting as _;
+use warp_core::channel::ChannelState;
 use warp_core::context_flag::ContextFlag;
 use warp_util::path::user_friendly_path;
 use warpui::actions::StandardAction;
@@ -203,7 +204,10 @@ fn make_new_app_menu(ctx: &AppContext) -> Menu {
     menu_items.push(MenuItem::Standard(StandardAction::ShowAllApps));
     menu_items.push(MenuItem::Separator);
     menu_items.push(MenuItem::Custom(CustomMenuItem::new(
-        "Set Warp as Default Terminal",
+        format!(
+            "Set {} as Default Terminal",
+            ChannelState::channel().display_name()
+        ),
         move |ctx| {
             DefaultTerminal::handle(ctx).update(ctx, |default_terminal, ctx| {
                 default_terminal.make_warp_default(ctx)
@@ -223,7 +227,7 @@ fn make_new_app_menu(ctx: &AppContext) -> Menu {
     )));
     menu_items.push(MenuItem::Separator);
     menu_items.push(MenuItem::Standard(StandardAction::Quit));
-    Menu::new("Warp", menu_items)
+    Menu::new(ChannelState::channel().display_name(), menu_items)
 }
 
 fn make_new_file_menu(ctx: &AppContext) -> Menu {

@@ -3,7 +3,7 @@
   "type": "module",
   "version": "0.1.0",
   "private": true,
-  "description": "OpenWarp 官网 — 为 Warp 解锁自定义 AI 提供商",
+  "description": "dWarp 官网 — 为 Warp 解锁自定义 AI 提供商",
   "scripts": {
     "dev": "astro dev",
     "start": "bunx serve dist -l tcp://0.0.0.0:${PORT:-3000}",
