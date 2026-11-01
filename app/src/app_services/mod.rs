@@ -31,3 +31,14 @@ pub fn teardown(_ctx: &mut AppContext) {
     #[cfg(any(target_os = "linux", target_os = "freebsd"))]
     linux::teardown(_ctx);
 }
+
+/// Keep IPC endpoints isolated alongside development data profiles.
+#[cfg(any(target_os = "linux", target_os = "freebsd", windows))]
+fn instance_profile_suffix() -> String {
+    use sha2::{Digest, Sha256};
+    use warp_core::channel::ChannelState;
+
+    ChannelState::data_profile()
+        .map(|profile| format!(".profile_{:x}", Sha256::digest(profile.as_bytes())))
+        .unwrap_or_default()
+}

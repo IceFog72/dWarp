@@ -1,12 +1,35 @@
 use std::collections::HashMap;
 
-use futures_util::FutureExt as _;
 use itertools::Itertools as _;
-use warpui::{r#async::executor::BackgroundTask, AppContext, SingletonEntity};
+use parking_lot::Mutex;
+use warpui::{AppContext, SingletonEntity};
 use zbus::{interface, proxy, zvariant};
 
 use crate::channel::ChannelState;
-use crate::report_if_error;
+
+static STARTUP_SERVICE: Mutex<Option<DBusService>> = Mutex::new(None);
+
+struct DBusService {
+    connection: zbus::Connection,
+    events: async_channel::Receiver<ApplicationServiceEvent>,
+}
+
+impl DBusService {
+    async fn reserve() -> zbus::Result<Self> {
+        let (tx, events) = async_channel::unbounded();
+        let connection = zbus::connection::Builder::session()?
+            .name(DBusServiceHost::well_known_name())?
+            .allow_name_replacements(false)
+            .replace_existing_names(false)
+            .serve_at(
+                DBusServiceHost::application_service_path(),
+                ApplicationService { tx },
+            )?
+            .build()
+            .await?;
+        Ok(Self { connection, events })
+    }
+}
 
 /// Initializes application services.
 pub fn init(ctx: &mut AppContext) {
@@ -24,7 +47,6 @@ pub fn teardown(ctx: &mut AppContext) {
 /// application.
 ///
 /// Returns Ok if an existing instance exists and was reachable.
-#[cfg(feature = "release_bundle")]
 pub fn pass_startup_args_to_existing_instance(
     args: &warp_cli::AppArgs,
 ) -> Result<(), StartupArgsForwardingError> {
@@ -33,23 +55,25 @@ pub fn pass_startup_args_to_existing_instance(
     }
 
     warpui::r#async::block_on(async {
+        // Claim the name before creating a GUI. The service queues requests
+        // while the first process is still initializing its UI.
+        match DBusService::reserve().await {
+            Ok(service) => {
+                *STARTUP_SERVICE.lock() = Some(service);
+                return Err(StartupArgsForwardingError::NoExistingInstance);
+            }
+            Err(zbus::Error::NameTaken) => {}
+            Err(err) => return Err(err.into()),
+        }
+
         let conn = zbus::Connection::session().await?;
         let proxy = ExistingApplicationProxy::builder(&conn)
             .destination(DBusServiceHost::well_known_name())?
             .path(DBusServiceHost::application_service_path())?
             .build()
             .await?;
-        let mut open_new_url;
-        let mut url_refs = args.urls.iter().map(AsRef::as_ref).collect_vec();
-        // If there are no URLs on the command line, send one to open a new
-        // window using the same current working directory as this process.
-        if url_refs.is_empty() {
-            open_new_url = format!("{}://action/new_window", ChannelState::url_scheme());
-            if let Ok(current_dir) = std::env::current_dir() {
-                open_new_url.push_str(&format!("?path={}", current_dir.display()));
-            }
-            url_refs.push(&open_new_url);
-        }
+        let urls = args.startup_urls()?;
+        let url_refs = urls.iter().map(AsRef::as_ref).collect_vec();
         proxy.open(&url_refs, HashMap::new()).await?;
 
         // Make sure we close the connection and clean up resources, to avoid
@@ -62,7 +86,6 @@ pub fn pass_startup_args_to_existing_instance(
 }
 
 #[derive(Debug, thiserror::Error)]
-#[cfg(feature = "release_bundle")]
 pub enum StartupArgsForwardingError {
     /// There's no instance of Warp already running.
     #[error("no existing instance found to forward args to")]
@@ -74,9 +97,10 @@ pub enum StartupArgsForwardingError {
     /// An unknown D-Bus error occurred.
     #[error("unknown dbus error")]
     Unknown(zbus::Error),
+    #[error("failed to construct startup request")]
+    StartupRequest(#[from] anyhow::Error),
 }
 
-#[cfg(feature = "release_bundle")]
 impl From<zbus::fdo::Error> for StartupArgsForwardingError {
     fn from(value: zbus::fdo::Error) -> Self {
         // While ServiceUnknown usually means that D-Bus doesn't know how to
@@ -91,7 +115,6 @@ impl From<zbus::fdo::Error> for StartupArgsForwardingError {
     }
 }
 
-#[cfg(feature = "release_bundle")]
 impl From<zbus::Error> for StartupArgsForwardingError {
     fn from(value: zbus::Error) -> Self {
         match value {
@@ -121,8 +144,16 @@ impl ApplicationService {
         &self,
         _platform_data: HashMap<String, zvariant::Value<'_>>,
     ) -> zbus::fdo::Result<()> {
-        // not yet implemented
-        Ok(())
+        let uris = warp_cli::AppArgs::default()
+            .startup_urls()
+            .map_err(|err| zbus::fdo::Error::Failed(err.to_string()))?
+            .into_iter()
+            .map(String::from)
+            .collect();
+        self.tx
+            .send(ApplicationServiceEvent::Open { uris })
+            .await
+            .map_err(|err| zbus::fdo::Error::Failed(err.to_string()))
     }
 
     /// Called when desktop actions are activated.
@@ -177,40 +208,28 @@ trait ExistingApplication {
 /// A singleton model that is responsible for hosting all D-Bus services
 /// exposed by the application.
 struct DBusServiceHost {
-    server_task: Option<BackgroundTask>,
+    connection: Option<zbus::Connection>,
 }
 
 impl DBusServiceHost {
     fn new(ctx: &mut warpui::ModelContext<Self>) -> Self {
-        let (tx, rx) = async_channel::unbounded();
-
-        // Spawn a background task for the D-Bus server.
-        let server_task = ctx.background_executor().spawn(
-            async {
-                let conn = zbus::connection::Builder::session()?
-                    .name(Self::well_known_name())?
-                    .serve_at(Self::application_service_path(), ApplicationService { tx })?
-                    // Instead of having zbus spawn a thread to poll for new
-                    // messages, we'll poll on our own executor.
-                    .internal_executor(false)
-                    .build()
-                    .await?;
-
-                loop {
-                    conn.executor().tick().await;
-                }
+        let service = STARTUP_SERVICE
+            .lock()
+            .take()
+            .map(Ok)
+            .unwrap_or_else(|| warpui::r#async::block_on(DBusService::reserve()));
+        let DBusService { connection, events } = match service {
+            Ok(service) => service,
+            Err(err) => {
+                log::error!(
+                    "Failed to initialize org.freedesktop.Application D-Bus service: {err:#}"
+                );
+                return Self { connection: None };
             }
-            .map(|result: anyhow::Result<()>| {
-                if let Err(err) = result {
-                    log::error!(
-                        "Failed to initialize org.freedesktop.Application D-Bus service: {err:#}"
-                    );
-                }
-            }),
-        );
+        };
 
         // Process any events that we receive over D-Bus.
-        ctx.spawn_stream_local(rx, |_, event, ctx| {
+        ctx.spawn_stream_local(events, |_, event, ctx| {
             match event {
                 ApplicationServiceEvent::Open { uris } => {
                     for uri in uris {
@@ -224,21 +243,25 @@ impl DBusServiceHost {
         }, |_, _| {});
 
         Self {
-            server_task: Some(server_task),
+            connection: Some(connection),
         }
     }
 
     fn terminate(&mut self) {
-        if let Some(server_task) = self.server_task.take() {
-            server_task.abort();
-            // Wait until we've torn down the dbus service.
-            report_if_error!(warpui::r#async::block_on(server_task));
+        if let Some(connection) = self.connection.take() {
+            if let Err(err) = warpui::r#async::block_on(connection.close()) {
+                log::warn!("Failed to close application D-Bus service: {err:#}");
+            }
         }
     }
 
     /// Returns the D-Bus well-known name that should be used.
     fn well_known_name() -> String {
-        ChannelState::app_id().to_string()
+        format!(
+            "{}{}",
+            ChannelState::app_id(),
+            super::instance_profile_suffix()
+        )
     }
 
     /// Returns the path under which the org.freedesktop.Application interface

@@ -67,6 +67,10 @@ pub struct Args {
 /// along with their own flags, or convert their flags into an `AppArgs` value.
 #[derive(Debug, Default, clap::Args, Clone)]
 pub struct AppArgs {
+    /// Open a new window instead of a tab in the running application.
+    #[arg(long)]
+    pub new_window: bool,
+
     /// True if this instance of Warp was launched at the end of the auto-update process.
     #[arg(long = "finish-update", hide = true)]
     pub finish_update: bool,
@@ -83,6 +87,28 @@ pub struct AppArgs {
     /// URLs to open in Warp.
     #[arg(hide = true)]
     pub urls: Vec<Url>,
+}
+
+impl AppArgs {
+    /// Requests sent to the running application, preserving the caller's directory.
+    pub fn startup_urls(&self) -> anyhow::Result<Vec<Url>> {
+        if !self.urls.is_empty() {
+            return Ok(self.urls.clone());
+        }
+
+        let action = if self.new_window {
+            "new_window"
+        } else {
+            "new_tab"
+        };
+        let mut url = Url::parse(&format!("{}://action/{action}", ChannelState::url_scheme()))?;
+        let current_dir = env::current_dir()?;
+        let path = current_dir
+            .to_str()
+            .ok_or_else(|| anyhow::anyhow!("working directory is not UTF-8"))?;
+        url.query_pairs_mut().append_pair("path", path);
+        Ok(vec![url])
+    }
 }
 
 impl Args {

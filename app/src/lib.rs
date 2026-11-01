@@ -622,18 +622,12 @@ fn run_internal(mut launch_mode: LaunchMode) -> Result<()> {
     // Collect errors that occur in run_internal() before the Sentry client is initialized,
     // so they can be replayed to Sentry once it's ready.
     #[cfg_attr(
-        not(all(
-            feature = "release_bundle",
-            any(windows, any(target_os = "linux", target_os = "freebsd"))
-        )),
+        not(any(windows, target_os = "linux", target_os = "freebsd")),
         expect(unused_mut)
     )]
     let mut pre_sentry_errors: Vec<anyhow::Error> = Vec::new();
 
-    #[cfg(all(
-        feature = "release_bundle",
-        any(target_os = "linux", target_os = "freebsd")
-    ))]
+    #[cfg(any(target_os = "linux", target_os = "freebsd"))]
     if let LaunchMode::App { .. } = launch_mode {
         match app_services::linux::pass_startup_args_to_existing_instance(
             launch_mode.args().as_ref(),
@@ -656,7 +650,7 @@ fn run_internal(mut launch_mode: LaunchMode) -> Result<()> {
         }
     }
 
-    #[cfg(all(feature = "release_bundle", windows))]
+    #[cfg(windows)]
     if let LaunchMode::App { .. } = launch_mode {
         match app_services::windows::pass_startup_args_to_existing_instance(
             launch_mode.args().as_ref(),
@@ -1517,7 +1511,14 @@ fn app_callbacks(is_integration_test: bool) -> warpui::platform::AppCallbacks {
             // e.g. clicking on the Dock icon. It is NOT called from the New Window
             // menu item.
             App::record_last_active_timestamp();
-            ctx.dispatch_global_action("root_view:open_new", &());
+            match warp_cli::AppArgs::default().startup_urls() {
+                Ok(urls) => {
+                    for url in urls {
+                        uri::handle_incoming_uri(&url, ctx);
+                    }
+                }
+                Err(err) => log::error!("Failed to construct reopen request: {err:#}"),
+            }
             ctx.dispatch_global_action("workspace:save_app", &());
         })),
         on_open_urls: Some(Box::new(move |urls, ctx| {
