@@ -71,7 +71,6 @@ use crate::pane_group::{
 };
 
 use super::{
-    diff_viewer::DiffViewer,
     editor::view::{CodeEditorEvent, CodeEditorView},
     editor_management::{CodeManager, CodeSource},
     local_code_editor::{LocalCodeEditorEvent, LocalCodeEditorView},
@@ -380,7 +379,6 @@ impl CodeView {
                     })
                 },
                 false,
-                None,
                 ctx,
             );
             if FeatureFlag::HoaCodeReview.is_enabled() {
@@ -421,7 +419,7 @@ impl CodeView {
         });
 
         ctx.add_typed_action_view(|ctx| {
-            let mut local_editor = LocalCodeEditorView::new(editor, None, false, None, ctx);
+            let mut local_editor = LocalCodeEditorView::new(editor, None, false, ctx);
             if FeatureFlag::HoaCodeReview.is_enabled() {
                 local_editor = local_editor
                     .with_selection_as_context(Box::new(get_context_target_terminal_view));

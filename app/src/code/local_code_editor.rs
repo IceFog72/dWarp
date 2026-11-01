@@ -84,7 +84,6 @@ const DROP_SHADOW_COLOR: ColorU = ColorU {
 
 const HOVER_DEBOUNCE_PERIOD: Duration = Duration::from_millis(500);
 
-use super::diff_viewer::DiffViewer;
 use super::editor::{
     scroll::{ScrollPosition, ScrollTrigger},
     view::{CodeEditorEvent, CodeEditorView},
@@ -169,8 +168,6 @@ enum LoadedFileMetadata {
     /// Normal file with both FileId and path (for files that are actually opened)
     LocalFile { id: FileId, path: PathBuf },
 }
-
-pub use super::diff_viewer::DisplayMode;
 
 type TerminalTargetFn = dyn Fn(WindowId, &AppContext) -> Option<ViewHandle<TerminalView>>;
 
@@ -307,7 +304,6 @@ impl LocalCodeEditorView {
         editor: ViewHandle<CodeEditorView>,
         diff_type: Option<DiffType>,
         enable_diff_nav_by_default: bool,
-        display_mode: Option<DisplayMode>,
         ctx: &mut ViewContext<Self>,
     ) -> Self {
         let context_menu = ctx.add_typed_action_view(|_| {
@@ -470,7 +466,7 @@ impl LocalCodeEditorView {
             |_, _| {},
         );
 
-        let model = Self {
+        Self {
             editor,
             diff_type,
             is_new_file,
@@ -492,12 +488,7 @@ impl LocalCodeEditorView {
             processed_diagnostics: Vec::new(),
             diagnostic_decorations: Vec::new(),
             find_references_view: None,
-        };
-
-        if let Some(display_mode) = display_mode {
-            model.set_display_mode(display_mode, ctx);
         }
-        model
     }
 
     /// Calls LSP goto_definition and spawns a callback with the result.
@@ -1159,7 +1150,6 @@ impl LocalCodeEditorView {
         path: &Path,
         editor_constructor: T,
         enable_diff_nav_by_default: bool,
-        display_mode: Option<DisplayMode>,
         ctx: &mut ViewContext<Self>,
     ) -> Self
     where
@@ -1178,8 +1168,7 @@ impl LocalCodeEditorView {
             });
         });
 
-        let mut local_editor =
-            Self::new(editor, None, enable_diff_nav_by_default, display_mode, ctx);
+        let mut local_editor = Self::new(editor, None, enable_diff_nav_by_default, ctx);
 
         local_editor.metadata = Some(LoadedFileMetadata::LocalFile {
             id: file_id,
@@ -1963,16 +1952,8 @@ impl LocalCodeEditorView {
     }
 }
 
-impl DiffViewer for LocalCodeEditorView {
-    fn editor(&self) -> &ViewHandle<CodeEditorView> {
-        &self.editor
-    }
-
-    fn diff(&self) -> Option<&DiffType> {
-        self.diff_type.as_ref()
-    }
-
-    fn reject_diff(&mut self, ctx: &mut ViewContext<Self>) {
+impl LocalCodeEditorView {
+    pub fn reject_diff(&mut self, ctx: &mut ViewContext<Self>) {
         ctx.emit(LocalCodeEditorEvent::DiffRejected);
     }
 }

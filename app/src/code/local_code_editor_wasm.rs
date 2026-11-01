@@ -20,8 +20,6 @@ use crate::terminal::TerminalView;
 use crate::{code::editor::EditorReviewComment, code_review::comments::CommentId};
 use warp_core::ui::appearance::Appearance;
 
-pub use super::diff_viewer::DisplayMode;
-
 #[derive(Debug)]
 pub enum LocalCodeEditorEvent {
     #[allow(dead_code)]
@@ -73,7 +71,6 @@ impl LocalCodeEditorView {
         editor: ViewHandle<CodeEditorView>,
         _diff_type: Option<DiffType>,
         _enable_diff_nav_by_default: bool,
-        _display_mode: Option<DisplayMode>,
         _ctx: &mut ViewContext<Self>,
     ) -> Self {
         Self { editor }
