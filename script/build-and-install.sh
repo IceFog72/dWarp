@@ -79,6 +79,11 @@ fi
 echo ""
 echo "=== Installing to system ==="
 
+# Remove legacy launchers only after a successful build. Shared settings stay intact.
+if [[ "$CHANNEL" == "oss" ]]; then
+  sudo "$WORKSPACE_ROOT_DIR/script/uninstall.sh" --legacy-only
+fi
+
 # Install binary
 RUNTIME_COMMAND="/usr/local/bin/$DESKTOP_COMMAND"
 REAL_COMMAND="/usr/local/bin/$DESKTOP_COMMAND.real"

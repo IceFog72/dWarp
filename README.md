@@ -173,3 +173,10 @@ Security vulnerabilities should be reported privately per
 dWarp stands on the shoulders of the Warp team and many open-source projects:
 
 [Warp](https://github.com/warpdotdev/warp) · [genai](https://github.com/jeremychone/rust-genai) · [opencode](https://github.com/opencode-ai/opencode) · [models.dev](https://models.dev) · [Tokio](https://github.com/tokio-rs/tokio) · [NuShell](https://github.com/nushell/nushell) · [Alacritty](https://github.com/alacritty/alacritty) · [Hyper](https://github.com/hyperium/hyper) · [minijinja](https://github.com/mitsuhiko/minijinja)
+
+## Uninstall
+
+See [uninstall instructions](docs/uninstall.md) for Linux, Windows, and macOS.
+Use `script/uninstall.sh --purge` on Linux/macOS or
+`script\uninstall.bat -Purge` on Windows for complete current-user data removal.
+Use the documented dry-run option first to inspect the affected files.
