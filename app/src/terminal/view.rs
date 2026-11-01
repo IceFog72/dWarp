@@ -1871,6 +1871,7 @@ pub struct TerminalView {
     /// next `AfterBlockCompleted`, at which point `Event::PendingCommandCompleted`
     /// is emitted so subscribers know the command has finished.
     awaiting_pending_command_completion: bool,
+    pending_launch_command: Option<Vec<String>>,
     slow_bootstrap_banner: ViewHandle<Banner<TerminalAction>>,
     is_slow_bootstrap_banner_open: bool,
 
@@ -2765,6 +2766,7 @@ impl TerminalView {
             bootstrap_start: None,
             is_login_shell_bootstrapped: false,
             awaiting_pending_command_completion: false,
+            pending_launch_command: None,
             slow_bootstrap_banner,
             is_slow_bootstrap_banner_open: false,
             incompatible_configuration_banner,
@@ -7562,8 +7564,25 @@ impl TerminalView {
         }
     }
 
+    pub(crate) fn queue_launch_command(
+        &mut self,
+        command: Vec<String>,
+        ctx: &mut ViewContext<Self>,
+    ) {
+        self.pending_launch_command = Some(command);
+        self.execute_pending_command((), ctx);
+    }
+
     /// Executes a command that was submitted by the user and not yet sent to the shell.
     pub fn execute_pending_command(&mut self, _: (), ctx: &mut ViewContext<Self>) {
+        if self.is_login_shell_bootstrapped {
+            if let Some(shell) = self.active_session_shell_type(ctx) {
+                if let Some(args) = self.pending_launch_command.take() {
+                    let command = crate::terminal_launch::command_line(&args, shell);
+                    self.set_pending_command(&command, ctx);
+                }
+            }
+        }
         let had_pending = self.input.read(ctx, |input, _| input.has_pending_command());
         self.input.update(ctx, |input, ctx| {
             input.execute_pending_command(ctx);

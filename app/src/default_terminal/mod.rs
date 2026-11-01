@@ -9,8 +9,13 @@ mod mac;
 #[cfg(target_os = "macos")]
 use mac::*;
 
+#[cfg(any(target_os = "linux", target_os = "freebsd"))]
+mod linux;
+#[cfg(any(target_os = "linux", target_os = "freebsd"))]
+use linux::*;
+
 #[allow(dead_code)]
-#[cfg(not(target_os = "macos"))]
+#[cfg(not(any(target_os = "macos", target_os = "linux", target_os = "freebsd")))]
 mod non_mac {
     pub fn can_become_default_terminal() -> bool {
         false
@@ -27,11 +32,11 @@ mod non_mac {
 }
 
 #[allow(unused_imports)]
-#[cfg(not(target_os = "macos"))]
+#[cfg(not(any(target_os = "macos", target_os = "linux", target_os = "freebsd")))]
 use non_mac::*;
 
 pub struct DefaultTerminal {
-    /// Whether the OS will treat Warp as the default app for scripts/executables.
+    /// Whether the platform selects Warp for its supported terminal integration.
     is_warp_default: bool,
 }
 
@@ -90,13 +95,13 @@ impl DefaultTerminal {
         self.is_warp_default
     }
 
-    /// This is a one-way operation. Once we set the default terminal to Warp, we can't really
-    /// "unset" it unless we pick a new default terminal. Picking a new default is complicated.
+    /// Apply the platform association or open its terminal chooser. A chooser may
+    /// return before the user selects an application, so re-query the preference.
     pub fn make_warp_default(&mut self, ctx: &mut ModelContext<Self>) {
         if let Err(e) = set_warp_as_default_terminal() {
             log::error!("Error setting Warp as default terminal: {e:#}");
         } else {
-            self.set_is_warp_default(true, ctx);
+            self.set_is_warp_default(is_warp_default_terminal(), ctx);
         }
     }
 }

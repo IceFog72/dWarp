@@ -114,6 +114,12 @@ if [ -f "$DESKTOP_SRC" ]; then
   echo "  Installed desktop entry: /usr/share/applications/$BUNDLE_ID.desktop"
 fi
 
+# Register the terminal in XFCE's preferred-application chooser.
+HELPER_SRC="$WORKSPACE_ROOT_DIR/app/channels/$CHANNEL/xfce4-helper.desktop"
+if [ -f "$HELPER_SRC" ]; then
+  sudo install -Dm644 "$HELPER_SRC" "/usr/share/xfce4/helpers/$BUNDLE_ID.desktop"
+fi
+
 # Install icons
 ICON_DIR="$WORKSPACE_ROOT_DIR/app/channels/$CHANNEL/icon/no-padding"
 if [ -d "$ICON_DIR" ]; then

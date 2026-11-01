@@ -145,6 +145,7 @@ pub enum QuakeModePinPosition {
 
 pub struct OpenFromRestoredArg {
     pub app_state: Option<AppState>,
+    pub create_default_window: bool,
 }
 
 pub struct OpenLaunchConfigArg {
@@ -545,8 +546,8 @@ fn open_from_restored(arg: &OpenFromRestoredArg, ctx: &mut AppContext) {
             }
 
             // If only the quake mode window was restored (which starts hidden), create a new normal
-            // window so that something visible is created on startup.
-            if normal_window_count == 0 {
+            // window unless a CLI terminal request will create the visible window.
+            if normal_window_count == 0 && arg.create_default_window {
                 let window_settings = WindowSettings::as_ref(ctx);
                 let options = default_window_options(window_settings, ctx);
                 ctx.add_window(options, |ctx| {

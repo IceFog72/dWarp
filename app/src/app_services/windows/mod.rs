@@ -1,7 +1,7 @@
 use registry::register_uri_handler;
 use warpui::AppContext;
 use {
-    service_impl::forward_uri_to_sole_running_instance,
+    service_impl::forward_startup_request_to_sole_running_instance,
     single_instance_manager::SingleInstanceManager, thiserror::Error,
 };
 
@@ -17,8 +17,6 @@ pub enum StartupArgsForwardingError {
     NoExistingInstance,
     #[error("failed to construct startup request")]
     StartupRequest(#[from] anyhow::Error),
-    #[error("IPC Client failed to send message")]
-    IpcError(#[from] ipc::ClientError),
     #[error("Win32 error")]
     WindowsError(#[from] windows::core::Error),
 }
@@ -34,7 +32,10 @@ pub fn pass_startup_args_to_existing_instance(
     }
 
     warpui::r#async::block_on(async {
-        forward_uri_to_sole_running_instance(args.startup_urls()?).await?;
+        forward_startup_request_to_sole_running_instance(crate::terminal_launch::prepare_request(
+            args,
+        )?)
+        .await?;
 
         Ok(())
     })

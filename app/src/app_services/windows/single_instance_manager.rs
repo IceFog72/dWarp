@@ -9,7 +9,7 @@ use windows::core::Error;
 use windows::Win32::Foundation::{CloseHandle, GetLastError, ERROR_ALREADY_EXISTS, HANDLE};
 use windows::Win32::System::Threading::CreateMutexW;
 
-use super::service_impl::UriServiceImpl;
+use super::service_impl::StartupServiceImpl;
 
 /// RAII wrapper around a Windows mutex HANDLE that closes it on drop.
 struct MutexHandle(HANDLE);
@@ -109,23 +109,21 @@ impl SingleInstanceManager {
         let (tx, rx) = async_channel::unbounded();
         let server = match ServerBuilder::default()
             .with_fixed_address(uri_named_pipe_name())
-            .with_service(UriServiceImpl::new(tx))
+            .with_service(StartupServiceImpl::new(tx))
             .build_and_run(ctx.background_executor())
         {
             Ok((server, _)) => {
                 ctx.spawn_stream_local(
                     rx,
-                    |_single_instance_manager, event, ctx| {
-                        for uri in event {
-                            crate::uri::handle_incoming_uri(&uri, ctx);
-                        }
+                    |_single_instance_manager, request, ctx| {
+                        crate::terminal_launch::handle_request(request, ctx);
                     },
                     |_, _| {},
                 );
                 server
             }
             Err(err) => {
-                log::error!("Failed to initialize UriService Server: {err:#}");
+                log::error!("Failed to initialize startup request server: {err:#}");
                 // If we failed to create a server, we can't receive URI requests so we drop the
                 // lock.
                 *SOLE_INSTANCE_MUTEX.lock() = Ok(None);

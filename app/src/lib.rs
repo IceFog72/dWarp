@@ -112,6 +112,7 @@ pub mod settings;
 pub mod settings_view;
 pub mod tab_configs;
 pub mod terminal;
+mod terminal_launch;
 pub mod themes;
 #[cfg(not(target_family = "wasm"))]
 use crate::ai::aws_credentials::AwsCredentialRefresher as _;
@@ -614,6 +615,15 @@ fn init_common(launch_mode: &LaunchMode, timer: Option<&mut IntervalTimer>) -> R
 fn run_internal(mut launch_mode: LaunchMode) -> Result<()> {
     let mut timer = IntervalTimer::new();
 
+    #[cfg(not(target_family = "wasm"))]
+    if let LaunchMode::App { args } = &launch_mode {
+        // Reject invalid launch requests before starting the UI or forwarding.
+        if let Err(err) = terminal_launch::prepare_request(args) {
+            #[cfg(windows)]
+            warp_util::windows::attach_to_parent_console();
+            return Err(err);
+        }
+    }
     init_common(&launch_mode, Some(&mut timer))?;
 
     // For wasm builds we have this special case to parse out the intent
@@ -1707,14 +1717,32 @@ fn launch(ctx: &mut warpui::AppContext, app_state: Option<AppState>, launch_mode
 
     match &launch_mode {
         LaunchMode::App { .. } | LaunchMode::Test { .. } => {
-            // Attempt to restore windows from the persisted application state.
-            let arg = OpenFromRestoredArg { app_state };
+            let args = launch_mode.args();
+            let cli_terminal = cfg!(feature = "local_tty")
+                && matches!(launch_mode, LaunchMode::App { .. })
+                && args.urls.is_empty();
+            // Restore saved windows without creating a spare window ahead of a CLI request.
+            let arg = OpenFromRestoredArg {
+                app_state,
+                create_default_window: !cli_terminal,
+            };
             ctx.dispatch_global_action("root_view:open_from_restored", &arg);
 
-            // Process any URLs that were provided on the command line (which may be
-            // file:// URLs or ones using our custom URL scheme).
-            for url in launch_mode.args().urls.iter() {
-                uri::handle_incoming_uri(url, ctx);
+            let initial_cli_terminal = cli_terminal
+                && uri::get_primary_window(ctx.windows().frontmost_window_id(), ctx).is_none();
+            if initial_cli_terminal
+                || args.working_directory.is_some()
+                || !args.execute.is_empty()
+                || args.new_window
+            {
+                match terminal_launch::prepare_request(&args) {
+                    Ok(request) => terminal_launch::handle_request(request, ctx),
+                    Err(err) => log::error!("Failed to prepare terminal launch: {err:#}"),
+                }
+            } else {
+                for url in &args.urls {
+                    uri::handle_incoming_uri(url, ctx);
+                }
             }
 
             // If, after session restoration and command-line argument handling, we

@@ -71,6 +71,14 @@ pub struct AppArgs {
     #[arg(long)]
     pub new_window: bool,
 
+    /// Start the terminal in this directory.
+    #[arg(long, short = 'd', conflicts_with = "urls")]
+    pub working_directory: Option<std::path::PathBuf>,
+
+    /// Execute a program with the remaining arguments. Place this option last.
+    #[arg(long, short = 'e', num_args = 1.., allow_hyphen_values = true, conflicts_with = "urls")]
+    pub execute: Vec<String>,
+
     /// True if this instance of Warp was launched at the end of the auto-update process.
     #[arg(long = "finish-update", hide = true)]
     pub finish_update: bool,
@@ -89,21 +97,76 @@ pub struct AppArgs {
     pub urls: Vec<Url>,
 }
 
-impl AppArgs {
-    /// Requests sent to the running application, preserving the caller's directory.
-    pub fn startup_urls(&self) -> anyhow::Result<Vec<Url>> {
-        if !self.urls.is_empty() {
-            return Ok(self.urls.clone());
-        }
+/// A local terminal launch. Command arguments remain separate through IPC.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct TerminalLaunch {
+    pub working_directory: std::path::PathBuf,
+    pub command: Vec<String>,
+    pub new_window: bool,
+}
 
-        let action = if self.new_window {
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub enum StartupRequest {
+    Terminal(TerminalLaunch),
+    Urls(Vec<Url>),
+}
+
+impl AppArgs {
+    pub fn startup_request(&self) -> anyhow::Result<StartupRequest> {
+        if !self.urls.is_empty() {
+            return Ok(StartupRequest::Urls(self.urls.clone()));
+        }
+        let current_dir = env::current_dir()?;
+        let directory = self
+            .working_directory
+            .as_ref()
+            .map(|directory| current_dir.join(directory))
+            .unwrap_or(current_dir);
+        anyhow::ensure!(
+            directory.is_dir(),
+            "working directory does not exist or is not a directory: {}",
+            directory.display()
+        );
+        let working_directory = directory.canonicalize()?;
+        anyhow::ensure!(
+            working_directory.to_str().is_some(),
+            "working directory is not UTF-8"
+        );
+        anyhow::ensure!(
+            self.execute.iter().all(|arg| !arg.contains('\0')),
+            "command arguments cannot contain NUL"
+        );
+        anyhow::ensure!(
+            self.execute
+                .first()
+                .is_none_or(|program| !program.is_empty()),
+            "executable cannot be empty"
+        );
+        Ok(StartupRequest::Terminal(TerminalLaunch {
+            working_directory,
+            command: self.execute.clone(),
+            new_window: self.new_window,
+        }))
+    }
+
+    /// Directory-only requests used by native application activation callbacks.
+    pub fn startup_urls(&self) -> anyhow::Result<Vec<Url>> {
+        let launch = match self.startup_request()? {
+            StartupRequest::Urls(urls) => return Ok(urls),
+            StartupRequest::Terminal(launch) => launch,
+        };
+        anyhow::ensure!(
+            launch.command.is_empty(),
+            "executable requests require local terminal IPC"
+        );
+        let action = if launch.new_window {
             "new_window"
         } else {
             "new_tab"
         };
         let mut url = Url::parse(&format!("{}://action/{action}", ChannelState::url_scheme()))?;
-        let current_dir = env::current_dir()?;
-        let path = current_dir
+        let path = launch
+            .working_directory
             .to_str()
             .ok_or_else(|| anyhow::anyhow!("working directory is not UTF-8"))?;
         url.query_pairs_mut().append_pair("path", path);

@@ -14491,6 +14491,7 @@ dependencies = [
  "color-print",
  "humantime",
  "jaq-all",
+ "serde",
  "serial_test",
  "url",
  "uuid",

@@ -72,9 +72,18 @@ pub fn pass_startup_args_to_existing_instance(
             .path(DBusServiceHost::application_service_path())?
             .build()
             .await?;
-        let urls = args.startup_urls()?;
-        let url_refs = urls.iter().map(AsRef::as_ref).collect_vec();
-        proxy.open(&url_refs, HashMap::new()).await?;
+        let request = crate::terminal_launch::prepare_request(args)?;
+        match request {
+            warp_cli::StartupRequest::Urls(urls) => {
+                let url_refs = urls.iter().map(AsRef::as_ref).collect_vec();
+                proxy.open(&url_refs, HashMap::new()).await?;
+            }
+            warp_cli::StartupRequest::Terminal(launch) => {
+                proxy
+                    .launch_terminal(&serde_json::to_string(&launch).map_err(anyhow::Error::from)?)
+                    .await?;
+            }
+        }
 
         // Make sure we close the connection and clean up resources, to avoid
         // leaving behind file descriptors that will interfere with the terminal
@@ -126,6 +135,7 @@ impl From<zbus::Error> for StartupArgsForwardingError {
 
 enum ApplicationServiceEvent {
     Open { uris: Vec<String> },
+    Launch(warp_cli::TerminalLaunch),
 }
 
 /// A structure providing an implementation of the org.freedesktop.Application
@@ -169,6 +179,18 @@ impl ApplicationService {
         Ok(())
     }
 
+    /// Local IPC only. Public deep links cannot request command execution.
+    async fn launch_terminal(&self, request: &str) -> zbus::fdo::Result<()> {
+        let mut launch: warp_cli::TerminalLaunch = serde_json::from_str(request)
+            .map_err(|err| zbus::fdo::Error::InvalidArgs(err.to_string()))?;
+        crate::terminal_launch::validate(&mut launch)
+            .map_err(|err| zbus::fdo::Error::InvalidArgs(err.to_string()))?;
+        self.tx
+            .send(ApplicationServiceEvent::Launch(launch))
+            .await
+            .map_err(|err| zbus::fdo::Error::Failed(err.to_string()))
+    }
+
     /// Called when the application is started with files.
     async fn open(
         &self,
@@ -189,6 +211,8 @@ impl ApplicationService {
     gen_blocking = false
 )]
 trait ExistingApplication {
+    fn launch_terminal(&self, request: &str) -> zbus::fdo::Result<()>;
+
     fn activate(&self, platform_data: HashMap<&str, zvariant::Value<'_>>) -> zbus::fdo::Result<()>;
 
     fn activate_action(
@@ -231,6 +255,9 @@ impl DBusServiceHost {
         // Process any events that we receive over D-Bus.
         ctx.spawn_stream_local(events, |_, event, ctx| {
             match event {
+                ApplicationServiceEvent::Launch(launch) => {
+                    crate::terminal_launch::handle_request(warp_cli::StartupRequest::Terminal(launch), ctx);
+                }
                 ApplicationServiceEvent::Open { uris } => {
                     for uri in uris {
                         match url::Url::parse(&uri) {
