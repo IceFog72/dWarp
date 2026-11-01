@@ -60,7 +60,11 @@ if ($ARCH -eq 'arm64') {
 $ErrorActionPreference = 'Stop'
 
 $WORKSPACE_ROOT_DIR = $(Get-Location).Path
-$CARGO_TARGET_DIR = $WORKSPACE_ROOT_DIR + '\target'
+if ($env:CARGO_TARGET_DIR) {
+    $CARGO_TARGET_DIR = [IO.Path]::GetFullPath([IO.Path]::Combine($WORKSPACE_ROOT_DIR, $env:CARGO_TARGET_DIR))
+} else {
+    $CARGO_TARGET_DIR = Join-Path $WORKSPACE_ROOT_DIR 'target'
+}
 $WINDOWS_INSTALLER_DIR = $WORKSPACE_ROOT_DIR + '\script\windows'
 
 if ($DEBUG_BUILD) {

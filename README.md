@@ -111,6 +111,8 @@ To build the optimized `release-lto` binary and install it system-wide, use [`sc
 
 The script also accepts `dev` or `local` channels. The OSS launcher is installed as `warp-terminal-oss` with `warp-oss` as a compatibility command.
 
+On Windows, run [`script/build-and-install.bat`](script/build-and-install.bat) to build the OSS installer and open its installation wizard. Use `-BuildOnly` to produce the installer without installing it. Prerequisites and options are in [Windows build instructions](docs/windows-build.md).
+
 > ⚠️ Do not run `cargo build --release` / `cargo run --release --bin {warp,stable,dev,preview}`
 > without a filter — those entry points (`local.rs` / `stable.rs` / `dev.rs` / `preview.rs`) load
 > their channel config through Warp's private `warp-channel-config` binary, which lives in a
