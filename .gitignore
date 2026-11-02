@@ -79,8 +79,17 @@ perf.data
 graphify-out/
 .unlazy/
 
-# Keep dot-prefixed directories local at any depth.
-.*/
+# Local tool, editor, CI, and package-manager directories.
+.cargo/
+.codex/
+.config/
+.github/
+.skills/
+.vscode/
+.warp/
+.yarn/
+.agents/
+.claude/
 
 # Keep runtime and build logs local.
 logs/

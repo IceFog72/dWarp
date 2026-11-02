@@ -86,5 +86,6 @@ __pycache__/
 # Allow vscode
 # !.vscode # Commented by default
 
-# Keep dot-prefixed directories local.
-.*/
+# Keep repository configuration directories local.
+.github/
+.cargo/
