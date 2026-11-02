@@ -3,7 +3,6 @@ app/frameworks/default/Carthage
 app/frameworks/dev/Carthage
 app/frameworks/**/*.xcframework
 /target
-/logs/build-and-install/
 /app/target
 /lib/*
 !/lib/rust-genai/
@@ -75,9 +74,11 @@ perf.data.old
 perf.data
 .codegraph/
 .agent/
+plans/
 
 graphify-out/
 .unlazy/
+UPSTREAM_CLI_AGENT_COMMITS.md
 
 # Local tool, editor, CI, and package-manager directories.
 .cargo/
