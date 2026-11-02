@@ -1149,7 +1149,7 @@ impl EventLoop {
         };
 
         let window = downcast_window(window.as_ref());
-        if !window.is_drawable() {
+        if !window.begin_redraw() {
             return;
         }
 

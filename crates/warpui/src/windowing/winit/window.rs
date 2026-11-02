@@ -1038,7 +1038,6 @@ impl Window {
             .is_some_and(|inner| inner.cpu_backend.is_some())
         {
             self.render_cpu(scene.clone(), font_cache)?;
-            self.redraw_pending.set(false);
             drop(scene);
             if self.needs_rebuild.get() {
                 self.request_redraw_if_visible();
@@ -1089,7 +1088,6 @@ impl Window {
             inner.uncloak_after_present();
         }
 
-        self.redraw_pending.set(false);
         drop(scene);
         if self.needs_rebuild.get() {
             self.request_redraw_if_visible();
@@ -2060,7 +2058,10 @@ impl platform::WindowContext for Window {
 }
 
 impl Window {
-    pub(super) fn is_drawable(&self) -> bool {
+    pub(super) fn begin_redraw(&self) -> bool {
+        // The queued event has arrived, even if visibility or a render failure
+        // prevents presenting it. Future invalidations must be able to queue again.
+        self.redraw_pending.set(false);
         self.inner
             .borrow()
             .as_ref()
@@ -2113,3 +2114,7 @@ fn get_monitor_logical_bounds(monitor: &MonitorHandle) -> RectF {
         Vector2F::new(logical_size.width, logical_size.height),
     )
 }
+
+#[cfg(test)]
+#[path = "window_tests.rs"]
+mod tests;
