@@ -77,7 +77,8 @@ use crate::code::editor_management::CodeManager;
 use crate::code::editor_management::CodeSource;
 use crate::launch_configs::launch_config::WindowTemplate;
 use crate::pane_group::{
-    CodeReviewPanelArg, Direction as PaneGroupDirection, PaneGroup, PaneId, TerminalPaneId,
+    CodeReviewPanelArg, Direction as PaneGroupDirection, PaneGroup, PaneGroupAction, PaneId,
+    TerminalPaneId,
 };
 use crate::quit_warning::UnsavedStateSummary;
 use crate::search::command_palette::view::NavigationMode;
@@ -446,6 +447,7 @@ const MOBILE_OVERLAY_PANEL_WIDTH_RATIO: f32 = 0.9;
 const MOBILE_OVERLAY_SCRIM_ALPHA: u8 = 128;
 
 pub const NEW_TAB_BUTTON_POSITION_ID: &str = "new_tab_button";
+const SPLIT_PANE_BUTTON_POSITION_ID: &str = "split_pane_button";
 pub const NEW_SESSION_MENU_BUTTON_POSITION_ID: &str = "new_session_menu_button";
 
 // The max length of the window title (matching conversation title truncation).
@@ -3779,6 +3781,47 @@ impl Workspace {
                 .with_on_select_action(WorkspaceAction::OpenHeaderToolbarEditor)
                 .into_item(),
         ];
+        self.header_toolbar_context_menu
+            .update(ctx, |menu, ctx| menu.set_items(items, ctx));
+        self.show_header_toolbar_context_menu = Some(position);
+        ctx.focus(&self.header_toolbar_context_menu);
+        ctx.notify();
+    }
+
+    fn show_split_pane_menu(&mut self, position: Vector2F, ctx: &mut ViewContext<Self>) {
+        if !ContextFlag::CreateNewSession.is_enabled() {
+            return;
+        }
+        let items = [
+            (
+                PaneGroupDirection::Right,
+                crate::t!("menu-block-split-pane-right"),
+                "pane_group:add_right",
+            ),
+            (
+                PaneGroupDirection::Left,
+                crate::t!("menu-block-split-pane-left"),
+                "pane_group:add_left",
+            ),
+            (
+                PaneGroupDirection::Down,
+                crate::t!("menu-block-split-pane-down"),
+                "pane_group:add_down",
+            ),
+            (
+                PaneGroupDirection::Up,
+                crate::t!("menu-block-split-pane-up"),
+                "pane_group:add_up",
+            ),
+        ]
+        .into_iter()
+        .map(|(direction, label, binding)| {
+            MenuItemFields::new(label)
+                .with_on_select_action(WorkspaceAction::SplitPane(direction))
+                .with_key_shortcut_label(keybinding_name_to_display_string(binding, ctx))
+                .into_item()
+        })
+        .collect::<Vec<_>>();
         self.header_toolbar_context_menu
             .update(ctx, |menu, ctx| menu.set_items(items, ctx));
         self.show_header_toolbar_context_menu = Some(position);
@@ -11133,7 +11176,14 @@ impl Workspace {
                 }
             }
             HeaderToolbarItemKind::AgentManagement => return None,
-            HeaderToolbarItemKind::CodeReview => self.render_right_panel_button(appearance, ctx),
+            HeaderToolbarItemKind::CodeReview => {
+                let mut row = Flex::row().with_cross_axis_alignment(CrossAxisAlignment::Center);
+                if ContextFlag::CreateNewSession.is_enabled() {
+                    row.add_child(self.render_split_pane_button(appearance, ctx));
+                }
+                row.add_child(self.render_right_panel_button(appearance, ctx));
+                row.finish()
+            }
             HeaderToolbarItemKind::NotificationsMailbox => {
                 self.render_notifications_mailbox_button(appearance, ctx)
             }
@@ -11394,6 +11444,74 @@ impl Workspace {
                 ChildAnchor::TopRight,
             ),
         );
+    }
+
+    fn render_split_pane_button(
+        &self,
+        appearance: &Appearance,
+        ctx: &AppContext,
+    ) -> Box<dyn Element> {
+        let corner_radius = Radius::Pixels(4.);
+        let split = combo_inner_button(
+            appearance,
+            icons::Icon::LayoutAlt01,
+            false,
+            self.mouse_states.split_pane_button.clone(),
+        )
+        .with_style(
+            UiComponentStyles::default().set_border_radius(CornerRadius::with_left(corner_radius)),
+        )
+        .with_tooltip(self.render_tab_bar_icon_button_tooltip(
+            appearance,
+            crate::t!("menu-block-split-pane-right"),
+            keybinding_name_to_display_string("pane_group:add_right", ctx),
+        ))
+        .build()
+        .on_click(|ctx, _, _| {
+            ctx.dispatch_typed_action(WorkspaceAction::SplitPane(PaneGroupDirection::Right))
+        })
+        .finish();
+        let window_id = self.window_id;
+        let menu = combo_inner_button(
+            appearance,
+            icons::Icon::ChevronDown,
+            false,
+            self.mouse_states.split_pane_menu.clone(),
+        )
+        .with_style(
+            UiComponentStyles::default()
+                .set_border_radius(CornerRadius::with_right(corner_radius))
+                .set_width(16.),
+        )
+        .with_tooltip(self.render_tab_bar_icon_button_tooltip(
+            appearance,
+            crate::t!("resource-center-split-panes-title"),
+            None,
+        ))
+        .build()
+        .on_click(move |ctx, app, _| {
+            if let Some(position) =
+                app.element_position_by_id_at_last_frame(window_id, SPLIT_PANE_BUTTON_POSITION_ID)
+            {
+                ctx.dispatch_typed_action(WorkspaceAction::ShowSplitPaneMenu {
+                    position: position.lower_left(),
+                });
+            }
+        })
+        .finish();
+        Container::new(
+            SavePosition::new(
+                Flex::row()
+                    .with_cross_axis_alignment(CrossAxisAlignment::Center)
+                    .with_child(split)
+                    .with_child(menu)
+                    .finish(),
+                SPLIT_PANE_BUTTON_POSITION_ID,
+            )
+            .finish(),
+        )
+        .with_margin_right(TAB_BAR_ICON_PADDING)
+        .finish()
     }
 
     fn render_new_session_button(&self, ctx: &AppContext) -> Box<dyn Element> {
@@ -13137,6 +13255,14 @@ impl TypedActionView for Workspace {
             AddTabWithShell { shell, .. } => self.add_tab_with_shell(shell.clone(), ctx),
             AddGetStartedTab => self.add_get_started_tab(ctx),
             OpenNewSessionMenu { position } => self.open_new_session_dropdown_menu(*position, ctx),
+            ShowSplitPaneMenu { position } => self.show_split_pane_menu(*position, ctx),
+            SplitPane(direction) => {
+                if ContextFlag::CreateNewSession.is_enabled() {
+                    self.active_tab_pane_group().update(ctx, |pane_group, ctx| {
+                        pane_group.handle_action(&PaneGroupAction::Add(*direction), ctx);
+                    });
+                }
+            }
             ToggleTabConfigsMenu => self.toggle_tab_configs_menu(ctx),
             ShowSessionConfigModal => self.show_session_config_modal(ctx),
             DismissSessionConfigTabConfigChip => {

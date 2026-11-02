@@ -5,6 +5,7 @@ use std::sync::Arc;
 use warp_util::path::LineAndColumnArg;
 
 use crate::palette::PaletteMode;
+use crate::pane_group::Direction;
 use crate::prompt::editor_modal::OpenSource as PromptEditorOpenSource;
 use crate::search;
 use crate::server::telemetry::{AddTabWithShellSource, PaletteSource};
@@ -130,6 +131,10 @@ pub enum WorkspaceAction {
     },
     AddGetStartedTab,
     OpenNewSessionMenu {
+        position: Vector2F,
+    },
+    SplitPane(Direction),
+    ShowSplitPaneMenu {
         position: Vector2F,
     },
     ToggleTabConfigsMenu,
@@ -464,6 +469,7 @@ impl WorkspaceAction {
             | ToggleTabColor { .. }
             | AddDefaultTab
             | AddTerminalTab { .. }
+            | SplitPane(_)
             | OpenSshTerminal { .. }
             | ToggleSshManager
             | AddTabWithShell { .. }
@@ -511,6 +517,7 @@ impl WorkspaceAction {
             | ToggleTabRightClickMenu { .. }
             | ToggleVerticalTabsPaneContextMenu { .. }
             | OpenNewSessionMenu { .. }
+            | ShowSplitPaneMenu { .. }
             | ToggleTabConfigsMenu
             | ToggleNewSessionMenu { .. }
             | SelectNewSessionMenuItem(_)

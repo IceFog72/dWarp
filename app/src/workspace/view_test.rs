@@ -21,6 +21,7 @@ use repo_metadata::CanonicalizedPath;
 #[cfg(feature = "local_fs")]
 use repo_metadata::RepoMetadataModel;
 use std::collections::HashMap;
+use std::mem::discriminant;
 #[cfg(feature = "local_fs")]
 use tempfile::TempDir;
 use watcher::HomeDirectoryWatcher;
@@ -173,6 +174,76 @@ fn mock_workspace(app: &mut App) -> ViewHandle<Workspace> {
         )
     });
     workspace
+}
+
+#[test]
+fn test_title_bar_split_targets_active_tab_while_menu_is_focused() {
+    App::test((), |mut app| async move {
+        initialize_app(&mut app);
+        let workspace = mock_workspace(&mut app);
+        let original = workspace.read(&app, |workspace, _| {
+            workspace.active_tab_pane_group().clone()
+        });
+        workspace.update(&mut app, |workspace, ctx| {
+            workspace.add_terminal_tab(false, ctx);
+        });
+        let active = workspace.read(&app, |workspace, _| {
+            workspace.active_tab_pane_group().clone()
+        });
+        let initial_tabs = workspace.read(&app, |workspace, _| workspace.tab_count());
+        workspace.update(&mut app, |workspace, ctx| {
+            workspace.handle_action(&WorkspaceAction::SplitPane(Direction::Right), ctx);
+        });
+        assert_eq!(active.read(&app, |group, _| group.pane_ids().count()), 2);
+
+        for (index, direction) in [
+            Direction::Right,
+            Direction::Left,
+            Direction::Down,
+            Direction::Up,
+        ]
+        .into_iter()
+        .enumerate()
+        {
+            workspace.update(&mut app, |workspace, ctx| {
+                workspace.handle_action(
+                    &WorkspaceAction::ShowSplitPaneMenu {
+                        position: Vector2F::zero(),
+                    },
+                    ctx,
+                );
+            });
+            workspace.update(&mut app, |workspace, ctx| {
+                let menu = workspace.header_toolbar_context_menu.clone();
+                assert!(menu.is_focused(ctx));
+                let action = menu.read(ctx, |menu, _| {
+                    assert_eq!(menu.items().len(), 4);
+                    let MenuItem::Item(fields) = &menu.items()[index] else {
+                        panic!("split choices must be actionable menu items");
+                    };
+                    fields.on_select_action().cloned().expect("split action")
+                });
+                let WorkspaceAction::SplitPane(selected_direction) = &action else {
+                    panic!("split choices must use the existing pane split action");
+                };
+                assert_eq!(discriminant(selected_direction), discriminant(&direction));
+                workspace.handle_action(&action, ctx);
+            });
+            assert_eq!(
+                active.read(&app, |group, _| group.pane_ids().count()),
+                index + 3
+            );
+            assert_eq!(original.read(&app, |group, _| group.pane_ids().count()), 1);
+            assert_eq!(
+                workspace.read(&app, |workspace, _| workspace.tab_count()),
+                initial_tabs
+            );
+            assert_eq!(
+                workspace.read(&app, |workspace, _| workspace.active_tab_pane_group().id()),
+                active.id()
+            );
+        }
+    });
 }
 
 #[test]

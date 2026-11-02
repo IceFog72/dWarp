@@ -21,6 +21,8 @@ pub struct PaneViewLocator {
 pub(super) struct WorkspaceMouseStates {
     pub(super) new_tab_button: MouseStateHandle,
     pub(super) new_tab_menu: MouseStateHandle,
+    pub(super) split_pane_button: MouseStateHandle,
+    pub(super) split_pane_menu: MouseStateHandle,
     pub(super) new_tab: MouseStateHandle,
     pub(super) overflow_button: MouseStateHandle,
     pub(super) banner_button: MouseStateHandle,
