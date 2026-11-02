@@ -74,6 +74,13 @@ os.execv(command[0], command)
         self.assertIn("--no-focus", forwarded)
         self.assertEqual(forwarded[forwarded.index("--command-group") + 1], "Codex")
 
+    def test_focus_is_explicit_and_keeps_group_ownership(self):
+        result = self.run_command("print('interactive')", options=["--focus"])
+        self.assertEqual(result.returncode, 0, result.stderr)
+        forwarded = json.loads((self.root / "state/launcher-args.json").read_text())
+        self.assertNotIn("--no-focus", forwarded)
+        self.assertEqual(forwarded[forwarded.index("--command-group") + 1], "Codex")
+
     def test_old_launcher_is_rejected_even_with_new_tab(self):
         source = self.launcher.read_text().replace('print("--command-group --no-focus")', 'print("old launcher")')
         self.launcher.write_text(source)

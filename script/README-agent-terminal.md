@@ -71,8 +71,15 @@ the requested folder and add a split there. Add an on/off setting and a
 configurable split limit, initially four. At the limit, open another tab. Review
 this after the external-command workflow is complete.
 
-Agent commands always use `--no-focus`. Keep dWarp running with an open window.
-The runner does not raise the application or start a GUI when it is closed.
+Agent commands use `--no-focus` by default. Keep dWarp running with an open window.
+Use `--focus` when the user needs to answer an interactive prompt:
+
+```bash
+dwarp-run --focus --group Codex -- sudo -v
+```
+
+This raises dWarp and selects the command's pane so the user can type directly.
+Without `--focus`, the runner does not raise the application or start a GUI when it is closed.
 Background local terminal IPC is implemented on Linux and Windows. macOS
 background requests currently fail explicitly because its local terminal IPC
 is not implemented. The POSIX runner itself has no Windows PTY backend.

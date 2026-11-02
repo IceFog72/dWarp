@@ -58,7 +58,9 @@ visible in dWarp while returning output and exit status to its calling tool:
 This uses ordinary terminal sessions, not the removed built-in agent. It retains
 private command logs, supports timeouts and cancellation, and preserves PTY
 behavior. Commands reuse an owned tab and split when busy, without raising the
-app. Keep the rebuilt dWarp running with an open window. It currently targets POSIX hosts and is tested on Linux. See
+app. Use `--focus` when you need to answer an interactive prompt, such as sudo.
+Keep the rebuilt dWarp running with an open window. It currently targets POSIX
+hosts and is tested on Linux. See
 [visible-command instructions](script/README-agent-terminal.md) for details.
 
 ## Build and run

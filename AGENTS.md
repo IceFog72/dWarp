@@ -320,7 +320,7 @@ Under `app/src/`, there are 60+ flat product domain directories. Each directory 
 ### 5.10 Visible shell commands
 
 - Run development shell commands through `./script/run-in-dwarp --cwd /mnt/Data/Apps/warp -- PROGRAM ARGUMENT ...` so the user can watch them in dWarp. The wrapper mirrors output and returns the command's exit status to the calling tool.
-- Agent launches must not raise or activate dWarp. The runner always uses `--no-focus` and requires a running app with an open window. If the installed app lacks this support, rebuild before using the runner.
+- Agent launches stay in the background by default. Use the runner's explicit `--focus` option when the user must answer an interactive prompt, including a sudo password. Otherwise the runner uses `--no-focus` and requires a running app with an open window. If the installed app lacks this support, rebuild before using the runner.
 - Put environment overrides after `--` using `env NAME=VALUE PROGRAM ...`. Use an explicit shell for shell syntax. See `script/README-agent-terminal.md` for interruption, logs, and platform scope.
 - Direct execution is appropriate for diagnosing the wrapper itself when it cannot launch. Explain that exception. Keep the removed built-in Warp agent and shared-session subsystem out of this workflow.
 

@@ -263,7 +263,7 @@ def run(args):
     with (directory / "launcher.log").open("ab", buffering=0) as launch_log:
         layout = [] if args.new_tab else ["--command-group", args.group]
         launch = subprocess.Popen(
-            [launcher, "--no-focus", "--working-directory", str(cwd), *layout, "--execute",
+            [launcher, *([] if args.focus else ["--no-focus"]), "--working-directory", str(cwd), *layout, "--execute",
              sys.executable, str(SCRIPT), "_worker", str(directory)],
             stdin=subprocess.DEVNULL, stdout=launch_log, stderr=launch_log,
             start_new_session=True,
@@ -327,6 +327,7 @@ def main():
         return worker(Path(sys.argv[2]))
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--cwd", default=os.getcwd())
+    parser.add_argument("--focus", action="store_true", help="Raise dWarp for interactive user input, such as a sudo password")
     parser.add_argument("--warp", default="dwarp", help="dWarp launcher executable")
     layout = parser.add_mutually_exclusive_group()
     layout.add_argument("--group", default=os.environ.get("DWARP_COMMAND_GROUP", "Codex"),
