@@ -205,6 +205,13 @@ pub enum CodeEditorModelEvent {
         origin: EditOrigin,
     },
     SelectionChanged,
+    #[cfg_attr(
+        not(test),
+        expect(
+            dead_code,
+            reason = "The result payload is inspected by model regression tests; views use completion notifications."
+        )
+    )]
     UnifiedDiffComputed(Rc<DiffResult>),
     ViewportUpdated(BufferVersion),
     InteractionStateChanged,

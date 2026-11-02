@@ -734,7 +734,6 @@ enum SummaryPaneKind {
     Terminal,
     CLIAgent { agent: CLIAgent },
     Code { title: String },
-    CodeDiff,
     File,
     Settings,
     Other,
@@ -2461,7 +2460,6 @@ fn render_pane_row(props: PaneProps<'_>, app: &AppContext) -> Box<dyn Element> {
 enum TypedPane<'a> {
     Terminal(&'a TerminalPane),
     Code(&'a CodePane),
-    CodeDiff,
     File,
     Settings,
     Other,
@@ -2485,7 +2483,6 @@ impl TypedPane<'_> {
             TypedPane::Code(_) => SummaryPaneKind::Code {
                 title: title.to_string(),
             },
-            TypedPane::CodeDiff => SummaryPaneKind::CodeDiff,
             TypedPane::File => SummaryPaneKind::File,
             TypedPane::Settings => SummaryPaneKind::Settings,
             TypedPane::Other => SummaryPaneKind::Other,
@@ -2499,7 +2496,6 @@ impl TypedPane<'_> {
         match self {
             TypedPane::Terminal(_) => crate::t!("vertical-tabs-pane-kind-terminal"),
             TypedPane::Code(_) => crate::t!("vertical-tabs-pane-kind-code"),
-            TypedPane::CodeDiff => crate::t!("vertical-tabs-pane-kind-code-diff"),
             TypedPane::File => crate::t!("vertical-tabs-pane-kind-file"),
             TypedPane::Settings => crate::t!("settings-title"),
             TypedPane::Other => crate::t!("vertical-tabs-pane-kind-other"),
@@ -2513,11 +2509,9 @@ impl TypedPane<'_> {
                 .as_ref(app)
                 .contains_unsaved_changes(app)
                 .then(|| "Unsaved".to_string()),
-            TypedPane::Terminal(_)
-            | TypedPane::CodeDiff
-            | TypedPane::File
-            | TypedPane::Settings
-            | TypedPane::Other => None,
+            TypedPane::Terminal(_) | TypedPane::File | TypedPane::Settings | TypedPane::Other => {
+                None
+            }
         }
     }
 
@@ -2525,7 +2519,6 @@ impl TypedPane<'_> {
         match self {
             TypedPane::Terminal(_) => WarpIcon::Terminal,
             TypedPane::Code(_) => WarpIcon::Code2,
-            TypedPane::CodeDiff => WarpIcon::Diff,
             TypedPane::File => WarpIcon::File,
             TypedPane::Settings => WarpIcon::Gear,
             TypedPane::Other => WarpIcon::File,
@@ -2654,7 +2647,7 @@ fn build_vertical_tabs_summary_data(
                     &pane_subtitle,
                 );
             }
-            TypedPane::CodeDiff | TypedPane::File | TypedPane::Settings | TypedPane::Other => {
+            TypedPane::File | TypedPane::Settings | TypedPane::Other => {
                 push_normalized_unique_summary_text(
                     &mut primary_labels,
                     &mut primary_seen,
@@ -2766,11 +2759,7 @@ impl<'a> PaneProps<'a> {
                 self.display_title_override.as_deref(),
                 app,
             ),
-            TypedPane::Code(_)
-            | TypedPane::CodeDiff
-            | TypedPane::File
-            | TypedPane::Settings
-            | TypedPane::Other => {
+            TypedPane::Code(_) | TypedPane::File | TypedPane::Settings | TypedPane::Other => {
                 non_terminal_search_text_fragments(self.generated_or_tab_title(), &self.subtitle)
             }
         };
@@ -3533,7 +3522,6 @@ fn render_summary_pane_kind_icon_circle(
             internal_colors::fg_overlay_2(theme).into(),
         ),
         SummaryPaneKind::Terminal
-        | SummaryPaneKind::CodeDiff
         | SummaryPaneKind::File
         | SummaryPaneKind::Settings
         | SummaryPaneKind::Other => {
@@ -3573,7 +3561,6 @@ fn summary_pane_kind_icon(
             WarpThemeFill::Solid(agent.brand_icon_color()),
         ),
         SummaryPaneKind::Code { .. } => (WarpIcon::Code2, sub_text),
-        SummaryPaneKind::CodeDiff => (WarpIcon::Diff, sub_text),
         SummaryPaneKind::File => (WarpIcon::File, sub_text),
         SummaryPaneKind::Settings => (WarpIcon::Gear, main_text),
         SummaryPaneKind::Other => (WarpIcon::File, sub_text),
@@ -5324,9 +5311,7 @@ fn render_detail_section(
             app,
         ),
         TypedPane::Code(_) => render_code_detail_section(props, appearance, app),
-        TypedPane::CodeDiff | TypedPane::File | TypedPane::Settings | TypedPane::Other => {
-            Empty::new().finish()
-        }
+        TypedPane::File | TypedPane::Settings | TypedPane::Other => Empty::new().finish(),
     }
 }
 pub(super) struct DetailSidecarOverlay {

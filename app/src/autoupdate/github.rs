@@ -1,10 +1,12 @@
 //! Fetch OSS release metadata and select assets from GitHub Releases.
 //! Platform modules download the selected installer and reveal it in the file manager.
 
+#[cfg(any(target_os = "macos", target_os = "windows"))]
 use std::sync::Mutex;
 use std::time::Duration;
 
 use anyhow::{Context as _, Result};
+#[cfg(any(target_os = "macos", target_os = "windows"))]
 use lazy_static::lazy_static;
 use serde::Deserialize;
 
@@ -21,14 +23,18 @@ const FETCH_TIMEOUT: Duration = Duration::from_secs(30);
 #[derive(Debug, Clone, Deserialize)]
 pub struct GithubRelease {
     pub tag_name: String,
+    #[cfg(any(target_os = "macos", target_os = "windows"))]
     pub html_url: String,
     pub assets: Vec<GithubAsset>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct GithubAsset {
+    #[cfg(any(target_os = "macos", target_os = "windows"))]
     pub name: String,
+    #[cfg(any(target_os = "macos", target_os = "windows"))]
     pub browser_download_url: String,
+    #[cfg(any(target_os = "macos", target_os = "windows"))]
     pub size: u64,
 }
 
@@ -37,21 +43,25 @@ impl GithubRelease {
         self.tag_name.trim_start_matches('v')
     }
 
+    #[cfg(any(target_os = "macos", target_os = "windows"))]
     pub fn find_asset(&self, expected_name: &str) -> Option<&GithubAsset> {
         self.assets.iter().find(|a| a.name == expected_name)
     }
 }
 
+#[cfg(any(target_os = "macos", target_os = "windows"))]
 lazy_static! {
     /// Cache release metadata between the version check and the download.
     /// This avoids a second request selecting a different release.
     static ref LATEST_RELEASE: Mutex<Option<GithubRelease>> = Mutex::new(None);
 }
 
+#[cfg(any(target_os = "macos", target_os = "windows"))]
 pub fn cached_release() -> Option<GithubRelease> {
     LATEST_RELEASE.lock().ok().and_then(|g| g.clone())
 }
 
+#[cfg(any(target_os = "macos", target_os = "windows"))]
 fn store_cached(release: GithubRelease) {
     if let Ok(mut guard) = LATEST_RELEASE.lock() {
         *guard = Some(release);
@@ -80,6 +90,7 @@ pub async fn fetch_latest_release(client: &http_client::Client) -> Result<Github
         release.tag_name,
         release.assets.len()
     );
+    #[cfg(any(target_os = "macos", target_os = "windows"))]
     store_cached(release.clone());
     Ok(release)
 }

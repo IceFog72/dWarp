@@ -677,6 +677,7 @@ impl RepositoryState {
 
 struct RelocateCommentsResult {
     comments: Vec<AttachedReviewComment>,
+    #[cfg(test)]
     fallback_count: usize,
 }
 
@@ -3698,13 +3699,14 @@ impl CodeReviewView {
     /// target location. Comments without matching editors or without matching line content are
     /// marked as outdated.
     ///
-    /// Returns a tuple of (all_comments_with_updated_targets, fallback_count).
+    /// Returns relocated comments and, in tests, the number of fallback matches.
     fn relocate_comments(
         comments: impl IntoIterator<Item = AttachedReviewComment>,
         state: &LoadedState,
         repo_path: &Path,
         ctx: &mut ViewContext<Self>,
     ) -> RelocateCommentsResult {
+        #[cfg(test)]
         let mut fallback_count = 0;
         let editor_file_paths = state.editor_absolute_file_paths(repo_path);
 
@@ -3756,7 +3758,10 @@ impl CodeReviewView {
                     });
 
                 if used_fallback {
-                    fallback_count += 1;
+                    #[cfg(test)]
+                    {
+                        fallback_count += 1;
+                    }
                     if FeatureFlag::PRCommentsSlashCommand.is_enabled() {
                         comment.outdated = true;
                     }
@@ -3775,6 +3780,7 @@ impl CodeReviewView {
 
         RelocateCommentsResult {
             comments: relocated_comments,
+            #[cfg(test)]
             fallback_count,
         }
     }

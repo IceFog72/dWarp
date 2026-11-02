@@ -13,12 +13,12 @@ use crate::code::editor::{
     goto_line::view::{Event as GoToLineEvent, GoToLineView},
     line::EditorLineLocation,
     model::{CodeEditorModel, CodeEditorModelEvent, HoverableLink, LineBound, StableEditorLine},
-    nav_bar::{NavBar, NavBarBehavior, NavBarEvent},
+    nav_bar::{NavBar, NavBarEvent},
     scroll::{ScrollPosition, ScrollTrigger, ScrollWheelBehavior},
 };
 use crate::code::{
-    editor::EditorReviewComment, DiffResult, NoopCommentEditorProvider,
-    NoopFindReferencesCardProvider, ShowCommentEditorProvider, ShowFindReferencesCardProvider,
+    editor::EditorReviewComment, NoopCommentEditorProvider, NoopFindReferencesCardProvider,
+    ShowCommentEditorProvider, ShowFindReferencesCardProvider,
 };
 use crate::{
     appearance::Appearance,
@@ -34,7 +34,6 @@ use lazy_static::lazy_static;
 use num_traits::SaturatingSub;
 use pathfinder_geometry::vector::vec2f;
 use std::fmt::Debug;
-use std::rc::Rc;
 use std::{collections::HashMap, ops::Range};
 use std::{collections::HashSet, path::Path};
 use string_offset::CharOffset;
@@ -104,7 +103,7 @@ pub enum CodeEditorEvent {
     ContentChanged {
         origin: EditOrigin,
     },
-    UnifiedDiffComputed(Rc<DiffResult>),
+    UnifiedDiffComputed,
     SelectionChanged,
     SelectionStart,
     SelectionEnd,
@@ -746,12 +745,6 @@ impl CodeEditorView {
         self.display_options.show_nav_bar = show_nav_bar;
     }
 
-    pub fn set_nav_bar_behavior(&self, behavior: NavBarBehavior, ctx: &mut ViewContext<Self>) {
-        self.nav_bar.update(ctx, |nav_bar, _ctx| {
-            nav_bar.set_behavior(behavior);
-        });
-    }
-
     pub fn set_show_current_line_highlights(
         &self,
         show_current_line_highlights: bool,
@@ -762,16 +755,8 @@ impl CodeEditorView {
         })
     }
 
-    pub fn set_scroll_wheel_behavior(&mut self, behavior: ScrollWheelBehavior) {
-        self.display_options.scroll_wheel_behavior = behavior;
-    }
-
     pub fn set_vertical_scrollbar_appearance(&mut self, appearance: ScrollableAppearance) {
         self.display_options.vertical_scrollbar_appearance = appearance;
-    }
-
-    pub fn set_horizontal_scrollbar_appearance(&mut self, appearance: ScrollableAppearance) {
-        self.display_options.horizontal_scrollbar_appearance = appearance;
     }
 
     pub fn set_show_find_references_provider(
@@ -1232,8 +1217,8 @@ impl CodeEditorView {
                 }
                 ctx.emit(CodeEditorEvent::ContentChanged { origin: *origin });
             }
-            CodeEditorModelEvent::UnifiedDiffComputed(diff) => {
-                ctx.emit(CodeEditorEvent::UnifiedDiffComputed(diff.clone()));
+            CodeEditorModelEvent::UnifiedDiffComputed(_) => {
+                ctx.emit(CodeEditorEvent::UnifiedDiffComputed);
             }
             CodeEditorModelEvent::ViewportUpdated(version) => {
                 if let Some(trigger) = self
@@ -1243,9 +1228,6 @@ impl CodeEditorView {
                     match trigger.position {
                         ScrollPosition::LineAndColumn(line_col) => {
                             self.jump_to_line_column(line_col.line_num, line_col.column_num, ctx);
-                        }
-                        ScrollPosition::FocusedDiffHunk => {
-                            self.navigate_current_diff_hunk(ctx);
                         }
                     }
                 }
@@ -1510,21 +1492,6 @@ impl CodeEditorView {
 
     pub fn is_editable(&self, app: &AppContext) -> bool {
         self.model.as_ref(app).interaction_state() == InteractionState::Editable
-    }
-
-    fn navigate_current_diff_hunk(&self, ctx: &mut ViewContext<Self>) {
-        self.nav_bar.update(ctx, |nav_bar, ctx| {
-            nav_bar.autoscroll(ctx);
-        });
-    }
-
-    pub fn set_vertical_expansion_behavior(
-        &mut self,
-        behavior: VerticalExpansionBehavior,
-        ctx: &mut ViewContext<Self>,
-    ) {
-        self.display_options.vertical_expansion_behavior = behavior;
-        ctx.notify();
     }
 
     pub fn selected_text(&self, ctx: &AppContext) -> Option<String> {

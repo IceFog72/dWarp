@@ -69,8 +69,6 @@ pub enum SshManagerPanelAction {
     /// - folder: 仅选中
     Click(String),
     StartRename(String),
-    CommitRename,
-    CancelRename,
     OpenContextMenu {
         target: Option<String>,
         position: Vector2F,
@@ -81,8 +79,6 @@ pub enum SshManagerPanelAction {
         node_id: String,
         new_parent_id: Option<String>,
     },
-    /// 折叠/展开单个 folder。Server 节点忽略。
-    ToggleNodeCollapsed(String),
     /// 顶部按钮:智能切换 — 任何 folder 还展开 → 全收;否则全展。
     ToggleAllFolders,
     /// 双击 server 行 = 连接(开新 tab)。Folder 双击 = 两次 toggle 抵消 no-op。
@@ -1072,8 +1068,6 @@ impl TypedActionView for SshManagerPanel {
             SshManagerPanelAction::Edit => self.on_edit(ctx),
             SshManagerPanelAction::Click(id) => self.on_click(id.clone(), ctx),
             SshManagerPanelAction::StartRename(id) => self.enter_rename(id.clone(), ctx),
-            SshManagerPanelAction::CommitRename => self.commit_rename(ctx),
-            SshManagerPanelAction::CancelRename => self.cancel_rename(ctx),
             SshManagerPanelAction::OpenContextMenu { target, position } => {
                 self.on_open_context_menu(target.clone(), *position, ctx)
             }
@@ -1082,9 +1076,6 @@ impl TypedActionView for SshManagerPanel {
                 node_id,
                 new_parent_id,
             } => self.on_move_node(node_id.clone(), new_parent_id.clone(), ctx),
-            SshManagerPanelAction::ToggleNodeCollapsed(id) => {
-                self.on_toggle_node_collapsed(id, ctx)
-            }
             SshManagerPanelAction::ToggleAllFolders => self.on_toggle_all_folders(ctx),
             SshManagerPanelAction::DoubleClick(id) => self.on_double_click(id.clone(), ctx),
         }

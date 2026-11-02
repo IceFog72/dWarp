@@ -3,8 +3,6 @@
 pub mod action_button;
 pub mod callout_bubble;
 mod compact_dropdown;
-pub mod compactible_action_button;
-pub mod compactible_split_action_button;
 mod dismissible_toast;
 pub mod dropdown;
 mod feature_popup;

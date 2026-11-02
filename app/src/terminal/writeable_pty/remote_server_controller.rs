@@ -1,5 +1,4 @@
 use crate::remote_server::auth_context::local_auth_context;
-use instant::Instant;
 use remote_server::auth::RemoteServerAuthContext;
 use settings::Setting;
 use std::path::PathBuf;
@@ -21,22 +20,17 @@ use super::pty_controller::{EventLoopSender, PtyController};
 /// Per-SSH-init state machine. Encoding the state as an enum makes invalid
 /// transitions unrepresentable and ensures the `SessionInfo` stash cannot be
 /// accessed after it has been consumed.
-///
-/// Every active state carries `setup_start` so that the total setup duration
-/// can be measured when the flow reaches `SessionConnected`.
 enum SshInitState {
     Idle,
     /// Stash held, `check_binary` in flight.
     AwaitingCheck {
         session_info: SessionInfo,
         transport: SshTransport,
-        setup_start: Instant,
     },
     /// Stash held, choice block showing.
     AwaitingUserChoice {
         session_info: SessionInfo,
         transport: SshTransport,
-        setup_start: Instant,
     },
     /// Stash held, `install_binary` in flight.
     /// `for_update` is `true` when reinstalling over an existing install
@@ -45,7 +39,6 @@ enum SshInitState {
         session_id: SessionId,
         session_info: SessionInfo,
         transport: SshTransport,
-        setup_start: Instant,
         #[allow(dead_code)]
         for_update: bool,
     },
@@ -54,7 +47,6 @@ enum SshInitState {
     AwaitingConnect {
         session_id: SessionId,
         session_info: SessionInfo,
-        setup_start: Instant,
     },
 }
 
@@ -199,7 +191,6 @@ impl<T: EventLoopSender> RemoteServerController<T> {
         self.state = SshInitState::AwaitingCheck {
             session_info: info,
             transport: transport.clone(),
-            setup_start: Instant::now(),
         };
         RemoteServerManager::handle(ctx).update(ctx, |mgr, ctx| {
             mgr.check_binary(session_id, transport, ctx);
@@ -227,7 +218,6 @@ impl<T: EventLoopSender> RemoteServerController<T> {
         let SshInitState::AwaitingCheck {
             session_info,
             transport,
-            setup_start,
         } = std::mem::replace(&mut self.state, SshInitState::Idle)
         else {
             unreachable!("just matched AwaitingCheck above");
@@ -262,7 +252,6 @@ impl<T: EventLoopSender> RemoteServerController<T> {
                 self.state = SshInitState::AwaitingConnect {
                     session_id,
                     session_info,
-                    setup_start,
                 };
                 self.connect_session_for_current_identity(session_id, socket_path, ctx);
             }
@@ -274,7 +263,6 @@ impl<T: EventLoopSender> RemoteServerController<T> {
                     session_id,
                     session_info,
                     transport: transport.clone(),
-                    setup_start,
                     for_update: true,
                 };
                 RemoteServerManager::handle(ctx).update(ctx, |mgr, ctx| {
@@ -290,7 +278,6 @@ impl<T: EventLoopSender> RemoteServerController<T> {
                         self.state = SshInitState::AwaitingUserChoice {
                             session_info,
                             transport,
-                            setup_start,
                         };
                         self.model_event_dispatcher.update(ctx, |d, ctx| {
                             d.request_remote_server_block(session_id, ctx);
@@ -302,7 +289,6 @@ impl<T: EventLoopSender> RemoteServerController<T> {
                             session_id,
                             session_info,
                             transport: transport.clone(),
-                            setup_start,
                             for_update: false,
                         };
                         RemoteServerManager::handle(ctx).update(ctx, |mgr, ctx| {
@@ -334,7 +320,6 @@ impl<T: EventLoopSender> RemoteServerController<T> {
         let SshInitState::AwaitingUserChoice {
             session_info,
             transport,
-            setup_start,
         } = std::mem::replace(&mut self.state, SshInitState::Idle)
         else {
             unreachable!("just matched AwaitingUserChoice above");
@@ -349,7 +334,6 @@ impl<T: EventLoopSender> RemoteServerController<T> {
             session_id,
             session_info,
             transport: transport.clone(),
-            setup_start,
             for_update: false,
         };
         RemoteServerManager::handle(ctx).update(ctx, |mgr, ctx| {
@@ -359,7 +343,7 @@ impl<T: EventLoopSender> RemoteServerController<T> {
 
     /// Called when the remote server session is connected. Flushes the
     /// stashed bootstrap (so the session initializes with a live client)
-    /// and emits the `RemoteServerSetupDuration` telemetry event.
+    /// so the shell can initialize against the connected server.
     fn on_session_connected(&mut self, session_id: SessionId, ctx: &mut ModelContext<Self>) {
         let SshInitState::AwaitingConnect {
             session_id: expected,
@@ -442,23 +426,21 @@ impl<T: EventLoopSender> RemoteServerController<T> {
             return;
         }
 
-        let (session_info, transport, setup_start) =
-            match std::mem::replace(&mut self.state, SshInitState::Idle) {
-                SshInitState::AwaitingInstall {
-                    session_info,
-                    transport,
-                    setup_start,
-                    ..
-                } => (session_info, transport, setup_start),
-                _ => unreachable!("just matched AwaitingInstall above"),
-            };
+        let (session_info, transport) = match std::mem::replace(&mut self.state, SshInitState::Idle)
+        {
+            SshInitState::AwaitingInstall {
+                session_info,
+                transport,
+                ..
+            } => (session_info, transport),
+            _ => unreachable!("just matched AwaitingInstall above"),
+        };
         match result {
             Ok(()) => {
                 let socket_path = transport.socket_path().clone();
                 self.state = SshInitState::AwaitingConnect {
                     session_id,
                     session_info,
-                    setup_start,
                 };
                 self.connect_session_for_current_identity(session_id, socket_path, ctx);
             }

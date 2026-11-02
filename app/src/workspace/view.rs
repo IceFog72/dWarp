@@ -75,7 +75,6 @@ use super::WorkspaceRegistry;
 #[cfg(feature = "local_fs")]
 use crate::code::editor_management::CodeManager;
 use crate::code::editor_management::CodeSource;
-use crate::code_review::telemetry_event::CodeReviewPaneEntrypoint;
 use crate::launch_configs::launch_config::WindowTemplate;
 use crate::pane_group::{
     CodeReviewPanelArg, Direction as PaneGroupDirection, PaneGroup, PaneId, TerminalPaneId,
@@ -582,20 +581,9 @@ pub enum BannerSeverity {
     Error,
 }
 
-/// Visual style for an individual banner action button.
-#[derive(Copy, Clone, Debug, PartialEq, Eq)]
-enum BannerButtonVariant {
-    /// No fill, no border, just text (and optional icon). Used for the primary
-    /// action in the Figma design (e.g. "Fix with Oz").
-    Naked,
-    /// Border-only, no fill (e.g. "Open file").
-    Outlined,
-}
-
 struct WorkspaceBannerButtonDetails {
     text: String,
     action: WorkspaceAction,
-    variant: BannerButtonVariant,
     /// Optional leading icon shown before the label.
     icon: Option<Icon>,
     /// If set, renders an adjacent "More info" pill that dispatches this action.
@@ -625,8 +613,6 @@ struct CodeReviewPaneContext {
 struct RightPanelUpdateParams<'a> {
     pane_group: &'a ViewHandle<PaneGroup>,
     target_open_state: bool,
-    entrypoint: Option<CodeReviewPaneEntrypoint>,
-    cli_agent: Option<crate::terminal::CLIAgent>,
     review_pane_context: Option<&'a CodeReviewPaneContext>,
 }
 
@@ -5390,13 +5376,7 @@ impl Workspace {
             terminal_view: panel_context.terminal_view.clone(),
         };
 
-        self.open_right_panel(
-            &context,
-            &pane_group,
-            panel_context.entrypoint,
-            panel_context.cli_agent,
-            ctx,
-        );
+        self.open_right_panel(&context, &pane_group, ctx);
     }
 
     fn update_right_panel_open_state(
@@ -5492,8 +5472,6 @@ impl Workspace {
             RightPanelUpdateParams {
                 pane_group: pane_group_handle,
                 target_open_state,
-                entrypoint: Some(CodeReviewPaneEntrypoint::RightPanel),
-                cli_agent: None,
                 review_pane_context: context.as_ref(),
             },
             ctx,
@@ -5505,8 +5483,6 @@ impl Workspace {
         &mut self,
         context: &CodeReviewPaneContext,
         pane_group_handle: &ViewHandle<PaneGroup>,
-        entrypoint: CodeReviewPaneEntrypoint,
-        cli_agent: Option<crate::terminal::CLIAgent>,
         ctx: &mut ViewContext<Self>,
     ) {
         if pane_group_handle.as_ref(ctx).right_panel_open {
@@ -5522,8 +5498,6 @@ impl Workspace {
             RightPanelUpdateParams {
                 pane_group: pane_group_handle,
                 target_open_state: true,
-                entrypoint: Some(entrypoint),
-                cli_agent,
                 review_pane_context: Some(context),
             },
             ctx,
@@ -5540,8 +5514,6 @@ impl Workspace {
         &mut self,
         _context: &CodeReviewPaneContext,
         _pane_group_handle: &ViewHandle<PaneGroup>,
-        _entrypoint: CodeReviewPaneEntrypoint,
-        _cli_agent: Option<crate::terminal::CLIAgent>,
         _ctx: &mut ViewContext<Self>,
     ) {
     }
@@ -5555,8 +5527,6 @@ impl Workspace {
             RightPanelUpdateParams {
                 pane_group: pane_group_handle,
                 target_open_state: false,
-                entrypoint: None,
-                cli_agent: None,
                 review_pane_context: None,
             },
             ctx,
@@ -11991,7 +11961,6 @@ impl Workspace {
             button: Some(WorkspaceBannerButtonDetails {
                 text: "Open file".to_owned(),
                 action: WorkspaceAction::OpenSettingsFile,
-                variant: BannerButtonVariant::Outlined,
                 icon: None,
                 more_info_button_action: None,
             }),
@@ -12030,7 +11999,6 @@ impl Workspace {
                         button: Some(WorkspaceBannerButtonDetails {
                             text: crate::t!("workspace-update-warp-manually"),
                             action: WorkspaceAction::DownloadNewVersion,
-                            variant: BannerButtonVariant::Outlined,
                             icon: None,
                             more_info_button_action: Some(WorkspaceAction::AutoupdateFailureLink),
                         }),
@@ -12055,7 +12023,6 @@ impl Workspace {
                         button: Some(WorkspaceBannerButtonDetails {
                             text: crate::t!("workspace-update-warp-manually"),
                             action: WorkspaceAction::DownloadNewVersion,
-                            variant: BannerButtonVariant::Outlined,
                             icon: None,
                             more_info_button_action: Some(WorkspaceAction::AutoupdateFailureLink),
                         }),
@@ -12073,7 +12040,6 @@ impl Workspace {
                             button: Some(WorkspaceBannerButtonDetails {
                                 text: "Update now".to_string(),
                                 action: WorkspaceAction::ApplyUpdate,
-                                variant: BannerButtonVariant::Outlined,
                                 icon: None,
                                 more_info_button_action: None,
                             }),
@@ -12179,7 +12145,6 @@ impl Workspace {
                 let more_info_details = WorkspaceBannerButtonDetails {
                     text: "More info".to_owned(),
                     action: more_info_button_action,
-                    variant: BannerButtonVariant::Outlined,
                     icon: None,
                     more_info_button_action: None,
                 };
@@ -12246,9 +12211,7 @@ impl Workspace {
         .finish()
     }
 
-    /// Renders a single banner action button using the Figma-spec'd Naked or
-    /// Secondary variants: no fill by default, optional 1px border, text and
-    /// icon tinted with the banner's contrast-safe text color.
+    /// Renders an outlined action button using the banner's contrast-safe text color.
     fn render_banner_action_button(
         &self,
         details: WorkspaceBannerButtonDetails,
@@ -12257,11 +12220,7 @@ impl Workspace {
         appearance: &Appearance,
     ) -> Box<dyn Element> {
         let WorkspaceBannerButtonDetails {
-            text,
-            action,
-            variant,
-            icon,
-            ..
+            text, action, icon, ..
         } = details;
         let ui_font_family = appearance.ui_font_family();
         Hoverable::new(mouse_state, move |state| {
@@ -12293,10 +12252,8 @@ impl Workspace {
 
             let mut container = Container::new(row.finish())
                 .with_corner_radius(CornerRadius::with_all(Radius::Pixels(4.)))
-                .with_horizontal_padding(8.);
-            if matches!(variant, BannerButtonVariant::Outlined) {
-                container = container.with_border(Border::all(1.).with_border_color(text_color));
-            }
+                .with_horizontal_padding(8.)
+                .with_border(Border::all(1.).with_border_color(text_color));
             if state.is_hovered() {
                 container = container.with_background_color(coloru_with_opacity(text_color, 20));
             }
@@ -13454,13 +13411,7 @@ impl TypedActionView for Workspace {
                                 diff_state_model,
                                 terminal_view,
                             };
-                            self.open_right_panel(
-                                &context,
-                                &pane_group_handle,
-                                CodeReviewPaneEntrypoint::GitDiffChip,
-                                None,
-                                ctx,
-                            );
+                            self.open_right_panel(&context, &pane_group_handle, ctx);
                         }
                     }
                 }

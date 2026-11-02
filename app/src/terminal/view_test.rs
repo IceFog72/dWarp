@@ -1,10 +1,7 @@
-use std::any::Any;
 use std::cell::RefCell;
 use std::pin::pin;
 use std::rc::Rc;
-use std::sync::Arc;
 
-use parking_lot::FairMutex;
 use warp_terminal::model::escape_sequences::{BRACKETED_PASTE_END, BRACKETED_PASTE_START};
 use warpui::{notification::UserNotification, Presenter, WindowInvalidation};
 
@@ -43,7 +40,7 @@ use crate::terminal::model::ansi::{BootstrappedValue, PreexecValue};
 use crate::terminal::model::blocks::{insert_block, TotalIndex};
 use crate::terminal::model::terminal_model::WithinBlock;
 
-use crate::terminal::{MockTerminalManager, TerminalManager, TerminalModel};
+use crate::terminal::{MockTerminalManager, TerminalModel};
 use crate::test_util::terminal::initialize_app_for_terminal_view;
 use crate::test_util::{add_window_with_terminal, assert_eventually};
 

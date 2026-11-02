@@ -69,7 +69,6 @@ lazy_static! {
 
 pub(crate) enum FormattedTextOrElement {
     FormattedText(Box<FormattedTextElement>),
-    Element(Box<dyn Element>),
 }
 
 impl From<FormattedTextElement> for FormattedTextOrElement {
@@ -349,7 +348,6 @@ pub(crate) fn render_requested_action_row(
         FormattedTextOrElement::FormattedText(formatted_text) => {
             formatted_text.set_selectable(is_text_selectable).finish()
         }
-        FormattedTextOrElement::Element(element) => element,
     };
     render_requested_action_row_for_element(element, icon, action_button, has_header_above, app)
 }
