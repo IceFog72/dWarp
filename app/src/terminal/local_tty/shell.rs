@@ -8,7 +8,7 @@ use std::{
 };
 use typed_path::UnixPathBuf;
 use warp_core::channel::{Channel, ChannelState};
-use warp_util::path::{canonicalize_git_bash_path, is_msys2_path, warp_shell_path};
+use warp_util::path::{canonicalize_git_bash_path, is_msys2_path, warp_shell_path, ShellFamily};
 
 use crate::{
     terminal::{
@@ -590,14 +590,16 @@ fn arguments_for_session_spawning_command(
              *
              * TODO(zheng) Add error handling
              */
+            let escaped_shell_path = ShellFamily::Posix.shell_escape(resolved_shell_path);
+            let rcfile = format!(
+                "BASH={escaped_shell_path};{}",
+                init_shell_script_for_shell(ShellType::Bash, &crate::ASSETS)
+            );
+            let escaped_rcfile = ShellFamily::Posix.shell_escape(&rcfile);
             vec![
                 "-c".to_owned().into(),
-                // Keep this command up-to-date with the one in the bootstrap script
-                // Notice the first level of escaping is the double-brackets in the macro string {{}}
                 format!(
-                    r#"exec -a bash '{}' --rcfile <(echo '{}')"#,
-                    resolved_shell_path,
-                    init_shell_script_for_shell(ShellType::Bash, &crate::ASSETS)
+                    "exec -a bash {escaped_shell_path} --rcfile <(printf '%s' {escaped_rcfile})"
                 )
                 .into(),
             ]
