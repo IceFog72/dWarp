@@ -29,6 +29,10 @@ impl ServerApiProvider {
 
     #[cfg(test)]
     pub fn new_for_test() -> Self {
+        // Tests do not run startup initialization, which installs this TLS provider.
+        #[cfg(not(target_family = "wasm"))]
+        let _ = rustls::crypto::aws_lc_rs::default_provider().install_default();
+
         Self {
             server_api: Arc::new(ServerApi {
                 client: Arc::new(http_client::Client::new_for_test()),
