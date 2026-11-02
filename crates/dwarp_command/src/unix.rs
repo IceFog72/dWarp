@@ -511,7 +511,11 @@ fn execute(request: &Request, stream: &mut UnixStream, log: &mut File) -> Result
                 Ok(count) => {
                     let bytes = &buffer[..count];
                     log.write_all(bytes)?;
-                    if io::stdout().write_all(bytes).is_err() {
+                    if io::stdout()
+                        .write_all(bytes)
+                        .and_then(|()| io::stdout().flush())
+                        .is_err()
+                    {
                         cancellation.get_or_insert((Instant::now(), "terminal disconnected"));
                     }
                     if connected && write_frame(stream, OUTPUT, bytes).is_err() {

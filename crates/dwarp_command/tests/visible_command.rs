@@ -2,13 +2,17 @@
 
 use std::{
     fs::{self, File},
-    os::{fd::FromRawFd, unix::fs::PermissionsExt},
+    io::{Read, Write},
+    os::{
+        fd::{AsRawFd, FromRawFd},
+        unix::fs::PermissionsExt,
+    },
     path::PathBuf,
     thread,
     time::Duration,
 };
 
-use command::blocking::Command;
+use command::{Stdio, blocking::Command};
 use instant::Instant;
 use nix::{
     pty::openpty,
@@ -120,6 +124,63 @@ fn streams_output_from_a_real_pty_and_preserves_exit_status() {
             .unwrap()["exit_code"],
         17
     );
+}
+
+#[test]
+fn prompt_without_a_newline_is_visible_before_the_user_answers() {
+    let terminal = Terminal::new();
+    let caller = terminal
+        .command()
+        .args([
+            "--",
+            "bash",
+            "-c",
+            "printf 'No-newline prompt: '; read -r answer; printf 'received: %s\\n' \"$answer\"",
+        ])
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .unwrap();
+    let mut master = terminal._master.try_clone().unwrap();
+    let started = Instant::now();
+    let mut display = Vec::new();
+    let mut visible = false;
+    while started.elapsed() < Duration::from_secs(4) {
+        let mut descriptor = libc::pollfd {
+            fd: master.as_raw_fd(),
+            events: libc::POLLIN,
+            revents: 0,
+        };
+        // SAFETY: descriptor provides valid writable storage for exactly one pollfd.
+        if unsafe { libc::poll(&mut descriptor, 1, 50) } > 0 {
+            let mut bytes = [0; 4096];
+            let count = master.read(&mut bytes).unwrap();
+            display.extend_from_slice(&bytes[..count]);
+            // The worker's introductory header also contains the argv. Only a prompt
+            // following its header's newline proves the command's output was flushed.
+            if display.ends_with(b"\r\nNo-newline prompt: ") {
+                visible = true;
+                break;
+            }
+        }
+    }
+    if visible {
+        master.write_all(b"hello\n").unwrap();
+    } else {
+        let _ = kill(Pid::from_raw(caller.id() as i32), Signal::SIGTERM);
+    }
+    let output = caller.wait_with_output().unwrap();
+    assert!(
+        visible,
+        "prompt was buffered until user input: {}",
+        String::from_utf8_lossy(&display)
+    );
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert!(String::from_utf8_lossy(&output.stdout).contains("received: hello"));
 }
 
 #[test]
