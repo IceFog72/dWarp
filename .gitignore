@@ -95,3 +95,6 @@ graphify-out/
 logs/
 *.log
 *.log.*
+
+# Keep local agent instructions out of Git.
+AGENTS.md
