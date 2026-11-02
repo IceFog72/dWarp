@@ -234,6 +234,14 @@ def run(args):
     launcher = shutil.which(args.warp)
     if launcher is None:
         raise ValueError(f"dWarp launcher not found: {args.warp}")
+    capabilities = subprocess.run([launcher, "--help"], capture_output=True, timeout=5)
+    if capabilities.returncode != 0 or b"--no-focus" not in capabilities.stdout:
+        raise ValueError("Installed dWarp needs rebuilding for background command launches.")
+    if not args.new_tab:
+        if not args.group or len(args.group.encode()) > 128 or any(ord(c) < 32 or ord(c) == 127 for c in args.group):
+            raise ValueError("Command group must contain 1 to 128 bytes without control characters")
+        if capabilities.returncode != 0 or b"--command-group" not in capabilities.stdout:
+            raise ValueError("Installed dWarp needs rebuilding for command groups. Use --new-tab explicitly for temporary compatibility.")
     state = Path(os.environ.get("XDG_STATE_HOME", Path.home() / ".local/state"))
     root = state / "dwarp/agent-runs"
     root.mkdir(parents=True, mode=0o700, exist_ok=True)
@@ -253,8 +261,9 @@ def run(args):
     for sig in (signal.SIGINT, signal.SIGTERM, signal.SIGHUP):
         signal.signal(sig, cancel)
     with (directory / "launcher.log").open("ab", buffering=0) as launch_log:
+        layout = [] if args.new_tab else ["--command-group", args.group]
         launch = subprocess.Popen(
-            [launcher, "--working-directory", str(cwd), "--execute",
+            [launcher, "--no-focus", "--working-directory", str(cwd), *layout, "--execute",
              sys.executable, str(SCRIPT), "_worker", str(directory)],
             stdin=subprocess.DEVNULL, stdout=launch_log, stderr=launch_log,
             start_new_session=True,
@@ -319,6 +328,10 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--cwd", default=os.getcwd())
     parser.add_argument("--warp", default="dwarp", help="dWarp launcher executable")
+    layout = parser.add_mutually_exclusive_group()
+    layout.add_argument("--group", default=os.environ.get("DWARP_COMMAND_GROUP", "Codex"),
+                        help="Dedicated command tab name (default: Codex)")
+    layout.add_argument("--new-tab", action="store_true", help="Open a separate background tab instead of reusing a command group")
     parser.add_argument("--timeout", type=positive_seconds, help="Command timeout in seconds")
     parser.add_argument("--launch-timeout", type=positive_seconds, default=30)
     parser.add_argument("command", nargs=argparse.REMAINDER)

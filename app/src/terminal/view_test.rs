@@ -46,6 +46,31 @@ use crate::test_util::{add_window_with_terminal, assert_eventually};
 
 use super::*;
 
+#[test]
+fn test_command_launch_availability_reserves_queued_work_and_protects_typed_input() {
+    App::test((), |mut app| async move {
+        initialize_app_for_terminal_view(&mut app);
+        let terminal = add_window_with_terminal(&mut app, None);
+        terminal.update(&mut app, |terminal, ctx| {
+            assert!(!terminal.is_available_for_command_launch(ctx));
+            terminal.is_login_shell_bootstrapped = true;
+            assert!(terminal.is_available_for_command_launch(ctx));
+            terminal.input.update(ctx, |input, ctx| {
+                input.system_insert("unfinished user command", ctx)
+            });
+            assert!(!terminal.is_available_for_command_launch(ctx));
+            terminal.input.update(ctx, |input, ctx| {
+                input
+                    .editor()
+                    .update(ctx, |editor, ctx| editor.clear_buffer(ctx))
+            });
+            assert!(terminal.is_available_for_command_launch(ctx));
+            terminal.queue_launch_command(vec!["printf".to_owned(), "work".to_owned()], None, ctx);
+            assert!(!terminal.is_available_for_command_launch(ctx));
+        });
+    });
+}
+
 /// Test to verify that blocks created through normal execution
 /// have the correct local status set
 #[test]

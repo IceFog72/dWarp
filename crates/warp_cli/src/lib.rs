@@ -71,6 +71,14 @@ pub struct AppArgs {
     #[arg(long)]
     pub new_window: bool,
 
+    /// Send a background request to a running application without raising its window.
+    #[arg(long, conflicts_with_all = ["new_window", "urls", "finish_update"])]
+    pub no_focus: bool,
+
+    /// Reuse a dedicated command tab, splitting it when all its terminal panes are busy.
+    #[arg(long, conflicts_with_all = ["new_window", "urls"])]
+    pub command_group: Option<String>,
+
     /// Start the terminal in this directory.
     #[arg(long, short = 'd', conflicts_with = "urls")]
     pub working_directory: Option<std::path::PathBuf>,
@@ -103,6 +111,10 @@ pub struct TerminalLaunch {
     pub working_directory: std::path::PathBuf,
     pub command: Vec<String>,
     pub new_window: bool,
+    #[serde(default)]
+    pub no_focus: bool,
+    #[serde(default)]
+    pub command_group: Option<String>,
 }
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
@@ -142,10 +154,19 @@ impl AppArgs {
                 .is_none_or(|program| !program.is_empty()),
             "executable cannot be empty"
         );
+        if let Some(group) = &self.command_group {
+            anyhow::ensure!(
+                !group.is_empty() && group.len() <= 128 && !group.chars().any(char::is_control),
+                "command group must contain 1 to 128 bytes without control characters"
+            );
+            anyhow::ensure!(!self.execute.is_empty(), "command groups require --execute");
+        }
         Ok(StartupRequest::Terminal(TerminalLaunch {
             working_directory,
             command: self.execute.clone(),
             new_window: self.new_window,
+            no_focus: self.no_focus,
+            command_group: self.command_group.clone(),
         }))
     }
 
@@ -156,7 +177,7 @@ impl AppArgs {
             StartupRequest::Terminal(launch) => launch,
         };
         anyhow::ensure!(
-            launch.command.is_empty(),
+            launch.command.is_empty() && launch.command_group.is_none() && !launch.no_focus,
             "executable requests require local terminal IPC"
         );
         let action = if launch.new_window {

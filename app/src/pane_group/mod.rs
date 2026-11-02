@@ -679,6 +679,8 @@ pub enum PaneDragDropLocation {
 }
 
 pub struct PaneGroup {
+    /// Local command-launch ownership. Ordinary and restored tabs have no command group.
+    pub(crate) command_group: Option<String>,
     tips_completed: ModelHandle<TipsCompleted>,
     user_default_shell_unsupported_banner_model_handle: ModelHandle<BannerState>,
     model_event_sender: Option<SyncSender<ModelEvent>>,
@@ -2088,6 +2090,7 @@ impl PaneGroup {
         let active_file_model = ctx.add_model(|_| ActiveFileModel::new());
 
         let mut pane_group = Self {
+            command_group: None,
             tips_completed,
             user_default_shell_unsupported_banner_model_handle,
             model_event_sender,

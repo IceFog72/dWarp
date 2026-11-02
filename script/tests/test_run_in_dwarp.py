@@ -30,6 +30,12 @@ class RunInDwarpTests(unittest.TestCase):
         self.launcher = self.root / "fake-dwarp"
         self.launcher.write_text(f"#!{sys.executable}\n" + '''
 import os, sys
+if "--help" in sys.argv:
+    print("--command-group --no-focus")
+    sys.exit(0)
+import json
+from pathlib import Path
+Path(os.environ["XDG_STATE_HOME"], "launcher-args.json").write_text(json.dumps(sys.argv[1:]))
 command = sys.argv[sys.argv.index("--execute") + 1:]
 os.execv(command[0], command)
 ''')
@@ -64,6 +70,20 @@ os.execv(command[0], command)
         self.assertIn(b"error output", result.stdout)
         self.assertEqual(self.result()["exit_code"], 23)
         self.assertEqual((self.task() / "output.log").read_bytes(), result.stdout)
+        forwarded = json.loads((self.root / "state/launcher-args.json").read_text())
+        self.assertIn("--no-focus", forwarded)
+        self.assertEqual(forwarded[forwarded.index("--command-group") + 1], "Codex")
+
+    def test_old_launcher_is_rejected_even_with_new_tab(self):
+        source = self.launcher.read_text().replace('print("--command-group --no-focus")', 'print("old launcher")')
+        self.launcher.write_text(source)
+        result = self.run_command("print('visible')")
+        self.assertEqual(result.returncode, 125)
+        self.assertIn(b"needs rebuilding", result.stderr)
+        self.assertFalse((self.root / "state").exists())
+        result = self.run_command("print('visible')", options=["--new-tab"])
+        self.assertEqual(result.returncode, 125)
+        self.assertFalse((self.root / "state").exists())
 
     def test_cwd_and_arguments_are_not_interpreted_by_a_shell(self):
         arguments = ['spaces and "quotes"', "$(touch unintended)", "line1\nline2", ""]
@@ -144,7 +164,7 @@ os.execv(command[0], command)
                 process.communicate()
 
     def test_launch_timeout_prevents_delayed_execution(self):
-        self.launcher.write_text(f"#!{sys.executable}\nimport sys\nsys.exit(0)\n")
+        self.launcher.write_text(f'#!{sys.executable}\nprint("--command-group --no-focus")\n')
         result = self.run_command("open('unintended','w').close()",
                                   options=["--launch-timeout", "0.1"])
         self.assertEqual(result.returncode, 125, result.stderr)

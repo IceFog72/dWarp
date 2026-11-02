@@ -1833,7 +1833,7 @@ pub struct TerminalView {
     /// next `AfterBlockCompleted`, at which point `Event::PendingCommandCompleted`
     /// is emitted so subscribers know the command has finished.
     awaiting_pending_command_completion: bool,
-    pending_launch_command: Option<Vec<String>>,
+    pending_launch_command: Option<crate::terminal_launch::PendingCommand>,
     slow_bootstrap_banner: ViewHandle<Banner<TerminalAction>>,
     is_slow_bootstrap_banner_open: bool,
 
@@ -7220,18 +7220,37 @@ impl TerminalView {
     pub(crate) fn queue_launch_command(
         &mut self,
         command: Vec<String>,
+        working_directory: Option<PathBuf>,
         ctx: &mut ViewContext<Self>,
     ) {
-        self.pending_launch_command = Some(command);
+        self.pending_launch_command = Some(crate::terminal_launch::PendingCommand {
+            arguments: command,
+            working_directory,
+        });
         self.execute_pending_command((), ctx);
+    }
+
+    pub(crate) fn is_available_for_command_launch(&self, ctx: &AppContext) -> bool {
+        let writable = !self.model.lock().is_read_only();
+        self.is_login_shell_bootstrapped
+            && self.pending_launch_command.is_none()
+            && !self.has_pending_command_or_awaiting_completion(ctx)
+            && !self.is_long_running()
+            && self.active_session_remote_host(ctx).is_none()
+            && writable
+            && self.input.as_ref(ctx).editor().as_ref(ctx).is_empty(ctx)
     }
 
     /// Executes a command that was submitted by the user and not yet sent to the shell.
     pub fn execute_pending_command(&mut self, _: (), ctx: &mut ViewContext<Self>) {
         if self.is_login_shell_bootstrapped {
             if let Some(shell) = self.active_session_shell_type(ctx) {
-                if let Some(args) = self.pending_launch_command.take() {
-                    let command = crate::terminal_launch::command_line(&args, shell);
+                if let Some(launch) = self.pending_launch_command.take() {
+                    let command = crate::terminal_launch::command_line_in_directory(
+                        &launch.arguments,
+                        launch.working_directory.as_deref(),
+                        shell,
+                    );
                     self.set_pending_command(&command, ctx);
                 }
             }

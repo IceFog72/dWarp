@@ -79,9 +79,14 @@ pub fn pass_startup_args_to_existing_instance(
                 proxy.open(&url_refs, HashMap::new()).await?;
             }
             warp_cli::StartupRequest::Terminal(launch) => {
-                proxy
-                    .launch_terminal(&serde_json::to_string(&launch).map_err(anyhow::Error::from)?)
-                    .await?;
+                let request = serde_json::to_string(&launch).map_err(anyhow::Error::from)?;
+                if launch.no_focus {
+                    proxy.launch_terminal_background(&request).await?;
+                } else if launch.command_group.is_some() {
+                    proxy.launch_terminal_group(&request).await?;
+                } else {
+                    proxy.launch_terminal(&request).await?;
+                }
             }
         }
 
@@ -191,6 +196,30 @@ impl ApplicationService {
             .map_err(|err| zbus::fdo::Error::Failed(err.to_string()))
     }
 
+    /// Separate method so an older running application rejects grouped launches explicitly.
+    async fn launch_terminal_group(&self, request: &str) -> zbus::fdo::Result<()> {
+        let launch: warp_cli::TerminalLaunch = serde_json::from_str(request)
+            .map_err(|err| zbus::fdo::Error::InvalidArgs(err.to_string()))?;
+        if launch.command_group.is_none() {
+            return Err(zbus::fdo::Error::InvalidArgs(
+                "command group is required".to_owned(),
+            ));
+        }
+        self.launch_terminal(request).await
+    }
+
+    /// Older applications must reject background requests instead of ignoring the focus policy.
+    async fn launch_terminal_background(&self, request: &str) -> zbus::fdo::Result<()> {
+        let launch: warp_cli::TerminalLaunch = serde_json::from_str(request)
+            .map_err(|err| zbus::fdo::Error::InvalidArgs(err.to_string()))?;
+        if !launch.no_focus {
+            return Err(zbus::fdo::Error::InvalidArgs(
+                "background request is required".to_owned(),
+            ));
+        }
+        self.launch_terminal(request).await
+    }
+
     /// Called when the application is started with files.
     async fn open(
         &self,
@@ -212,6 +241,8 @@ impl ApplicationService {
 )]
 trait ExistingApplication {
     fn launch_terminal(&self, request: &str) -> zbus::fdo::Result<()>;
+    fn launch_terminal_group(&self, request: &str) -> zbus::fdo::Result<()>;
+    fn launch_terminal_background(&self, request: &str) -> zbus::fdo::Result<()>;
 
     fn activate(&self, platform_data: HashMap<&str, zvariant::Value<'_>>) -> zbus::fdo::Result<()>;
 

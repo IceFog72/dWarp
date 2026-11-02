@@ -175,6 +175,57 @@ fn mock_workspace(app: &mut App) -> ViewHandle<Workspace> {
     workspace
 }
 
+#[test]
+fn test_command_groups_own_their_tab_and_split_pending_launches() {
+    App::test((), |mut app| async move {
+        initialize_app(&mut app);
+        let workspace = mock_workspace(&mut app);
+        let original = workspace.read(&app, |workspace, _| {
+            workspace.active_tab_pane_group().clone()
+        });
+        original.update(&mut app, |tab, ctx| tab.set_title("Codex", ctx));
+        let initial_tabs = workspace.read(&app, |workspace, _| workspace.tab_count());
+        let launch = warp_cli::TerminalLaunch {
+            working_directory: std::env::current_dir().unwrap(),
+            command: vec!["printf".to_owned(), "work".to_owned()],
+            new_window: false,
+            no_focus: false,
+            command_group: Some("Codex".to_owned()),
+        };
+        app.update(|ctx| {
+            crate::terminal_launch::handle_request(
+                warp_cli::StartupRequest::Terminal(launch.clone()),
+                ctx,
+            )
+        });
+        let group = workspace.read(&app, |workspace, _| {
+            workspace.active_tab_pane_group().clone()
+        });
+        assert_ne!(group.id(), original.id());
+        assert_eq!(
+            workspace.read(&app, |workspace, _| workspace.tab_count()),
+            initial_tabs + 1
+        );
+        assert_eq!(group.read(&app, |group, _| group.pane_ids().count()), 1);
+        group.update(&mut app, |tab, ctx| tab.set_title("Renamed by user", ctx));
+        workspace.update(&mut app, |workspace, ctx| workspace.activate_tab(0, ctx));
+        app.update(|ctx| {
+            crate::terminal_launch::handle_request(warp_cli::StartupRequest::Terminal(launch), ctx)
+        });
+        assert_eq!(
+            workspace.read(&app, |workspace, _| workspace.tab_count()),
+            initial_tabs + 1
+        );
+        assert_eq!(
+            workspace.read(&app, |workspace, _| workspace.active_tab_pane_group().id()),
+            group.id()
+        );
+        assert_eq!(group.read(&app, |group, _| group.pane_ids().count()), 2);
+        assert!(original.read(&app, |group, _| group.command_group.is_none()));
+        assert_eq!(original.read(&app, |group, _| group.pane_ids().count()), 1);
+    });
+}
+
 fn restored_workspace(
     app: &mut App,
     window_snapshot: crate::app_state::WindowSnapshot,

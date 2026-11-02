@@ -13517,6 +13517,7 @@ dependencies = [
  "humantime",
  "jaq-all",
  "serde",
+ "serde_json",
  "serial_test",
  "url",
  "uuid",

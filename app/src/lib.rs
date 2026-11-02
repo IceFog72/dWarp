@@ -668,6 +668,11 @@ fn run_internal(mut launch_mode: LaunchMode) -> Result<()> {
         }
     }
 
+    anyhow::ensure!(
+        !launch_mode.args().no_focus,
+        "Background command launches require a running dWarp instance with local terminal IPC"
+    );
+
     // Sets up a Job Object that we associate with the Warp process to handle
     // shared fate with its child processes. This should be called before we
     // start spawning any child processes.
