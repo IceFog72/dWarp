@@ -59,7 +59,7 @@ case "$CHANNEL" in
     DESKTOP_COMMAND="dwarp"
     APP_NAME="dWarp"
     BUNDLE_ID="dev.warp.dWarp"
-    FEATURES="release_bundle,gui,nld_improvements,pprof_cpu_profiling"
+    FEATURES="release_bundle,gui,pprof_cpu_profiling"
     ;;
   dev)
     WARP_BIN="dev"
@@ -67,7 +67,7 @@ case "$CHANNEL" in
     DESKTOP_COMMAND="warp-terminal-dev"
     APP_NAME="WarpDev"
     BUNDLE_ID="dev.warp.WarpDev"
-    FEATURES="release_bundle,gui,nld_improvements,crash_reporting,agent_mode_debug"
+    FEATURES="release_bundle,gui,crash_reporting,agent_mode_debug"
     ;;
   local)
     WARP_BIN="warp"
@@ -75,7 +75,7 @@ case "$CHANNEL" in
     DESKTOP_COMMAND="warp-terminal-local"
     APP_NAME="WarpLocal"
     BUNDLE_ID="dev.warp.WarpLocal"
-    FEATURES="release_bundle,gui,nld_improvements,crash_reporting,agent_mode_debug"
+    FEATURES="release_bundle,gui,crash_reporting,agent_mode_debug"
     ;;
   *)
     echo "Unknown channel: $CHANNEL (use oss, dev, or local)"
@@ -84,7 +84,6 @@ case "$CHANNEL" in
 esac
 
 echo "=== Installing build dependencies ==="
-"$WORKSPACE_ROOT_DIR/script/linux/install_build_deps"
 "$WORKSPACE_ROOT_DIR/script/linux/install_runtime_deps"
 
 echo ""

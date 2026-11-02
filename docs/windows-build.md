@@ -34,7 +34,6 @@ Install these tools and reopen your terminal so their PATH changes take effect:
 - Git for Windows.
 - Visual Studio Build Tools with **Desktop development with C++** and a Windows SDK.
 - CMake and Protocol Buffers (`protoc`).
-- Node.js and Yarn. Enable the project's Yarn version through Corepack if needed.
 - Inno Setup. The script finds `ISCC.exe` on PATH or in a standard Program Files
   installation directory.
 

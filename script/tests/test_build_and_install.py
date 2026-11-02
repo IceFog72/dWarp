@@ -5,6 +5,7 @@ import signal
 import subprocess
 import tempfile
 import time
+import tomllib
 import unittest
 
 
@@ -20,13 +21,20 @@ class BuildAndInstallCleanupTests(unittest.TestCase):
         (scripts / "linux").mkdir(parents=True)
         shutil.copy2(SCRIPT, scripts / SCRIPT.name)
         for name in ("install_build_deps", "install_runtime_deps"):
-            self.executable(scripts / "linux" / name, "exit 0")
+            self.executable(scripts / "linux" / name, f'echo {name} >> "$PWD/dependency-calls"')
+        with (scripts / "linux/install_runtime_deps").open("a") as runtime:
+            runtime.write('"$PWD/script/linux/install_build_deps"\n')
         tools = self.root / "bin"
         tools.mkdir()
         self.executable(tools / "cargo", '''
 mkdir -p "$CARGO_TARGET_DIR/release-lto"
-printf '#!/bin/sh\\n' > "$CARGO_TARGET_DIR/release-lto/dwarp"
-chmod +x "$CARGO_TARGET_DIR/release-lto/dwarp"
+printf '%s\\n' "$@" > "$CARGO_TARGET_DIR/cargo-args"
+while [[ $# -gt 0 ]]; do
+  if [[ $1 == --bin ]]; then binary=$2; fi
+  shift
+done
+printf '#!/bin/sh\\n' > "$CARGO_TARGET_DIR/release-lto/$binary"
+chmod +x "$CARGO_TARGET_DIR/release-lto/$binary"
 printf scratch > "$TMPDIR/compiler-temp"
 if [[ ${CHECK_BUILD_WAIT:-0} == 1 ]]; then sleep 60; fi
 exit "${CHECK_BUILD_STATUS:-0}"
@@ -48,9 +56,9 @@ exit 0
         path.write_text("#!/usr/bin/env bash\n" + contents + "\n")
         path.chmod(0o755)
 
-    def run_build(self, **changes):
+    def run_build(self, channel="oss", **changes):
         return subprocess.run(
-            [str(self.root / "script" / SCRIPT.name)],
+            [str(self.root / "script" / SCRIPT.name), channel],
             env=dict(self.env, **changes), capture_output=True, text=True,
         )
 
@@ -65,6 +73,22 @@ exit 0
         result = self.run_build()
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         self.assert_clean_with_log(0)
+        self.assertEqual(
+            (self.root / "dependency-calls").read_text().splitlines(),
+            ["install_runtime_deps", "install_build_deps"],
+        )
+
+    def test_build_channels_only_request_declared_features(self):
+        manifest = SCRIPT.parents[1] / "app/Cargo.toml"
+        declared_features = tomllib.loads(manifest.read_text())["features"]
+        for channel, binary in (("oss", "dwarp"), ("dev", "dev"), ("local", "warp")):
+            with self.subTest(channel=channel):
+                result = self.run_build(channel)
+                self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+                args = (self.root / "target/cargo-args").read_text().splitlines()
+                self.assertEqual(args[args.index("--bin") + 1], binary)
+                selected = args[args.index("--features") + 1].split(",")
+                self.assertEqual(set(selected) - declared_features.keys(), set())
 
     def test_build_failure_removes_scratch_and_keeps_exit_status(self):
         result = self.run_build(CHECK_BUILD_STATUS="23")

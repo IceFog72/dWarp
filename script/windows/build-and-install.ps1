@@ -27,7 +27,7 @@ try {
     New-Item -ItemType Directory -Path $buildTemp -Force | Out-Null
     $env:TEMP = $buildTemp
     $env:TMP = $buildTemp
-    $requiredTools = @('cargo', 'rustup', 'git', 'cmake', 'protoc', 'node', 'yarn')
+    $requiredTools = @('cargo', 'rustup', 'git', 'cmake', 'protoc')
     $missingTools = @($requiredTools | Where-Object {
         -not (Get-Command $_ -CommandType Application -ErrorAction SilentlyContinue)
     })
