@@ -8,7 +8,7 @@ use super::{CLIAgentEvent, CLIAgentEventPayload, CLIAgentEventType};
 /// Returns `None` if the string doesn't match any known agent.
 fn resolve_agent(agent: &str) -> Option<CLIAgent> {
     enum_iterator::all::<CLIAgent>()
-        .find(|a| !matches!(a, CLIAgent::Unknown) && a.command_prefix() == agent)
+        .find(|a| !matches!(a, CLIAgent::Unknown) && a.command_prefixes().contains(&agent))
 }
 
 pub(super) fn parse(body: &str) -> Option<CLIAgentEvent> {

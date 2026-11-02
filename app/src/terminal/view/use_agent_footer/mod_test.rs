@@ -23,3 +23,19 @@ fn claude_submits_enter_as_a_separate_write() {
         RichInputSubmitStrategy::DelayedEnter
     ));
 }
+
+#[test]
+fn additional_agents_use_their_supported_input_delivery() {
+    assert!(matches!(
+        rich_input_submit_strategy(CLIAgent::Muse),
+        RichInputSubmitStrategy::BracketedPaste
+    ));
+    assert!(matches!(
+        rich_input_submit_strategy(CLIAgent::Antigravity),
+        RichInputSubmitStrategy::DelayedEnter
+    ));
+    assert!(matches!(
+        rich_input_submit_strategy(CLIAgent::Kiro),
+        RichInputSubmitStrategy::Inline
+    ));
+}

@@ -109,7 +109,28 @@ const GOOSE_COLOR: ColorU = ColorU {
     a: 255,
 };
 
-/// Represents a CLI agent (e.g., Claude Code, Gemini CLI, Codex, Amp, Droid, OpenCode, Copilot, Pi, Auggie, Cursor, Goose)
+const KIRO_PURPLE: ColorU = ColorU {
+    r: 144,
+    g: 70,
+    b: 255,
+    a: 255,
+};
+
+const MUSE_COLOR: ColorU = ColorU {
+    r: 0,
+    g: 129,
+    b: 251,
+    a: 255,
+};
+
+const ANTIGRAVITY_COLOR: ColorU = ColorU {
+    r: 255,
+    g: 255,
+    b: 255,
+    a: 255,
+};
+
+/// Represents a CLI agent recognized in a terminal session.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Sequence, Serialize, Deserialize)]
 pub enum CLIAgent {
     Claude,
@@ -123,26 +144,37 @@ pub enum CLIAgent {
     Auggie,
     CursorCli,
     Goose,
+    Kiro,
+    Muse,
+    Antigravity,
     /// Represents an unknown/custom CLI agent matched by user-configured regex patterns.
     Unknown,
 }
 
 impl CLIAgent {
-    /// The command prefix used to invoke this CLI agent.
+    /// The default command used to launch this CLI agent.
     pub fn command_prefix(&self) -> &'static str {
+        self.command_prefixes().first().copied().unwrap_or("")
+    }
+
+    /// The command prefix used to invoke this CLI agent.
+    pub fn command_prefixes(&self) -> &'static [&'static str] {
         match self {
-            CLIAgent::Claude => "claude",
-            CLIAgent::Gemini => "gemini",
-            CLIAgent::Codex => "codex",
-            CLIAgent::Amp => "amp",
-            CLIAgent::Droid => "droid",
-            CLIAgent::OpenCode => "opencode",
-            CLIAgent::Copilot => "copilot",
-            CLIAgent::Pi => "pi",
-            CLIAgent::Auggie => "auggie",
-            CLIAgent::CursorCli => "agent",
-            CLIAgent::Goose => "goose",
-            CLIAgent::Unknown => "",
+            CLIAgent::Claude => &["claude"],
+            CLIAgent::Gemini => &["gemini"],
+            CLIAgent::Codex => &["codex"],
+            CLIAgent::Amp => &["amp"],
+            CLIAgent::Droid => &["droid"],
+            CLIAgent::OpenCode => &["opencode"],
+            CLIAgent::Copilot => &["copilot"],
+            CLIAgent::Pi => &["pi"],
+            CLIAgent::Auggie => &["auggie"],
+            CLIAgent::CursorCli => &["agent"],
+            CLIAgent::Goose => &["goose"],
+            CLIAgent::Kiro => &["kiro-cli", "kiro"],
+            CLIAgent::Muse => &["muse"],
+            CLIAgent::Antigravity => &["agy", "antigravity"],
+            CLIAgent::Unknown => &[],
         }
     }
 
@@ -173,6 +205,9 @@ impl CLIAgent {
             CLIAgent::Auggie => "Auggie",
             CLIAgent::CursorCli => "Cursor",
             CLIAgent::Goose => "Goose",
+            CLIAgent::Kiro => "Kiro CLI",
+            CLIAgent::Muse => "Muse Code",
+            CLIAgent::Antigravity => "Antigravity",
             CLIAgent::Unknown => "CLI Agent",
         }
     }
@@ -191,6 +226,9 @@ impl CLIAgent {
             CLIAgent::Auggie => Some(Icon::AuggieLogo),
             CLIAgent::CursorCli => Some(Icon::CursorLogo),
             CLIAgent::Goose => Some(Icon::GooseLogo),
+            CLIAgent::Kiro => Some(Icon::KiroLogo),
+            CLIAgent::Muse => Some(Icon::MuseLogo),
+            CLIAgent::Antigravity => Some(Icon::AntigravityLogo),
             CLIAgent::Unknown => None,
         }
     }
@@ -219,6 +257,12 @@ impl CLIAgent {
             CLIAgent::Auggie => &[SkillProvider::Agents],
             CLIAgent::CursorCli => &[SkillProvider::Agents],
             CLIAgent::Goose => &[SkillProvider::Agents],
+            CLIAgent::Kiro | CLIAgent::Antigravity => &[],
+            CLIAgent::Muse => &[
+                SkillProvider::Agents,
+                SkillProvider::Claude,
+                SkillProvider::Codex,
+            ],
             CLIAgent::Unknown => &[],
         }
     }
@@ -241,7 +285,11 @@ impl CLIAgent {
     pub fn supports_bash_mode(&self) -> bool {
         matches!(
             self,
-            CLIAgent::Claude | CLIAgent::Codex | CLIAgent::OpenCode
+            CLIAgent::Claude
+                | CLIAgent::Codex
+                | CLIAgent::OpenCode
+                | CLIAgent::Kiro
+                | CLIAgent::Muse
         )
     }
 
@@ -259,6 +307,9 @@ impl CLIAgent {
             CLIAgent::Auggie => Some(AUGGIE_COLOR),
             CLIAgent::CursorCli => Some(CURSOR_COLOR),
             CLIAgent::Goose => Some(GOOSE_COLOR),
+            CLIAgent::Kiro => Some(KIRO_PURPLE),
+            CLIAgent::Muse => Some(MUSE_COLOR),
+            CLIAgent::Antigravity => Some(ANTIGRAVITY_COLOR),
             CLIAgent::Unknown => None,
         }
     }
@@ -321,7 +372,11 @@ impl CLIAgent {
         // Check if resolved command matches any known CLI agent.
         enum_iterator::all::<CLIAgent>()
             .filter(|agent| !matches!(agent, CLIAgent::Unknown))
-            .find(|agent| resolved_first_word == agent.command_prefix())
+            .find(|agent| {
+                agent
+                    .command_prefixes()
+                    .contains(&resolved_first_word.as_str())
+            })
     }
 }
 

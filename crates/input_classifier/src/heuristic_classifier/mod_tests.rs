@@ -4,6 +4,26 @@ use crate::{Context, test_utils::CompletionContext};
 
 use super::*;
 
+#[test]
+fn additional_cli_agents_remain_shell_commands_without_binary_metadata() {
+    futures::executor::block_on(async {
+        let classifier = HeuristicClassifier;
+        let context = Context {
+            current_input_type: InputType::AI,
+            is_agent_follow_up: false,
+        };
+        for command in ["kiro-cli", "kiro", "muse", "agy", "antigravity"] {
+            let mut token = mock_parsed_input_token(command.to_string()).await;
+            token.parsed_tokens[0].token_description = None;
+            assert_eq!(
+                classifier.detect_input_type(token, &context).await,
+                InputType::Shell,
+                "{command}",
+            );
+        }
+    });
+}
+
 async fn mock_parsed_input_token(buffer_text: String) -> ParsedTokensSnapshot {
     let completion_context = CompletionContext::new();
     parse_current_commands_and_tokens(buffer_text, &completion_context).await

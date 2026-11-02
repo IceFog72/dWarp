@@ -47,6 +47,8 @@ pub fn is_agent_supported(agent: &CLIAgent) -> bool {
             | CLIAgent::Gemini
             | CLIAgent::Auggie
             | CLIAgent::Pi
+            | CLIAgent::Muse
+            | CLIAgent::Antigravity
     )
 }
 
@@ -62,13 +64,16 @@ fn create_handler(agent: &CLIAgent) -> Option<Box<dyn CLIAgentSessionHandler>> {
         | CLIAgent::OpenCode
         | CLIAgent::Gemini
         | CLIAgent::Auggie
-        | CLIAgent::Pi => Some(Box::new(DefaultSessionListener)),
+        | CLIAgent::Pi
+        | CLIAgent::Muse
+        | CLIAgent::Antigravity => Some(Box::new(DefaultSessionListener)),
         CLIAgent::Codex => Some(Box::new(CodexSessionHandler)),
         CLIAgent::Amp
         | CLIAgent::Droid
         | CLIAgent::Copilot
         | CLIAgent::CursorCli
         | CLIAgent::Goose
+        | CLIAgent::Kiro
         | CLIAgent::Unknown => None,
     }
 }
@@ -329,5 +334,24 @@ mod tests {
             payload: CLIAgentEventPayload::default(),
         };
         assert!(handler.handle_event(event).is_some());
+    }
+    #[test]
+    fn additional_agents_use_only_their_supported_local_event_handlers() {
+        for agent in [CLIAgent::Muse, CLIAgent::Antigravity] {
+            assert!(is_agent_supported(&agent));
+            assert!(agent_supports_rich_status(&agent));
+            for command in agent.command_prefixes() {
+                let body =
+                    format!(r#"{{"agent":"{command}","event":"stop","session_id":"local"}}"#);
+                let mut handler = create_handler(&agent).expect("supported local handler");
+                let event = handler
+                    .try_parse(Some("warp://cli-agent"), &body)
+                    .expect("structured event");
+                assert_eq!(event.agent, agent);
+                assert!(handler.handle_event(event).is_some());
+            }
+        }
+        assert!(!is_agent_supported(&CLIAgent::Kiro));
+        assert!(!agent_supports_rich_status(&CLIAgent::Kiro));
     }
 }

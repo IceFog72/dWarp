@@ -249,6 +249,11 @@ fn test_detect_known_agents() {
         ("copilot", CLIAgent::Copilot),
         ("agent", CLIAgent::CursorCli),
         ("goose", CLIAgent::Goose),
+        ("kiro-cli", CLIAgent::Kiro),
+        ("kiro", CLIAgent::Kiro),
+        ("muse", CLIAgent::Muse),
+        ("agy", CLIAgent::Antigravity),
+        ("antigravity", CLIAgent::Antigravity),
     ] {
         assert_eq!(
             CLIAgent::detect(command, None, None),
@@ -371,4 +376,23 @@ fn test_from_serialized_name_falls_back_to_unknown() {
         CLIAgent::from_serialized_name("nonexistent"),
         CLIAgent::Unknown
     );
+}
+
+#[test]
+fn additional_agents_preserve_defaults_and_serialized_identity() {
+    for (agent, command) in [
+        (CLIAgent::Kiro, "kiro-cli"),
+        (CLIAgent::Muse, "muse"),
+        (CLIAgent::Antigravity, "agy"),
+    ] {
+        assert_eq!(agent.command_prefix(), command);
+        assert_eq!(
+            CLIAgent::from_serialized_name(&agent.to_serialized_name()),
+            agent
+        );
+        assert!(agent.icon().is_some());
+        assert!(agent.brand_color().is_some());
+    }
+    assert_eq!(CLIAgent::detect("kiroscope", None, None), None);
+    assert_eq!(CLIAgent::detect("museology", None, None), None);
 }

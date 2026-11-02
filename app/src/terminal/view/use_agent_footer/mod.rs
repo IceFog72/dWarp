@@ -102,16 +102,20 @@ enum RichInputSubmitStrategy {
 /// Returns the strategy for submitting rich input text to a CLI agent's PTY.
 fn rich_input_submit_strategy(agent: CLIAgent) -> RichInputSubmitStrategy {
     match agent {
-        CLIAgent::Codex => RichInputSubmitStrategy::BracketedPaste,
+        CLIAgent::Codex | CLIAgent::Muse => RichInputSubmitStrategy::BracketedPaste,
         CLIAgent::Copilot => RichInputSubmitStrategy::BracketedPasteDelayedEnter,
         CLIAgent::Claude
         | CLIAgent::OpenCode
         | CLIAgent::Gemini
         | CLIAgent::Auggie
-        | CLIAgent::CursorCli => RichInputSubmitStrategy::DelayedEnter,
-        CLIAgent::Amp | CLIAgent::Droid | CLIAgent::Pi | CLIAgent::Goose | CLIAgent::Unknown => {
-            RichInputSubmitStrategy::Inline
-        }
+        | CLIAgent::CursorCli
+        | CLIAgent::Antigravity => RichInputSubmitStrategy::DelayedEnter,
+        CLIAgent::Amp
+        | CLIAgent::Droid
+        | CLIAgent::Pi
+        | CLIAgent::Goose
+        | CLIAgent::Kiro
+        | CLIAgent::Unknown => RichInputSubmitStrategy::Inline,
     }
 }
 
