@@ -6,22 +6,14 @@ This file provides guidance when working with code in this repository.
 
 ### Build and Run
 - `cargo run` - Build and run Warp locally
-- `cargo bundle --bin warp` - Bundle the main app
+- `cargo bundle --bin dwarp` - Bundle the main app
 
-### Running with local warp-server
-To connect Warp client to a local warp-server instance:
+### Local application
 
-```bash
-# Connect to server on default port 8080
-cargo run --features with_local_server
-
-# Connect to server on custom port (e.g., 8082)
-SERVER_ROOT_URL=http://localhost:8082 WS_SERVER_URL=ws://localhost:8082/graphql/v2 cargo run --features with_local_server
-```
-
-Environment variables:
-- `SERVER_ROOT_URL` - HTTP endpoint (default: `http://localhost:8080`)
-- `WS_SERVER_URL` - WebSocket endpoint (default: `ws://localhost:8080/graphql/v2`)
+The application binary is `dwarp`. Use `cargo run --bin dwarp` or `./script/run`.
+No Warp server, account login, or private channel configuration is required.
+AI command suggestions use the locally configured BYOP provider. External CLI
+agents manage their own authentication and MCP servers.
 
 ### Testing
 - `cargo nextest run --no-fail-fast --workspace --exclude command-signatures-v2` - Run tests with nextest
@@ -59,8 +51,8 @@ This is a Rust-based terminal emulator with a custom UI framework called **WarpU
 **Main App** (`app/`):
 - Terminal emulation and shell management (`terminal/`)
 - AI integration including Agent Mode (`ai/`)
-- Cloud synchronization and Drive features (`drive/`)
-- Authentication and user management (`auth/`)
+- Shared-session support (`terminal/shared_session/`)
+- BYOP command suggestions and CLI agent integrations (`ai/`, `terminal/cli_agent/`)
 - Settings and preferences (`settings/`)
 - Workspace and session management (`workspace/`)
 
@@ -69,15 +61,15 @@ This is a Rust-based terminal emulator with a custom UI framework called **WarpU
 - `crates/editor/` - Text editing functionality
 - `crates/warpui/` and `crates/warpui_core/` - Custom UI framework
 - `crates/ipc/` - Inter-process communication
-- `crates/graphql/` - GraphQL client and schema
+- `crates/warp_server_client/` - Identifier types for local files and shared sessions
 
 ### Key Architectural Patterns
 
 1. **Entity-Handle System**: Views reference other views via handles, not direct ownership
 2. **Modular Structure**: Workspace contains multiple workspace configurations, each with terminals, notebooks, etc.
 3. **Cross-Platform**: Native implementations for macOS, Windows, Linux, plus WASM target
-4. **AI Integration**: Built-in AI assistant with context awareness and codebase indexing
-5. **Cloud Sync**: Objects can be synchronized across devices via Warp Drive
+4. **AI Integration**: BYOP command suggestions and third-party CLI agents
+5. **Local Files**: Editor, notebooks, workflows, and SSH-backed remote files
 
 ### Development Guidelines
 
@@ -137,16 +129,12 @@ This is a Rust-based terminal emulator with a custom UI framework called **WarpU
 - Migrations in `crates/persistence/migrations/`
 - Schema defined in `crates/persistence/src/schema.rs`
 
-**GraphQL**:
-- Schema and client code generation from `crates/warp_graphql_schema/api/schema.graphql`
-- TypeScript types generated for frontend integration
-
 ### Feature Flags
 
 Warp uses compile-time feature flags with a small runtime plumbing layer.
 
 How to add a feature flag:
-- Add a new variant to `warp_core/src/features.rs` in the `FeatureFlag` enum
+- Add a new variant to `crates/warp_features/src/lib.rs` in the `FeatureFlag` enum
 - (Optional) Enable it by default for dogfood builds by listing it in `DOGFOOD_FLAGS`
 - Gate code paths with `FeatureFlag::YourFlag.is_enabled()`
 - For preview or release rollout, add to `PREVIEW_FLAGS` or `RELEASE_FLAGS` respectively (as appropriate)

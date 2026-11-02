@@ -8,14 +8,14 @@
 
 ## 1. Repository Overview
 
-Warp is a Rust-centric **agentic terminal and development environment**: it integrates terminal emulation, AI agents, cloud sync (Drive), code reviews, completions, Notebooks, settings, IPC, and more on top of a custom UI framework (WarpUI).
+Warp is a Rust-centric **agentic terminal and development environment**: it integrates terminal emulation, third-party CLI agents, BYOP command suggestions, code reviews, completions, local Notebooks, settings, IPC, and SSH on top of a custom UI framework (WarpUI).
 
 Top-level directories:
 
 | Directory | Purpose |
 |------|------|
 | `app/` | Main binary crate (`warp`), assembling all subsystems, UI, database migrations, and platform glue layers |
-| `crates/` | 67 workspace members, library crates split by responsibility |
+| `crates/` | Workspace members, library crates split by responsibility |
 | `command-signatures-v2/` | Independent subproject (excluded by `--exclude` when nextest runs) |
 | `script/` | Cross-platform bootstrap, build, and presubmit scripts |
 | `resources/` | Runtime resources such as fonts, icons, shell integration scripts, shaders, etc. |
@@ -39,7 +39,7 @@ Roughly 4 layers from bottom to top. When adding new code or locating a bug, fir
 ```
 app/  (Main binary: assembly, entry points, platform glue, persistence migration, UI view root)
   ↑
-Product domain crates: ai / computer_use / vim / onboarding /
+Product domain crates: ai / vim /
               warp_completer / lsp / languages / code-review …
   ↑
 Framework crates: warpui / warpui_core / warpui_extras / editor /
@@ -55,15 +55,15 @@ Key architectural patterns (see `WARP.md` for details):
 1. **Entity-Handle System**: `App` globally owns all view/model entities. Views reference each other via `ViewHandle<T>` rather than direct ownership.
 2. **Element / Action**: The UI consists of a declarative Element tree + Action event system (Flutter-style).
 3. **Cross-platform**: Native implementations for macOS / Windows / Linux + WASM targets; platform code is isolated with `#[cfg(...)]`.
-4. **AI Integration**: Agent Mode and context indexing, code is concentrated in `app/src/ai` (389 files) and `crates/ai`.
-5. **Cloud Sync**: `Drive` allows objects to sync across multiple devices, see `app/src/drive` and `crates/warp_files`.
+4. **AI Integration**: BYOP suggestions, provider configuration, local indexing, and CLI agent skill discovery live in `app/src/ai` and `crates/ai`.
+5. **Local Files**: `crates/warp_files` handles local and SSH-backed files. Warp Drive sync is removed.
 6. **Feature Flags**: Runtime rollouts are preferred over `#[cfg]`, enums are defined in `crates/warp_core/src/features.rs`.
 
 ---
 
 ## 3. Overview of `crates/`
 
-The table below lists all 67 crates grouped by theme. Each row has a **one-sentence responsibility**; for implementation details, open the corresponding `crates/<name>/src/lib.rs` directly (many crates have `//!` module documentation at the top of `lib.rs`).
+The tables below group the principal crates by theme. Each row has a **one-sentence responsibility**; for implementation details, open the corresponding `crates/<name>/src/lib.rs` directly (many crates have `//!` module documentation at the top of `lib.rs`).
 
 ### 3.1 UI Framework / View Layer
 
@@ -93,9 +93,7 @@ The table below lists all 67 crates grouped by theme. Each row has a **one-sente
 | Crate | Responsibility |
 |-------|------|
 | `ai` | AI model client, Prompt orchestration, Agent protocol, and tool invocation framework |
-| `computer_use` | Rust-side implementation of "Computer Use" tool capabilities (screenshots, clicks, typing, etc.) |
 | `command-signatures-v2` | Command signatures v2 (metadata for AI command classification); independent project, excluded from workspace tests |
-| `onboarding` | Data and state for new user onboarding flows |
 
 ### 3.4 Network / Protocols / IPC
 
@@ -104,15 +102,12 @@ The table below lists all 67 crates grouped by theme. Each row has a **one-sente
 | `http_client` | Unified HTTP client wrapper in the workspace |
 | `http_server` | Embedded HTTP server (local RPC, login callbacks, etc.) |
 | `websocket` | Shared WebSocket abstraction for native and WASM, adapted to `graphql_ws_client` |
-| `graphql` (`warp_graphql`) | GraphQL client, query/subscription generation, built from `graphql/api/schema.graphql` |
-| `warp_graphql_schema` | GraphQL server schema definitions / shared types |
-| `warp_server_client` | High-level RPC client interacting with the warp server |
+| `warp_server_client` | Identifier types retained for local files and shared sessions |
 | `ipc` | Generic typed IPC request/response protocol (between processes) |
 | `jsonrpc` | JSON-RPC implementation |
 | `lsp` | Language Server Protocol client implementation |
 | `remote_server` | Server-side logic under remote sshd mode |
 | `serve-wasm` | Auxiliary server to host WASM build artifacts (excluded from compilation by default) |
-| `firebase` | Firebase client tools (crash reporting/analytics channels, etc.) |
 
 ### 3.5 Persistence / Files / Resources
 
@@ -172,7 +167,7 @@ The table below lists all 67 crates grouped by theme. Each row has a **one-sente
 | `handlebars` | Handlebars template engine wrapper |
 | `integration` | Integration testing framework, used only for testing |
 
-> **Naming quirks**: the package name for `crates/editor` is `warp_editor`; `crates/graphql` is `warp_graphql`; `crates/isolation_platform` is `warp_isolation_platform`; `crates/managed_secrets` is `warp_managed_secrets`; `crates/virtual_fs` is `virtual-fs` (hyphen); `crates/string-offset` is `string-offset` (hyphen).
+> **Naming quirks**: the package name for `crates/editor` is `warp_editor`; `crates/isolation_platform` is `warp_isolation_platform`; `crates/managed_secrets` is `warp_managed_secrets`; `crates/virtual_fs` is `virtual-fs` (hyphen); `crates/string-offset` is `string-offset` (hyphen).
 
 ---
 
@@ -195,12 +190,12 @@ Under `app/src/`, there are 60+ flat product domain directories. Each directory 
 - `default_terminal/` (2) — Default terminal startup logic.
 - `shell_indicator.rs`, `prefix.rs` / `prefix_test.rs` (command prefix parsing), `vim_registers.rs`
 
-### 4.3 AI / Agent
-- `ai/` (389) — Contains Agent UI, conversation models, Agent management, tools/MCP, Cloud Agent, Plan/Diff views, artifacts, blocklists, execution profiles, etc. **This is the largest subtree in the repository**. Before making changes, grep for specific subthemes (`agent_*`, `conversation_*`, `cloud_agent_*`, `mcp`, `tool_*`) within this directory.
-- `ai_assistant/` (9) — Legacy AI assistant entry point/adaptation.
-- `chip_configurator/`, `context_chips/` (22) — Selection and construction of Agent context chips.
-- `coding_entrypoints/` (5), `coding_panel_enablement_state.rs`
-- `prompt/` (2), `tips/` (3), `voice/` (2), `completer/` (3)
+### 4.3 BYOP / CLI Agents
+- `ai/agent_providers/` — Provider configuration, model discovery, secure keys, and command suggestions.
+- `ai/predict/`, `input_suggestions.rs` — Command suggestions from local terminal context.
+- `ai/skills/`, `terminal/cli_agent/`, `terminal/cli_agent_input/` — Third-party CLI agent discovery, status events, toolbar, rich input, and skill integration.
+- `ai/outline/`, `ai/persisted_workspace.rs` — Local code outlines and language-server configuration.
+- `context_chips/`, `chip_configurator/` — Local context selection.
 
 ### 4.4 Editor / Code / Review
 - `editor/` (38) — Main editor integration.
@@ -212,11 +207,10 @@ Under `app/src/`, there are 60+ flat product domain directories. Each directory 
 - `search/` (172) — Multi-target search (files, commands, Agent history, etc.).
 - `search_bar.rs`
 
-### 4.6 Server Communication / Drive / Sync
-- `server/` (55) — HTTP/WS interaction with the warp backend (corresponds to local development mode `with_local_server`).
-- `drive/` (45) — Entry point for cloud object sync.
-- `cloud_object/` (12) — Cloud object abstraction layer (workflows, notebooks, etc.).
-- `remote_server/` (5) — Client-side glue for connecting to the remote mode sshd.
+### 4.6 HTTP / SSH / Shared Sessions
+- `server/` — Shared HTTP client and compatibility identifiers, with no Warp backend client.
+- `remote_server/` — Client-side SSH daemon integration.
+- `terminal/shared_session/` — Shared-session state, presence, and role handling. Preserved separately from the removed Warp Drive and account features.
 
 ### 4.7 Settings / User Configuration / Themes / Onboarding
 - `settings/` (46), `settings_view/` (63)
@@ -224,9 +218,8 @@ Under `app/src/`, there are 60+ flat product domain directories. Each directory 
 - `experiments/` (7), `tab_configs/` (15), `launch_configs/` (4)
 - `tips/`, `banner/` (3), `quit_warning/` (1), `wasm_nux_dialog.rs`, `referral_theme_status.rs`
 
-### 4.8 Auth / Billing / Usage
-- `auth/` (22) — Login, tokens, and SSO.
-- `billing/` (3), `pricing/` (1), `usage/` (1), `reward_view.rs`
+### 4.8 Compatibility Identity
+- `auth/` — User identifier re-export needed by shared sessions. Account login, signup, billing, and usage clients are removed.
 
 ### 4.9 Persistence
 - `persistence/` (9) — Diesel migrations assembly, `schema.rs` (generated by Diesel), and migration runner.
@@ -336,7 +329,6 @@ Under `app/src/`, there are 60+ flat product domain directories. Each directory 
 | Add new settings | `crates/settings_value*`, `crates/settings`, UI in `app/src/settings_view/` |
 | Add Feature Flags | `crates/warp_core/src/features.rs` + usage sites |
 | Modify cloud sync objects | `crates/warp_files` + `app/src/drive/` + `app/src/cloud_object/` |
-| Add GraphQL operations | Add to `crates/graphql/`, schema in `graphql/api/schema.graphql` |
 | Modify persistence structure | Add migration to `migrations/` + `crates/persistence` |
 | Add a new binary tool | `app/src/bin/` |
 | Platform-specific code | Use `#[cfg(target_os = "...")]`, UI platform glue is in `app/src/platform/` |
@@ -352,7 +344,7 @@ Under `app/src/`, there are 60+ flat product domain directories. Each directory 
 Before picking up the keyboard to modify code, ask yourself:
 
 1. Which layer / crate / `app/src/<submodule>` does this belong to? Will this change cross layer boundaries?
-2. Is a new dependency required? If an existing workspace dependency can be reused, prioritize reusing it from the `[workspace.dependencies]` in `Cargo.toml`.
+2. Is a new dependency required? If an existing workspace dependency can be reused, prioritize reusing it from the `[workspace.dependencies]` in `Cargo.toml`. Before removing a dependency, check macro expansions and test-only consumers as well as direct source references. Settings macros require `concat-idents` in their consuming crate.
 3. Is this a product feature? Does it need to be gated behind a Feature Flag?
 4. Does this involve the terminal model? Does the current call stack already hold the `TerminalModel` lock?
 5. Does this involve a child process? Does it use `crates/command`?
