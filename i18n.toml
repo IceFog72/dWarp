@@ -1,7 +1,7 @@
-# cargo-i18n 配置(用于 `cargo i18n` CLI 校验/抽取/同步翻译 key)
-# 文档:https://github.com/kellpossible/cargo-i18n
+# Workspace configuration for cargo-i18n.
+# Runtime configuration for the app crate is in app/i18n.toml.
 fallback_language = "en"
 
 [fluent]
-# 翻译资源根目录(每个 locale 一个子目录,locale 目录下放 .ftl 文件)
-assets_dir = "i18n"
+# Locale directories contain the app's Fluent (.ftl) translation files.
+assets_dir = "app/i18n"
