@@ -141,7 +141,7 @@ impl SystemInfo {
         self.system.refresh_processes_specifics(
             ProcessesToUpdate::All,
             true, /* remove_dead_processes */
-            Self::refresh_kind(),
+            sysinfo::ProcessRefreshKind::nothing(),
         );
     }
 
