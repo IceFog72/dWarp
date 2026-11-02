@@ -5,8 +5,8 @@ use super::{
 use crate::text::BlockHeaderSize;
 use crate::{
     elements::{Point, SelectableElement, ZIndex},
-    fonts::FamilyId,
-    text_layout::TextFrame,
+    fonts::{FamilyId, FontId},
+    text_layout::{Glyph, Line, Run, TextAlignment, TextFrame, TextStyle},
 };
 use markdown_parser::{FormattedText, FormattedTextFragment, FormattedTextLine};
 use pathfinder_color::ColorU;
@@ -17,6 +17,7 @@ use std::ops::Range;
 use std::rc::Rc;
 use std::sync::{Arc, Mutex};
 use string_offset::ByteOffset;
+use vec1::vec1;
 
 use super::apply_secret_replacements;
 
@@ -220,3 +221,76 @@ fn smart_select_returns_none_when_point_is_outside_horizontal_bounds() {
         .smart_select(point, select_first_character)
         .is_none());
 }
+
+/// Builds a single-line element whose visual first glyph has a higher logical index than
+/// its visual last glyph, which RTL layout can produce.
+fn text_element_with_reversed_endpoint_glyph_indices(text: &str) -> FormattedTextElement {
+    let char_count = text.chars().count();
+    let width = char_count as f32 * TEST_GLYPH_ADVANCE;
+    let glyphs = text
+        .chars()
+        .enumerate()
+        .map(|(visual_index, _)| Glyph {
+            id: Default::default(),
+            position_along_baseline: vec2f(visual_index as f32 * TEST_GLYPH_ADVANCE, 0.0),
+            index: char_count - 1 - visual_index,
+            width: TEST_GLYPH_ADVANCE,
+        })
+        .collect();
+    let mut line = Line::mock(vec![Run {
+        font_id: FontId(0),
+        glyphs,
+        styles: TextStyle::new(),
+        width,
+    }]);
+    line.width = width;
+    let text_frame = Arc::new(TextFrame::new(vec1![line], width, TextAlignment::Left));
+    let frame_bounds = RectF::new(vec2f(0.0, 0.0), vec2f(width, text_frame.height()));
+    let mouse_handlers = Rc::new(RefCell::new(FrameMouseHandlers::default()));
+    let formatted_text = FormattedText::new([FormattedTextLine::Line(vec![
+        FormattedTextFragment::plain_text(text),
+    ])]);
+
+    let mut element = FormattedTextElement::new(
+        formatted_text,
+        13.0,
+        FamilyId(0),
+        FamilyId(0),
+        ColorU::black(),
+        HighlightedHyperlink::default(),
+    );
+    element.origin = Some(Point::new(0.0, 0.0, ZIndex::new(0)));
+    element.size = Some(frame_bounds.size());
+    element.laid_out_text = vec![LaidOutTextFrame::Text {
+        text_frame,
+        frame_bounds,
+        bottom_padding: 0.0,
+        raw_text: text.to_string(),
+        mouse_handlers: mouse_handlers.clone(),
+    }];
+    element.text_frame_mouse_handlers = vec![mouse_handlers];
+    element.hyperlink_support = HyperlinkSupport {
+        highlighted_hyperlink: Arc::new(Mutex::new(None)),
+        hyperlink_font_color: ColorU::black(),
+    };
+    element
+}
+
+#[test]
+fn smart_select_returns_none_when_line_glyph_indices_are_reversed() {
+    let element = text_element_with_reversed_endpoint_glyph_indices("abc");
+    let Some(LaidOutTextFrame::Text { text_frame, .. }) = element.laid_out_text.first() else {
+        panic!("expected a text frame");
+    };
+    let line = text_frame.lines().first().expect("line");
+    assert!(
+        line.first_glyph().expect("first glyph").index
+            > line.last_glyph().expect("last glyph").index
+    );
+
+    assert!(element
+        .smart_select(vec2f(5.0, 5.0), select_first_character)
+        .is_none());
+}
+
+const TEST_GLYPH_ADVANCE: f32 = 10.0;
