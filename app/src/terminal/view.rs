@@ -72,7 +72,7 @@ pub use self::link_detection::GridHighlightedLink;
 pub use self::link_detection::{RichContentLink, RichContentLinkTooltipInfo};
 use crate::code_review::agent_review::AgentReviewCommentBatch;
 use crate::settings::CodeSettings;
-pub use action::{AgentOnboardingVersion, OnboardingIntention, OnboardingVersion, TerminalAction};
+pub use action::TerminalAction;
 pub use block_banner::{WithinBlockBanner, BLOCK_BANNER_HEIGHT};
 pub use init::{init, CANCEL_COMMAND_KEYBINDING};
 pub use inline_banner::{NotificationsDiscoveryBannerAction, NotificationsErrorBannerAction};

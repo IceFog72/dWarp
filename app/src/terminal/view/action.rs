@@ -39,26 +39,6 @@ use super::{
     SSHBannerAction, TerminalEditor,
 };
 
-pub use onboarding::OnboardingIntention;
-
-/// Version of the agent onboarding flow (non-legacy).
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum AgentOnboardingVersion {
-    UniversalInput {
-        has_project: bool,
-    },
-    AgentModality {
-        has_project: bool,
-        intention: OnboardingIntention,
-    },
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum OnboardingVersion {
-    Legacy,
-    Agent(AgentOnboardingVersion),
-}
-
 /// This represents whether entering a subshell for a particular command should become automatic in
 /// the future, or to ask again.
 #[derive(Clone, Debug)]
