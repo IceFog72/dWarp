@@ -613,11 +613,10 @@ fn run_internal(mut launch_mode: LaunchMode) -> Result<()> {
     #[cfg(not(target_family = "wasm"))]
     if let LaunchMode::App { args } = &launch_mode {
         // Reject invalid launch requests before starting the UI or forwarding.
-        if let Err(err) = terminal_launch::prepare_request(args) {
+        terminal_launch::prepare_request(args).inspect_err(|_| {
             #[cfg(windows)]
             warp_util::windows::attach_to_parent_console();
-            return Err(err);
-        }
+        })?;
     }
     init_common(&launch_mode, Some(&mut timer))?;
 

@@ -5976,7 +5976,6 @@ impl CodeReviewView {
                         tv.send_diff_context_to_cli_agent_or_rich_input(&file_diffs, ctx)
                     });
                 }
-                return;
             }
         }
     }

@@ -134,17 +134,14 @@ impl DefaultSessionMode {
 /// 第一阶段仅支持 OpenAI 兼容协议(适用于 OpenAI、DeepSeek、智谱 GLM、
 /// Moonshot、通义千问 DashScope-OpenAI 兼容端点、SiliconFlow、OpenRouter、
 /// 任何 OpenAI 兼容的本地服务等)。后续可在此扩展 Anthropic、Google、Bedrock。
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, schemars::JsonSchema)]
+#[derive(
+    Debug, Clone, Copy, Default, PartialEq, Eq, Hash, Serialize, Deserialize, schemars::JsonSchema,
+)]
 #[serde(rename_all = "snake_case")]
 pub enum AgentProviderKind {
     /// OpenAI 兼容的 Chat Completions / `/v1/models` 协议。
+    #[default]
     OpenAiCompatible,
-}
-
-impl Default for AgentProviderKind {
-    fn default() -> Self {
-        Self::OpenAiCompatible
-    }
 }
 
 /// BYOP provider 实际使用的 API 协议类型 — 显式指定,
@@ -155,13 +152,24 @@ impl Default for AgentProviderKind {
 /// `AgentProviderKind` 目前只有 `OpenAiCompatible`(语义"用户自管 endpoint"),
 /// `AgentProviderApiType` 决定 genai 用哪种原生协议序列化请求 / 解析响应。
 #[derive(
-    Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, EnumIter, schemars::JsonSchema,
+    Debug,
+    Clone,
+    Copy,
+    Default,
+    PartialEq,
+    Eq,
+    Hash,
+    Serialize,
+    Deserialize,
+    EnumIter,
+    schemars::JsonSchema,
 )]
 #[serde(rename_all = "snake_case")]
 pub enum AgentProviderApiType {
     /// OpenAI Chat Completions(`POST /v1/chat/completions`)。
     /// 适用于:OpenAI 官方、DeepSeek、SiliconFlow、OpenRouter、智谱 GLM、
     /// Moonshot、DashScope-OpenAI 兼容、本地 vLLM/llama.cpp 等。
+    #[default]
     OpenAi,
     /// OpenAI Responses API(`POST /v1/responses`)。
     /// 适用于:GPT-5 / Codex / Pro 等较新模型。
@@ -178,12 +186,6 @@ pub enum AgentProviderApiType {
     /// thinking-mode 模型必须选这个类型,普通 chat 模型(`deepseek-chat`)
     /// 选 OpenAI 也可以工作。
     DeepSeek,
-}
-
-impl Default for AgentProviderApiType {
-    fn default() -> Self {
-        Self::OpenAi
-    }
 }
 
 /// Provider 级别的 reasoning effort(思考深度)偏好。

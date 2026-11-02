@@ -1310,7 +1310,7 @@ pub enum Event {
     },
     OpenCodeReviewPaneAndScrollToComment {
         open_code_review: CodeReviewPanelArg,
-        comment: AttachedReviewComment,
+        comment: Box<AttachedReviewComment>,
         diff_mode: DiffMode,
     },
     ImportAllCodeReviewComments {
@@ -4122,9 +4122,7 @@ impl TerminalView {
         }
 
         let interval = cpu_terminal_frame_interval();
-        let Some(last_notify) = self.last_cpu_terminal_notify else {
-            return None;
-        };
+        let last_notify = self.last_cpu_terminal_notify?;
         interval.checked_sub(last_notify.elapsed())
     }
 

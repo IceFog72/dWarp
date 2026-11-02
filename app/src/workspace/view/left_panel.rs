@@ -69,7 +69,7 @@ pub enum LeftPanelAction {
 
 pub enum LeftPanelEvent {
     #[cfg_attr(not(feature = "local_fs"), allow(dead_code))]
-    FileTree(pane_group::Event),
+    FileTree(Box<pane_group::Event>),
     #[cfg_attr(not(feature = "local_fs"), allow(dead_code))]
     OpenFileWithTarget {
         path: PathBuf,
@@ -668,20 +668,22 @@ impl LeftPanelView {
     fn handle_file_tree_event(&mut self, event: &FileTreeEvent, ctx: &mut ViewContext<Self>) {
         match event {
             FileTreeEvent::FileRenamed { old_path, new_path } => {
-                ctx.emit(LeftPanelEvent::FileTree(pane_group::Event::FileRenamed {
-                    old_path: old_path.clone(),
-                    new_path: new_path.clone(),
-                }));
+                ctx.emit(LeftPanelEvent::FileTree(Box::new(
+                    pane_group::Event::FileRenamed {
+                        old_path: old_path.clone(),
+                        new_path: new_path.clone(),
+                    },
+                )));
             }
             FileTreeEvent::FileDeleted { path } => {
-                ctx.emit(LeftPanelEvent::FileTree(pane_group::Event::FileDeleted {
-                    path: path.clone(),
-                }));
+                ctx.emit(LeftPanelEvent::FileTree(Box::new(
+                    pane_group::Event::FileDeleted { path: path.clone() },
+                )));
             }
             FileTreeEvent::AttachAsContext { path } => {
-                ctx.emit(LeftPanelEvent::FileTree(
+                ctx.emit(LeftPanelEvent::FileTree(Box::new(
                     pane_group::Event::AttachPathAsContext { path: path.clone() },
-                ));
+                )));
             }
             FileTreeEvent::OpenFile {
                 path,
@@ -695,14 +697,14 @@ impl LeftPanelView {
                 });
             }
             FileTreeEvent::CDToDirectory { path } => {
-                ctx.emit(LeftPanelEvent::FileTree(pane_group::Event::CDToDirectory {
-                    path: path.clone(),
-                }));
+                ctx.emit(LeftPanelEvent::FileTree(Box::new(
+                    pane_group::Event::CDToDirectory { path: path.clone() },
+                )));
             }
             FileTreeEvent::OpenDirectoryInNewTab { path } => {
-                ctx.emit(LeftPanelEvent::FileTree(
+                ctx.emit(LeftPanelEvent::FileTree(Box::new(
                     pane_group::Event::OpenDirectoryInNewTab { path: path.clone() },
-                ));
+                )));
             }
         }
     }
