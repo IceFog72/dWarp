@@ -28,7 +28,7 @@ fn history_management_folder_browser_separates_hosts_users_and_missing_paths() {
     assert_eq!(
         view.folders
             .iter()
-            .find(|(folder, _, _)| folder == &selected)
+            .find(|(folder, _, _, _)| folder == &selected)
             .unwrap()
             .1,
         2
@@ -60,7 +60,7 @@ fn history_management_viewer_paginates_and_confirmation_tracks_only_selected_fol
             let index = view
                 .folders
                 .iter()
-                .position(|(folder, _, _)| folder.path.as_deref() == Some("/work"))
+                .position(|(folder, _, _, _)| folder.path.as_deref() == Some("/work"))
                 .unwrap();
             let PageType::Monolith {
                 vertical_scroll_state: Some(scroll),
@@ -92,6 +92,16 @@ fn history_management_viewer_paginates_and_confirmation_tracks_only_selected_fol
             assert_eq!(view.records.len(), 206);
             view.handle_action(&HistoryPageAction::Back, ctx);
             assert!(view.selected.is_none());
+            view.handle_action(&HistoryPageAction::ClearFolder(index), ctx);
+            assert_eq!(
+                view.selected.as_ref().unwrap().path.as_deref(),
+                Some("/work")
+            );
+            assert_eq!(view.offset, 0);
+            assert_eq!(view.pending_clear.as_ref().unwrap().len(), 205);
+            assert_eq!(view.records.len(), 206);
+            view.handle_action(&HistoryPageAction::CancelClear, ctx);
+            assert!(view.pending_clear.is_none());
             assert!(view.update_filter("/other", ctx).is_truthy());
             assert_eq!(view.folder_filter, "/other");
             assert!(view.update_filter("command history", ctx).is_truthy());
@@ -152,10 +162,9 @@ fn history_management_page_loads_and_clears_through_writer_acknowledgement() {
             let index = view
                 .folders
                 .iter()
-                .position(|(folder, _, _)| folder.path.as_deref() == Some("/work"))
+                .position(|(folder, _, _, _)| folder.path.as_deref() == Some("/work"))
                 .unwrap();
-            view.handle_action(&HistoryPageAction::Select(index), ctx);
-            view.handle_action(&HistoryPageAction::RequestClear, ctx);
+            view.handle_action(&HistoryPageAction::ClearFolder(index), ctx);
             view.handle_action(&HistoryPageAction::ConfirmClear, ctx);
             assert!(view.busy);
         });
@@ -172,5 +181,67 @@ fn history_management_page_loads_and_clears_through_writer_acknowledgement() {
             assert_eq!(view.records[0].pwd.as_deref(), Some("/other"));
             assert!(view.selected.is_none());
         });
+    });
+}
+
+#[test]
+fn history_management_layout_keeps_folder_actions_and_commands_inside_page() {
+    use pathfinder_geometry::vector::vec2f;
+    use warpui::{Presenter, WindowInvalidation};
+
+    App::test((), |mut app| async move {
+        app.add_singleton_model(|_| Appearance::mock());
+        let (window, view) = app.add_window(WindowStyle::NotStealFocus, |_| HistoryPageView::new());
+        view.update(&mut app, |view, _| {
+            let mut command = record(
+                1,
+                Some("/mnt/Data/Apps/project/long-folder-name"),
+                "desktop",
+                "alice",
+            );
+            command.command = "cargo test --offline -p warp --lib history_management".into();
+            view.set_records(vec![
+                command,
+                record(2, Some("/home/alice/projects"), "desktop", "alice"),
+            ]);
+        });
+        for width in [520., 900.] {
+            for selected in [false, true] {
+                if selected {
+                    view.update(&mut app, |view, ctx| {
+                        view.handle_action(&HistoryPageAction::ClearFolder(0), ctx)
+                    });
+                } else {
+                    view.update(&mut app, |view, ctx| {
+                        view.handle_action(&HistoryPageAction::Back, ctx)
+                    });
+                }
+                app.update(|ctx| {
+                    let mut presenter = Presenter::new(window);
+                    presenter.invalidate(
+                        WindowInvalidation {
+                            updated: [ctx.root_view_id(window).unwrap()].into_iter().collect(),
+                            ..Default::default()
+                        },
+                        ctx,
+                    );
+                    let scene = presenter.build_scene(vec2f(width, 900.), 1., None, ctx);
+                    let rects: Vec<_> = scene.layers().flat_map(|layer| &layer.rects).collect();
+                    assert!(!rects.is_empty());
+                    for rect in rects {
+                        assert!(
+                            rect.bounds.min_x() >= 0.,
+                            "Left overflow: {:?}",
+                            rect.bounds
+                        );
+                        assert!(
+                            rect.bounds.max_x() <= width,
+                            "Right overflow at {width}: {:?}",
+                            rect.bounds
+                        );
+                    }
+                });
+            }
+        }
     });
 }

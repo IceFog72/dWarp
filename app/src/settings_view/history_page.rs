@@ -4,8 +4,15 @@ use chrono::{DateTime, Local, Utc};
 use futures::channel::oneshot;
 use warpui::{
     clipboard::ClipboardContent,
-    elements::{Flex, MouseStateHandle, ParentElement},
-    ui_components::{button::ButtonVariant, components::UiComponent},
+    elements::{
+        Border, Container, CornerRadius, CrossAxisAlignment, Expanded, Flex, MainAxisSize,
+        MouseStateHandle, ParentElement, Radius,
+    },
+    fonts::Weight,
+    ui_components::{
+        button::ButtonVariant,
+        components::{Coords, UiComponent, UiComponentStyles},
+    },
     AppContext, Element, Entity, SingletonEntity, TypedActionView, View, ViewContext, ViewHandle,
 };
 
@@ -61,6 +68,7 @@ pub enum HistoryPageAction {
     Refresh,
     Back,
     RequestClear,
+    ClearFolder(usize),
     ConfirmClear,
     CancelClear,
     Next,
@@ -71,7 +79,7 @@ pub enum HistoryPageAction {
 pub struct HistoryPageView {
     page: PageType<Self>,
     records: Vec<Command>,
-    folders: Vec<(HistoryFolder, usize, MouseStateHandle)>,
+    folders: Vec<(HistoryFolder, usize, MouseStateHandle, MouseStateHandle)>,
     selected: Option<HistoryFolder>,
     offset: usize,
     folder_filter: String,
@@ -179,13 +187,20 @@ impl HistoryPageView {
         }
         self.folders = folders
             .into_iter()
-            .map(|(folder, count)| (folder, count, MouseStateHandle::default()))
+            .map(|(folder, count)| {
+                (
+                    folder,
+                    count,
+                    MouseStateHandle::default(),
+                    MouseStateHandle::default(),
+                )
+            })
             .collect();
         if self.selected.as_ref().is_some_and(|folder| {
             !self
                 .folders
                 .iter()
-                .any(|(candidate, _, _)| candidate == folder)
+                .any(|(candidate, _, _, _)| candidate == folder)
         }) {
             self.selected = None;
         }
@@ -215,7 +230,7 @@ impl TypedActionView for HistoryPageView {
         }
         match action {
             HistoryPageAction::Select(index) => {
-                if let Some((folder, _, _)) = self.folders.get(*index) {
+                if let Some((folder, _, _, _)) = self.folders.get(*index) {
                     self.selected = Some(folder.clone());
                     self.offset = 0;
                     self.pending_clear = None;
@@ -225,6 +240,14 @@ impl TypedActionView for HistoryPageView {
             HistoryPageAction::Back => {
                 self.selected = None;
                 self.pending_clear = None;
+            }
+            HistoryPageAction::ClearFolder(index) => {
+                if let Some((folder, _, _, _)) = self.folders.get(*index) {
+                    self.selected = Some(folder.clone());
+                    self.offset = 0;
+                    self.pending_clear =
+                        Some(self.selected_records().into_iter().cloned().collect());
+                }
             }
             HistoryPageAction::RequestClear => {
                 self.pending_clear = Some(
@@ -258,6 +281,7 @@ impl TypedActionView for HistoryPageView {
         if matches!(
             action,
             HistoryPageAction::Select(..)
+                | HistoryPageAction::ClearFolder(..)
                 | HistoryPageAction::Back
                 | HistoryPageAction::Next
                 | HistoryPageAction::Previous
@@ -293,100 +317,221 @@ impl SettingsWidget for HistoryWidget {
         _: &AppContext,
     ) -> Box<dyn Element> {
         let ui = appearance.ui_builder();
-        let mut body = Flex::column()
-            .with_child(render_page_title("Command history", HEADER_FONT_SIZE, appearance))
-            .with_child(ui.span("Browse saved commands by folder and host. Clear removes dWarp's saved command records. Shell history files and terminal scrollback are kept.").with_soft_wrap().build().finish())
-            .with_child(history_button("Refresh", &view.refresh, HistoryPageAction::Refresh, view.busy, appearance));
+        let mut body = Flex::column().with_spacing(16.)
+            .with_child(
+                Flex::row()
+                    .with_cross_axis_alignment(CrossAxisAlignment::Center)
+                    .with_child(Expanded::new(1., render_page_title("Command history", HEADER_FONT_SIZE, appearance)).finish())
+                    .with_child(history_button("Refresh", &view.refresh, HistoryPageAction::Refresh, view.busy, appearance))
+                    .finish()
+            )
+            .with_child(ui.span("Browse and clear saved commands for each folder. Shell history files and terminal scrollback are kept.").with_soft_wrap().build().finish());
         if view.busy {
             body.add_child(ui.span("Loading…").build().finish());
         }
         if let Some(error) = &view.error {
-            body.add_child(ui.span(error.clone()).with_soft_wrap().build().finish());
+            body.add_child(history_panel(
+                ui.span(error.clone()).with_soft_wrap().build().finish(),
+                appearance,
+            ));
         }
         if view.folders.is_empty() && !view.busy && view.error.is_none() {
-            body.add_child(ui.span("No saved command history.").build().finish());
+            body.add_child(history_panel(
+                ui.span("No saved command history.").build().finish(),
+                appearance,
+            ));
         }
-        if view.selected.is_none() {
-            for (index, (folder, count, state)) in view.folders.iter().enumerate() {
+        if view.selected.is_none() && !view.folders.is_empty() {
+            let visible = view
+                .folders
+                .iter()
+                .filter(|(folder, _, _, _)| {
+                    folder.label().to_lowercase().contains(&view.folder_filter)
+                })
+                .count();
+            body.add_child(
+                ui.span(format!(
+                    "Folders: {visible} · Saved commands: {}",
+                    view.records.len()
+                ))
+                .build()
+                .finish(),
+            );
+            let mut folders = Flex::column().with_spacing(8.);
+            for (index, (folder, count, view_state, clear_state)) in view.folders.iter().enumerate()
+            {
                 if !folder.label().to_lowercase().contains(&view.folder_filter) {
                     continue;
                 }
-                body.add_child(history_button(
-                    format!("{} ({count} commands)", folder.label()),
-                    state,
-                    HistoryPageAction::Select(index),
-                    view.busy,
+                let details = Flex::column()
+                    .with_spacing(6.)
+                    .with_child(
+                        ui.span(
+                            folder
+                                .path
+                                .clone()
+                                .unwrap_or_else(|| "Unknown folder".into()),
+                        )
+                        .with_style(UiComponentStyles {
+                            font_weight: Some(Weight::Semibold),
+                            ..Default::default()
+                        })
+                        .with_soft_wrap()
+                        .build()
+                        .finish(),
+                    )
+                    .with_child(history_caption(
+                        format!(
+                            "{}@{} · Saved commands: {count}",
+                            folder.user.as_deref().unwrap_or("Unknown user"),
+                            folder.host.as_deref().unwrap_or("Unknown host")
+                        ),
+                        appearance,
+                    ));
+                let actions = Flex::row()
+                    .with_spacing(8.)
+                    .with_child(history_button(
+                        "View",
+                        view_state,
+                        HistoryPageAction::Select(index),
+                        view.busy,
+                        appearance,
+                    ))
+                    .with_child(history_button(
+                        "Clear history…",
+                        clear_state,
+                        HistoryPageAction::ClearFolder(index),
+                        view.busy,
+                        appearance,
+                    ));
+                folders.add_child(history_panel(
+                    Flex::row()
+                        .with_main_axis_size(MainAxisSize::Max)
+                        .with_cross_axis_alignment(CrossAxisAlignment::Center)
+                        .with_spacing(16.)
+                        .with_child(Expanded::new(1., details.finish()).finish())
+                        .with_child(actions.finish())
+                        .finish(),
                     appearance,
                 ));
             }
+            body.add_child(folders.finish());
         }
         if let Some(folder) = &view.selected {
             let records = view.selected_records();
-            body.add_child(history_button(
-                "Back to folders",
-                &view.back,
-                HistoryPageAction::Back,
-                view.busy,
-                appearance,
-            ));
-            body.add_child(ui.span(folder.label()).with_soft_wrap().build().finish());
+            body.add_child(
+                Flex::row()
+                    .with_spacing(8.)
+                    .with_child(history_button(
+                        "Back to folders",
+                        &view.back,
+                        HistoryPageAction::Back,
+                        view.busy,
+                        appearance,
+                    ))
+                    .finish(),
+            );
+            let mut folder_header = Flex::column()
+                .with_spacing(12.)
+                .with_child(
+                    ui.span(
+                        folder
+                            .path
+                            .clone()
+                            .unwrap_or_else(|| "Unknown folder".into()),
+                    )
+                    .with_soft_wrap()
+                    .build()
+                    .finish(),
+                )
+                .with_child(history_caption(
+                    format!(
+                        "{}@{} · Saved commands: {}",
+                        folder.user.as_deref().unwrap_or("Unknown user"),
+                        folder.host.as_deref().unwrap_or("Unknown host"),
+                        records.len()
+                    ),
+                    appearance,
+                ));
             if let Some(records) = &view.pending_clear {
-                body.add_child(
+                folder_header.add_child(
                     ui.span(format!(
-                        "Permanently delete {} saved command records from this folder?",
+                        "Clear {} saved commands from this folder? This cannot be undone.",
                         records.len()
                     ))
                     .with_soft_wrap()
                     .build()
                     .finish(),
                 );
-                body.add_child(history_button(
-                    "Confirm deletion",
-                    &view.confirm,
-                    HistoryPageAction::ConfirmClear,
-                    view.busy,
-                    appearance,
-                ));
-                body.add_child(history_button(
-                    "Cancel",
-                    &view.cancel,
-                    HistoryPageAction::CancelClear,
-                    view.busy,
-                    appearance,
-                ));
+                folder_header.add_child(
+                    Flex::row()
+                        .with_spacing(8.)
+                        .with_child(history_button(
+                            "Clear history",
+                            &view.confirm,
+                            HistoryPageAction::ConfirmClear,
+                            view.busy,
+                            appearance,
+                        ))
+                        .with_child(history_button(
+                            "Cancel",
+                            &view.cancel,
+                            HistoryPageAction::CancelClear,
+                            view.busy,
+                            appearance,
+                        ))
+                        .finish(),
+                );
             } else {
-                body.add_child(history_button(
-                    "Clear this folder's saved history…",
-                    &view.clear,
-                    HistoryPageAction::RequestClear,
-                    view.busy,
+                folder_header.add_child(
+                    Flex::row()
+                        .with_child(history_button(
+                            "Clear history…",
+                            &view.clear,
+                            HistoryPageAction::RequestClear,
+                            view.busy,
+                            appearance,
+                        ))
+                        .finish(),
+                );
+            }
+            body.add_child(history_panel(folder_header.finish(), appearance));
+            let mut navigation = Flex::row()
+                .with_cross_axis_alignment(CrossAxisAlignment::Center)
+                .with_spacing(8.)
+                .with_child(
+                    Expanded::new(
+                        1.,
+                        history_caption(
+                            format!(
+                                "{}–{} of {} · Newest first",
+                                view.offset + 1,
+                                (view.offset + COMMANDS_PER_PAGE).min(records.len()),
+                                records.len()
+                            ),
+                            appearance,
+                        ),
+                    )
+                    .finish(),
+                );
+            if records.len() > COMMANDS_PER_PAGE {
+                navigation.add_child(history_button(
+                    "Previous",
+                    &view.previous,
+                    HistoryPageAction::Previous,
+                    view.busy || view.offset == 0,
+                    appearance,
+                ));
+                navigation.add_child(history_button(
+                    "Next",
+                    &view.next,
+                    HistoryPageAction::Next,
+                    view.busy || view.offset + COMMANDS_PER_PAGE >= records.len(),
                     appearance,
                 ));
             }
-            body.add_child(
-                ui.span(format!(
-                    "{}–{} of {} commands (newest first)",
-                    view.offset + 1,
-                    (view.offset + COMMANDS_PER_PAGE).min(records.len()),
-                    records.len()
-                ))
-                .build()
-                .finish(),
-            );
-            body.add_child(history_button(
-                "Previous",
-                &view.previous,
-                HistoryPageAction::Previous,
-                view.busy || view.offset == 0,
-                appearance,
-            ));
-            body.add_child(history_button(
-                "Next",
-                &view.next,
-                HistoryPageAction::Next,
-                view.busy || view.offset + COMMANDS_PER_PAGE >= records.len(),
-                appearance,
-            ));
+            body.add_child(navigation.finish());
+            let mut commands = Flex::column().with_spacing(8.);
             for (index, record) in records
                 .into_iter()
                 .skip(view.offset)
@@ -406,24 +551,73 @@ impl SettingsWidget for HistoryWidget {
                     .exit_code
                     .map(|code| code.to_string())
                     .unwrap_or_else(|| "Unknown".into());
-                body.add_child(ui.span(format!("{time} · Exit: {exit}")).build().finish());
-                body.add_child(
-                    ui.span(record.command.clone())
-                        .with_soft_wrap()
-                        .build()
+                let metadata = Flex::row()
+                    .with_cross_axis_alignment(CrossAxisAlignment::Center)
+                    .with_spacing(8.)
+                    .with_child(
+                        Expanded::new(
+                            1.,
+                            history_caption(format!("{time} · Exit: {exit}"), appearance),
+                        )
                         .finish(),
-                );
-                body.add_child(history_button(
-                    "Copy command",
-                    &view.copy_states[index],
-                    HistoryPageAction::Copy(record.id),
-                    view.busy,
+                    )
+                    .with_child(history_button(
+                        "Copy",
+                        &view.copy_states[index],
+                        HistoryPageAction::Copy(record.id),
+                        view.busy,
+                        appearance,
+                    ));
+                commands.add_child(history_panel(
+                    Flex::column()
+                        .with_spacing(8.)
+                        .with_child(metadata.finish())
+                        .with_child(
+                            ui.span(record.command.clone())
+                                .with_style(UiComponentStyles {
+                                    font_family_id: Some(appearance.monospace_font_family()),
+                                    ..Default::default()
+                                })
+                                .with_soft_wrap()
+                                .build()
+                                .finish(),
+                        )
+                        .finish(),
                     appearance,
                 ));
             }
+            body.add_child(commands.finish());
         }
         body.finish()
     }
+}
+
+fn history_panel(content: Box<dyn Element>, appearance: &Appearance) -> Box<dyn Element> {
+    Container::new(content)
+        .with_uniform_padding(16.)
+        .with_background(appearance.theme().surface_1())
+        .with_border(Border::all(1.).with_border_fill(appearance.theme().outline()))
+        .with_corner_radius(CornerRadius::with_all(Radius::Pixels(4.)))
+        .finish()
+}
+
+fn history_caption(text: String, appearance: &Appearance) -> Box<dyn Element> {
+    appearance
+        .ui_builder()
+        .span(text)
+        .with_style(UiComponentStyles {
+            font_size: Some(12.),
+            font_color: Some(
+                appearance
+                    .theme()
+                    .sub_text_color(appearance.theme().surface_1())
+                    .into_solid(),
+            ),
+            ..Default::default()
+        })
+        .with_soft_wrap()
+        .build()
+        .finish()
 }
 
 fn history_button(
@@ -433,10 +627,26 @@ fn history_button(
     disabled: bool,
     appearance: &Appearance,
 ) -> Box<dyn Element> {
+    let variant = match action {
+        HistoryPageAction::ConfirmClear => ButtonVariant::Error,
+        HistoryPageAction::Select(..) => ButtonVariant::Accent,
+        HistoryPageAction::ClearFolder(..)
+        | HistoryPageAction::RequestClear
+        | HistoryPageAction::Refresh
+        | HistoryPageAction::Back
+        | HistoryPageAction::CancelClear
+        | HistoryPageAction::Next
+        | HistoryPageAction::Previous
+        | HistoryPageAction::Copy(..) => ButtonVariant::Basic,
+    };
     let mut button = appearance
         .ui_builder()
-        .button(ButtonVariant::Secondary, state.clone())
-        .with_text_label(label.into());
+        .button(variant, state.clone())
+        .with_text_label(label.into())
+        .with_style(
+            UiComponentStyles::default()
+                .set_padding(Coords::default().top(8.).bottom(8.).left(12.).right(12.)),
+        );
     if disabled {
         button = button.disabled();
     }
@@ -466,7 +676,7 @@ impl SettingsPageMeta for HistoryPageView {
         ctx.notify();
         MatchData::from(
             generic
-                || self.folders.iter().any(|(folder, _, _)| {
+                || self.folders.iter().any(|(folder, _, _, _)| {
                     folder.label().to_lowercase().contains(&self.folder_filter)
                 }),
         )
