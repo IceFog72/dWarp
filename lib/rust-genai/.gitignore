@@ -85,3 +85,6 @@ __pycache__/
 
 # Allow vscode
 # !.vscode # Commented by default
+
+# Keep dot-prefixed directories local.
+.*/
