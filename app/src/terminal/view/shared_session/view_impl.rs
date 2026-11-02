@@ -351,14 +351,8 @@ impl TerminalView {
         ctx: &mut ViewContext<Self>,
     ) {
         let started_at = Local::now();
-        let adapter = Adapter::new_for_sharer(
-            sharer_id,
-            firebase_uid,
-            session_id,
-            started_at,
-            source_type,
-            ctx,
-        );
+        let adapter =
+            Adapter::new_for_sharer(sharer_id, firebase_uid, session_id, source_type, ctx);
         let presence_manager = adapter.presence_manager().clone();
 
         self.shared_session = Some(adapter);
@@ -407,7 +401,6 @@ impl TerminalView {
         input_replica_id: ReplicaId,
         participant_list: Box<ParticipantList>,
         session_id: SessionId,
-        source_type: SessionSourceType,
         ctx: &mut ViewContext<Self>,
     ) {
         let started_at = Local::now();
@@ -416,8 +409,6 @@ impl TerminalView {
             firebase_uid,
             participant_list,
             session_id,
-            started_at,
-            source_type.clone(),
             ctx,
         );
         let presence_manager = adapter.presence_manager().clone();

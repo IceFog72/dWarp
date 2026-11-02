@@ -15,7 +15,6 @@ use crate::terminal::view::{TerminalAction, TerminalView};
 
 use crate::terminal::view::throttle;
 use crate::ui_components::icons::Icon;
-use chrono::{DateTime, Local};
 use markdown_parser::FormattedTextFragment;
 use session_sharing_protocol::common::{ParticipantId, ParticipantList, Role, SessionId};
 use session_sharing_protocol::sharer::SessionSourceType;
@@ -94,8 +93,6 @@ pub struct Adapter {
     reconnecting_banner: ViewHandle<Banner<TerminalAction>>,
     is_reconnecting_banner_open: bool,
     session_id: SessionId,
-    started_at: DateTime<Local>,
-    source_type: SessionSourceType,
 }
 
 impl Adapter {
@@ -103,8 +100,6 @@ impl Adapter {
         kind: Kind,
         presence_manager: ModelHandle<PresenceManager>,
         session_id: SessionId,
-        started_at: DateTime<Local>,
-        source_type: SessionSourceType,
         ctx: &mut ViewContext<TerminalView>,
     ) -> Self {
         let reconnecting_banner = ctx.add_typed_action_view(|_| {
@@ -125,8 +120,6 @@ impl Adapter {
             reconnecting_banner,
             is_reconnecting_banner_open: false,
             session_id,
-            started_at,
-            source_type,
         }
     }
 
@@ -135,29 +128,19 @@ impl Adapter {
         firebase_uid: UserUid,
         participant_list: Box<ParticipantList>,
         session_id: SessionId,
-        started_at: DateTime<Local>,
-        source_type: SessionSourceType,
         ctx: &mut ViewContext<TerminalView>,
     ) -> Self {
         let presence_manager = ctx.add_model(|ctx| {
             PresenceManager::new_for_viewer(viewer_id, firebase_uid, *participant_list, ctx)
         });
         let viewer = Kind::Viewer(Viewer::new(ctx));
-        Self::new(
-            viewer,
-            presence_manager,
-            session_id,
-            started_at,
-            source_type,
-            ctx,
-        )
+        Self::new(viewer, presence_manager, session_id, ctx)
     }
 
     pub fn new_for_sharer(
         sharer_id: ParticipantId,
         firebase_uid: UserUid,
         session_id: SessionId,
-        started_at: DateTime<Local>,
         source_type: SessionSourceType,
         ctx: &mut ViewContext<TerminalView>,
     ) -> Self {
@@ -178,14 +161,7 @@ impl Adapter {
         }
 
         let sharer = Kind::Sharer(Sharer::new(activity_tx, ctx));
-        Self::new(
-            sharer,
-            presence_manager,
-            session_id,
-            started_at,
-            source_type,
-            ctx,
-        )
+        Self::new(sharer, presence_manager, session_id, ctx)
     }
 
     pub fn presence_manager(&self) -> &ModelHandle<PresenceManager> {
@@ -353,10 +329,6 @@ impl Adapter {
 
     pub fn session_id(&self) -> &SessionId {
         &self.session_id
-    }
-
-    pub fn source_type(&self) -> &SessionSourceType {
-        &self.source_type
     }
 
     /// Retrieves the viewer avatars we want to render on the right side of the

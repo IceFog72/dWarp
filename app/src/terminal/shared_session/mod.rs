@@ -1,15 +1,16 @@
 use byte_unit::Byte;
 use serde::{Deserialize, Serialize};
-use session_sharing_protocol::common::{Role, Scrollback, ScrollbackBlock};
+use session_sharing_protocol::common::Role;
+#[cfg(test)]
+use session_sharing_protocol::common::{Scrollback, ScrollbackBlock};
 use session_sharing_protocol::sharer::SessionSourceType;
 use warpui::{id, keymap::ContextPredicate};
 
 use crate::editor::{InteractionState, ReplicaId};
 
-use super::{
-    model::{block::SerializedBlock, terminal_model::BlockIndex},
-    GridType, TerminalModel,
-};
+#[cfg(test)]
+use super::model::block::SerializedBlock;
+use super::{model::terminal_model::BlockIndex, GridType, TerminalModel};
 
 pub mod manager;
 pub mod network;
@@ -162,6 +163,7 @@ impl SharedSessionScrollbackType {
     /// even if they were specified as part of the scrollback type.
     /// For example, if the [`Self::All]` variant is used, restored blocks
     /// _won't_ be included in scrollback.
+    #[cfg(test)]
     fn to_scrollback(self, model: &TerminalModel) -> Scrollback {
         let first_block_index = self.first_block_index(model);
         let blocks = model
@@ -236,33 +238,6 @@ pub enum SharedSessionActionSource {
     FooterChip,
 }
 
-/// The event number for events sent to the server. The newtype
-/// ensures that events are incremented correctly.
-#[derive(Copy, Clone, Debug, PartialEq, Eq)]
-struct EventNumber(usize);
-
-impl EventNumber {
-    fn new() -> Self {
-        Self(0)
-    }
-
-    /// Returns the current event number and increments
-    /// it for the next usage. The event number returned
-    /// is the event number that should be used for the next
-    /// event to send to the server.
-    pub fn advance(&mut self) -> usize {
-        let next = self.0;
-        self.0 += 1;
-        next
-    }
-}
-
-impl From<EventNumber> for usize {
-    fn from(value: EventNumber) -> Self {
-        value.0
-    }
-}
-
 impl From<GridType> for session_sharing_protocol::common::GridType {
     fn from(val: GridType) -> Self {
         match val {
@@ -312,6 +287,7 @@ impl From<&Role> for InteractionState {
 /// Decode scrollback blocks from their JSON wire format into [`SerializedBlock`]s.
 ///
 /// Blocks that fail to deserialize are silently dropped.
+#[cfg(test)]
 pub(crate) fn decode_scrollback(scrollback: &Scrollback) -> Vec<SerializedBlock> {
     scrollback
         .blocks
