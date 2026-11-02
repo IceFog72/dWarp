@@ -7,8 +7,8 @@ use std::borrow::Cow;
 use super::{
     about_page::AboutPageView, ai_page::AISettingsPageView,
     appearance_page::AppearanceSettingsPageView, code_page::CodeSettingsPageView,
-    features_page::FeaturesPageView, keybindings::KeybindingsView, warpify_page::WarpifyPageView,
-    SettingsSection,
+    features_page::FeaturesPageView, history_page::HistoryPageView, keybindings::KeybindingsView,
+    warpify_page::WarpifyPageView, SettingsSection,
 };
 use crate::{
     appearance::Appearance,
@@ -82,6 +82,7 @@ pub trait SettingsPageMeta {
 /// It is required to allow for SettingsPage struct be put in the collection (ie. vector).
 #[derive(Clone)]
 pub enum SettingsPageViewHandle {
+    History(ViewHandle<HistoryPageView>),
     Appearance(ViewHandle<AppearanceSettingsPageView>),
     Features(ViewHandle<FeaturesPageView>),
     Keybindings(ViewHandle<KeybindingsView>),
@@ -95,6 +96,7 @@ impl SettingsPageViewHandle {
     pub fn child_view(&self) -> Box<dyn Element> {
         use SettingsPageViewHandle::*;
         match self {
+            History(view_handle) => ChildView::new(view_handle).finish(),
             Appearance(view_handle) => ChildView::new(view_handle).finish(),
             Features(view_handle) => ChildView::new(view_handle).finish(),
             Keybindings(view_handle) => ChildView::new(view_handle).finish(),
@@ -1131,6 +1133,13 @@ impl<V: warpui::View> PageType<V> {
                 horizontal_scroll_state: horizontal_scroll_state.clone(),
                 highlighted_widget_id: *highlighted_widget_id,
             },
+        }
+    }
+
+    pub(super) fn reset_scroll(&self) {
+        let (vertical, horizontal) = self.get_scroll_states();
+        for state in [vertical, horizontal].into_iter().flatten() {
+            state.scroll_to(Pixels::zero());
         }
     }
 

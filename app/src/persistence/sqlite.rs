@@ -386,6 +386,20 @@ fn handle_model_event(event: ModelEvent, connection: &mut SqliteConnection) -> a
         ModelEvent::InsertCommand { metadata } => {
             insert_command(connection, metadata).context("error inserting command")
         }
+        ModelEvent::ReadCommandHistory { reply } => {
+            let result = schema::commands::dsl::commands
+                .order(schema::commands::columns::id.desc())
+                .load::<model::Command>(connection)
+                .map_err(|err| err.to_string());
+            let _ = reply.send(result);
+            Ok(())
+        }
+        ModelEvent::DeleteCommandHistory { records, reply } => {
+            let result =
+                delete_command_history(connection, &records).map_err(|err| err.to_string());
+            let _ = reply.send(result);
+            Ok(())
+        }
         ModelEvent::UpdateFinishedCommand { metadata } => {
             update_finished_command(connection, metadata).context("error updating finished command")
         }
@@ -1506,6 +1520,42 @@ fn insert_command(
             .values(new_command)
             .execute(conn)?;
         Ok(())
+    })
+}
+
+// Compare the snapshot as well as the ID: SQLite can reuse IDs after deleting its last row.
+fn delete_command_history(
+    conn: &mut SqliteConnection,
+    expected: &[model::Command],
+) -> Result<Vec<model::Command>> {
+    use schema::commands::dsl::{commands, id};
+    let expected: HashMap<_, _> = expected.iter().map(|record| (record.id, record)).collect();
+    let mut ids: Vec<_> = expected.keys().copied().collect();
+    ids.sort_unstable();
+    conn.transaction(|conn| {
+        let mut removed = Vec::new();
+        for batch in ids.chunks(500) {
+            let records = commands
+                .filter(id.eq_any(batch))
+                .load::<model::Command>(conn)?;
+            let records: Vec<_> = records
+                .into_iter()
+                .filter(|record| {
+                    let old = expected[&record.id];
+                    record.command == old.command
+                        && record.start_ts == old.start_ts
+                        && record.pwd == old.pwd
+                        && record.hostname == old.hostname
+                        && record.username == old.username
+                        && record.shell == old.shell
+                        && record.session_id == old.session_id
+                })
+                .collect();
+            let ids: Vec<_> = records.iter().map(|record| record.id).collect();
+            diesel::delete(commands.filter(id.eq_any(ids))).execute(conn)?;
+            removed.extend(records);
+        }
+        Ok(removed)
     })
 }
 

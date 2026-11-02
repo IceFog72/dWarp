@@ -1,6 +1,6 @@
 use std::{path::PathBuf, sync::Arc};
 
-use diesel::prelude::*;
+use diesel::{connection::SimpleConnection, prelude::*};
 
 use crate::{
     app_state::{
@@ -15,9 +15,9 @@ use crate::{
 };
 
 use super::{
-    decode_path, deduplicate_events, encode_path, model, read_sqlite_data, save_app_state, schema,
-    setup_database, AI_FACT_PANE_KIND, ENV_VAR_COLLECTION_PANE_KIND, NOTEBOOK_PANE_KIND,
-    TERMINAL_PANE_KIND, WORKFLOW_PANE_KIND,
+    decode_path, deduplicate_events, delete_command_history, encode_path, handle_model_event,
+    model, read_sqlite_data, save_app_state, schema, setup_database, AI_FACT_PANE_KIND,
+    ENV_VAR_COLLECTION_PANE_KIND, NOTEBOOK_PANE_KIND, TERMINAL_PANE_KIND, WORKFLOW_PANE_KIND,
 };
 
 #[test]
@@ -418,4 +418,98 @@ fn test_restore_removed_cloud_panes_preserves_terminal_tabs() {
             "pane kind: {kind}"
         );
     }
+}
+
+#[test]
+fn history_management_deletes_only_confirmed_records_and_preserves_reused_ids() {
+    use crate::persistence::schema::commands::dsl::*;
+    let tempdir = tempfile::tempdir().unwrap();
+    let mut conn = setup_database(&tempdir.path().join("history.sqlite")).unwrap();
+    for (row, folder, host) in [
+        (1, "/work", "local"),
+        (2, "/work/child", "local"),
+        (3, "/work", "remote"),
+        (4, "/work", "local"),
+    ] {
+        diesel::insert_into(commands)
+            .values((
+                id.eq(row),
+                command.eq(format!("command {row}")),
+                pwd.eq(folder),
+                hostname.eq(host),
+            ))
+            .execute(&mut conn)
+            .unwrap();
+    }
+    let snapshot = commands
+        .filter(id.eq_any([1, 4]))
+        .load::<model::Command>(&mut conn)
+        .unwrap();
+    // A second window clears the latest row, then a new command gets its reused ID.
+    diesel::delete(commands.filter(id.eq(4)))
+        .execute(&mut conn)
+        .unwrap();
+    diesel::insert_into(commands)
+        .values((
+            command.eq("new command"),
+            pwd.eq("/other"),
+            hostname.eq("local"),
+        ))
+        .execute(&mut conn)
+        .unwrap();
+    let removed = delete_command_history(&mut conn, &snapshot).unwrap();
+    assert_eq!(
+        removed.iter().map(|row| row.id).collect::<Vec<_>>(),
+        vec![1]
+    );
+    let remaining = commands
+        .order(id.asc())
+        .load::<model::Command>(&mut conn)
+        .unwrap();
+    assert_eq!(
+        remaining.iter().map(|row| row.id).collect::<Vec<_>>(),
+        vec![2, 3, 4]
+    );
+    assert_eq!(remaining[2].command, "new command");
+    // The writer's read operation sees the same result as a subsequent restart.
+    let (reply, receiver) = futures::channel::oneshot::channel();
+    handle_model_event(ModelEvent::ReadCommandHistory { reply }, &mut conn).unwrap();
+    let saved = futures::executor::block_on(receiver).unwrap().unwrap();
+    assert_eq!(
+        saved.iter().map(|row| row.id).collect::<Vec<_>>(),
+        vec![4, 3, 2]
+    );
+    assert!(delete_command_history(&mut conn, &[]).unwrap().is_empty());
+}
+
+#[test]
+fn history_management_clears_large_folder_in_one_transaction() {
+    use crate::persistence::schema::commands::dsl::*;
+    let tempdir = tempfile::tempdir().unwrap();
+    let mut conn = setup_database(&tempdir.path().join("history.sqlite")).unwrap();
+    for row in 0..1100 {
+        diesel::insert_into(commands)
+            .values((command.eq(format!("command {row}")), pwd.eq("/work")))
+            .execute(&mut conn)
+            .unwrap();
+    }
+    let snapshot = commands.load::<model::Command>(&mut conn).unwrap();
+    // Failure in a later batch must roll back the entire cleanup.
+    conn.batch_execute("CREATE TRIGGER reject_history_delete BEFORE DELETE ON commands WHEN OLD.id = 1000 BEGIN SELECT RAISE(ABORT, 'test failure'); END;").unwrap();
+    assert!(delete_command_history(&mut conn, &snapshot).is_err());
+    assert_eq!(commands.count().get_result::<i64>(&mut conn).unwrap(), 1100);
+    conn.batch_execute("DROP TRIGGER reject_history_delete;")
+        .unwrap();
+    let (reply, receiver) = futures::channel::oneshot::channel();
+    handle_model_event(
+        ModelEvent::DeleteCommandHistory {
+            records: snapshot,
+            reply,
+        },
+        &mut conn,
+    )
+    .unwrap();
+    let removed = futures::executor::block_on(receiver).unwrap().unwrap();
+    assert_eq!(removed.len(), 1100);
+    assert_eq!(commands.count().get_result::<i64>(&mut conn).unwrap(), 0);
 }

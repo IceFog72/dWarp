@@ -23,6 +23,7 @@ use appearance_page::{AppearancePageAction, AppearanceSettingsPageView};
 use code_page::CodeSubpage;
 use code_page::{CodeSettingsPageAction, CodeSettingsPageEvent};
 use features_page::{FeaturesPageView, FeaturesSettingsPageEvent};
+use history_page::HistoryPageView;
 use itertools::Itertools as _;
 use keybindings::KeybindingsView;
 use nav::{SettingsNavItem, SettingsUmbrella};
@@ -65,6 +66,7 @@ mod code_page;
 mod directory_color_add_picker;
 mod features;
 mod features_page;
+mod history_page;
 pub mod keybindings;
 mod nav;
 pub mod pane_manager;
@@ -131,6 +133,7 @@ pub enum SettingsSection {
     Appearance,
     Features,
     Keybindings,
+    History,
     Warpify,
     /// Backing page for provider and third-party CLI agent settings.
     AI,
@@ -157,6 +160,7 @@ impl Display for SettingsSection {
         let s: String = match self {
             SettingsSection::About => crate::t!("settings-section-about"),
             SettingsSection::Appearance => crate::t!("settings-section-appearance"),
+            SettingsSection::History => "Command history".into(),
             SettingsSection::Features => crate::t!("settings-section-features"),
             SettingsSection::Keybindings => crate::t!("settings-section-keybindings"),
             SettingsSection::Warpify => crate::t!("settings-section-warpify"),
@@ -225,6 +229,7 @@ impl FromStr for SettingsSection {
             "Appearance" => Ok(Self::Appearance),
             "Code" => Ok(Self::Code),
             "Features" => Ok(Self::Features),
+            "History" | "Command history" => Ok(Self::History),
             "Keyboard shortcuts" => Ok(Self::Keybindings),
             "Warpify" => Ok(Self::Warpify),
             // This page was called "Oz" at one point, keep for backward compatibility.
@@ -833,6 +838,7 @@ macro_rules! update_page {
             SettingsPageViewHandle::AI(handle) => $ctx.update_view(handle, $update),
             SettingsPageViewHandle::About(handle) => $ctx.update_view(handle, $update),
             SettingsPageViewHandle::Code(handle) => $ctx.update_view(handle, $update),
+            SettingsPageViewHandle::History(handle) => $ctx.update_view(handle, $update),
         }
     };
 }
@@ -889,6 +895,8 @@ impl SettingsView {
         ctx.subscribe_to_view(&features_page_handle, |me, _, event, ctx| {
             me.handle_features_page_event(event, ctx);
         });
+
+        let history_page_handle = ctx.add_typed_action_view(|_| HistoryPageView::new());
 
         // About page
         let about_page_handle = ctx.add_view(AboutPageView::new);
@@ -947,6 +955,7 @@ impl SettingsView {
             SettingsPage::new(code_page_handle),
             SettingsPage::new(appearance_page_handle),
             SettingsPage::new(features_page_handle),
+            SettingsPage::new(history_page_handle),
             SettingsPage::new(keybindings_handle),
             SettingsPage::new(warpify_page_handle),
         ];
@@ -964,6 +973,7 @@ impl SettingsView {
             )),
             SettingsNavItem::Page(SettingsSection::Appearance),
             SettingsNavItem::Page(SettingsSection::Features),
+            SettingsNavItem::Page(SettingsSection::History),
             SettingsNavItem::Page(SettingsSection::Keybindings),
             SettingsNavItem::Page(SettingsSection::About),
         ];
@@ -1520,6 +1530,7 @@ impl SettingsView {
             SettingsPageViewHandle::Warpify(v) => v.as_ref(app).should_render(app),
             SettingsPageViewHandle::AI(v) => v.as_ref(app).should_render(app),
             SettingsPageViewHandle::Code(v) => v.as_ref(app).should_render(app),
+            SettingsPageViewHandle::History(v) => v.as_ref(app).should_render(app),
         }
     }
 

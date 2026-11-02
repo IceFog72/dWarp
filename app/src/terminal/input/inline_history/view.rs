@@ -146,10 +146,9 @@ impl InlineHistoryMenuView {
                     .with_icon(Icon::Settings)
                     .with_size(ButtonSize::Small)
                     .on_click(|ctx| {
-                        ctx.dispatch_typed_action(WorkspaceAction::ShowSettingsPageWithSearch {
-                            search_query: "commands history".into(),
-                            section: Some(SettingsSection::Features),
-                        });
+                        ctx.dispatch_typed_action(WorkspaceAction::ShowSettingsPage(
+                            SettingsSection::History,
+                        ));
                     })
             });
             let header_config = InlineMenuHeaderConfig {

@@ -521,7 +521,7 @@ pub struct NewCommand {
     pub is_agent_executed: Option<bool>,
 }
 
-#[derive(Identifiable, Queryable, Default, Clone)]
+#[derive(Debug, Identifiable, Queryable, Default, Clone)]
 #[diesel(table_name = commands)]
 pub struct Command {
     pub id: i32,

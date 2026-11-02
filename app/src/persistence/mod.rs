@@ -201,6 +201,13 @@ pub enum ModelEvent {
     InsertCommand {
         metadata: StartedCommandMetadata,
     },
+    ReadCommandHistory {
+        reply: futures::channel::oneshot::Sender<Result<Vec<model::Command>, String>>,
+    },
+    DeleteCommandHistory {
+        records: Vec<model::Command>,
+        reply: futures::channel::oneshot::Sender<Result<Vec<model::Command>, String>>,
+    },
     UpdateFinishedCommand {
         metadata: FinishedCommandMetadata,
     },

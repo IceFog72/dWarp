@@ -14,6 +14,7 @@ use super::{
     shell::ShellType,
 };
 use crate::{
+    persistence::model::Command as SavedCommand,
     server::ids::{ClientId, HashableId as _, SyncId},
     terminal::model::session::{Session, SessionId},
     util::dedupe_from_last,
@@ -155,7 +156,7 @@ enum ReadHistoryFileState {
 }
 
 pub enum HistoryEvent {
-    /// History has been initialized for the session with the contained ID.
+    /// History is ready or has been refreshed for the session with the contained ID.
     Initialized(SessionId),
 }
 
@@ -425,6 +426,79 @@ impl History {
             persisted_commands_summary,
             ..Default::default()
         }
+    }
+
+    pub fn refresh_saved_records(
+        &mut self,
+        records: Vec<PersistedCommand>,
+        ctx: &mut ModelContext<Self>,
+    ) {
+        self.persisted_commands_summary = Self::new(records).persisted_commands_summary;
+        // Imported shell commands remain, but their directory metadata must reflect surviving records.
+        for (host, entries) in &mut self.history_file_commands {
+            let summaries = self.persisted_commands_summary.get(host);
+            for entry in entries {
+                let refreshed = summaries
+                    .and_then(|summaries| summaries.get(&entry.command))
+                    .map(|summary| summary.most_recent_entry.clone())
+                    .unwrap_or_else(|| HistoryEntry::command_only(entry.command.clone()));
+                *entry = Arc::new(refreshed);
+            }
+        }
+        for session_id in self.session_id_to_shell_host.keys() {
+            ctx.emit(HistoryEvent::Initialized(*session_id));
+        }
+        ctx.notify();
+    }
+
+    /// Forget deleted saved records without shifting the indices used by live sessions.
+    pub fn forget_saved_records(&mut self, records: &[SavedCommand], ctx: &mut ModelContext<Self>) {
+        let deleted: HashSet<_> = records
+            .iter()
+            .map(|record| {
+                (
+                    record.command.as_str(),
+                    record.pwd.as_deref(),
+                    record.start_ts,
+                    record.hostname.as_deref(),
+                    record.username.as_deref(),
+                    record.shell.as_deref(),
+                )
+            })
+            .collect();
+        let matches = |entry: &HistoryEntry| {
+            deleted.contains(&(
+                entry.command.as_str(),
+                entry.pwd.as_deref(),
+                entry.start_ts.map(|ts| ts.naive_utc()),
+                entry.shell_host.as_ref().map(|host| host.hostname.as_str()),
+                entry.shell_host.as_ref().map(|host| host.user.as_str()),
+                entry.shell_host.as_ref().map(|host| host.shell_type.name()),
+            ))
+        };
+        for summaries in self.persisted_commands_summary.values_mut() {
+            summaries.retain(|_, summary| !matches(&summary.most_recent_entry));
+        }
+        for state in self.read_history_file_state.values_mut() {
+            if let ReadHistoryFileState::InProgress {
+                session_commands_to_append,
+                ..
+            } = state
+            {
+                session_commands_to_append.retain(|entry| !matches(entry));
+            }
+        }
+        for (session_id, host) in &self.session_id_to_shell_host {
+            let offset = self.history_file_commands.get(host).map_or(0, Vec::len);
+            let entries = self.session_commands.get(host).into_iter().flatten();
+            let skip = self.session_skip_indices.entry(*session_id).or_default();
+            for (index, entry) in entries.enumerate() {
+                if matches(entry) {
+                    skip.insert(offset + index);
+                }
+            }
+        }
+        ctx.notify();
     }
 
     /// Returns an iterator over a tuple of (count, &HistoryEntry) for all commands in the history.

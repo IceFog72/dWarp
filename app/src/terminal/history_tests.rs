@@ -940,3 +940,127 @@ fn is_appendable_vs_is_queryable() {
         });
     });
 }
+
+#[test]
+fn history_management_forgets_deleted_records_without_shifting_live_session_indices() {
+    App::test((), |mut app| async move {
+        let host = ShellHost {
+            shell_type: ShellType::Bash,
+            user: "alice".into(),
+            hostname: "local".into(),
+        };
+        let session_id = SessionId::from(1);
+        let now = Local::now();
+        let make_entry = |command: &str, path: &str| HistoryEntry {
+            command: command.into(),
+            pwd: Some(path.into()),
+            start_ts: Some(now),
+            shell_host: Some(host.clone()),
+            session_id: Some(session_id),
+            ..HistoryEntry::command_only(command)
+        };
+        let removed = make_entry("remove me", "/work");
+        let other = make_entry("keep me", "/other");
+        let mut history = History::default();
+        history
+            .session_id_to_shell_host
+            .insert(session_id, host.clone());
+        history
+            .read_history_file_state
+            .insert(host.clone(), super::ReadHistoryFileState::Done);
+        history.history_file_commands.insert(
+            host.clone(),
+            vec![Arc::new(HistoryEntry::command_only("shell-only"))],
+        );
+        history
+            .session_commands
+            .insert(host.clone(), vec![Arc::new(removed), Arc::new(other)]);
+        history.session_start_indices.insert(session_id, 1);
+        history
+            .session_skip_indices
+            .insert(session_id, Default::default());
+        let handle = app.add_model(|_| history);
+        handle.update(&mut app, |history, ctx| {
+            history.forget_saved_records(
+                &[crate::persistence::model::Command {
+                    command: "remove me".into(),
+                    pwd: Some("/work".into()),
+                    start_ts: Some(now.naive_utc()),
+                    hostname: Some("local".into()),
+                    username: Some("alice".into()),
+                    shell: Some("bash".into()),
+                    ..Default::default()
+                }],
+                ctx,
+            );
+            assert_eq!(history.session_start_indices[&session_id], 1);
+            assert_eq!(history.session_commands[&host].len(), 2);
+            let visible = history.commands(session_id).unwrap();
+            assert_eq!(
+                visible
+                    .iter()
+                    .map(|entry| entry.command.as_str())
+                    .collect::<Vec<_>>(),
+                vec!["shell-only", "keep me"]
+            );
+            history.append_commands(session_id, vec![make_entry("new command", "/work")]);
+            assert_eq!(
+                history
+                    .commands(session_id)
+                    .unwrap()
+                    .last()
+                    .unwrap()
+                    .command,
+                "new command"
+            );
+        });
+    });
+}
+
+#[test]
+fn history_management_refresh_preserves_same_command_saved_in_another_folder() {
+    App::test((), |mut app| async move {
+        let make_record = |path: &str| crate::persistence::model::Command {
+            command: "git status".into(),
+            pwd: Some(path.into()),
+            shell: Some("bash".into()),
+            hostname: Some("local".into()),
+            username: Some("alice".into()),
+            ..Default::default()
+        };
+        let mut history = History::new(vec![
+            make_record("/removed").into(),
+            make_record("/kept").into(),
+        ]);
+        let host = ShellHost {
+            shell_type: ShellType::Bash,
+            user: "alice".into(),
+            hostname: "local".into(),
+        };
+        history.history_file_commands.insert(
+            host.clone(),
+            vec![Arc::new(HistoryEntry::from(PersistedCommand::from(
+                make_record("/removed"),
+            )))],
+        );
+        let handle = app.add_model(|_| history);
+        handle.update(&mut app, |history, ctx| {
+            assert_eq!(history.command_summaries("local".into())[0].0, 2);
+            history.refresh_saved_records(vec![make_record("/kept").into()], ctx);
+            let summaries = history.command_summaries("local".into());
+            assert_eq!(summaries.len(), 1);
+            assert_eq!(summaries[0].0, 1);
+            assert_eq!(summaries[0].1.pwd.as_deref(), Some("/kept"));
+            assert_eq!(
+                history.history_file_commands[&host][0].pwd.as_deref(),
+                Some("/kept")
+            );
+            history.refresh_saved_records(vec![], ctx);
+            assert!(history.history_file_commands[&host][0].pwd.is_none());
+            assert_eq!(
+                history.history_file_commands[&host][0].command,
+                "git status"
+            );
+        });
+    });
+}
