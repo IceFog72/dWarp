@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
+  <title>dWarp</title>
+  <rect x="48" y="122" width="318" height="326" rx="52"
+        transform="rotate(-8 207 285)" fill="#155e68" stroke="#102d36" stroke-width="18"/>
+  <g transform="rotate(8 294 246)">
+    <rect x="136" y="56" width="316" height="380" rx="52"
+          fill="#d9fff2" stroke="#102d36" stroke-width="18"/>
+    <path d="M224 170 L280 218 L224 266 M290 292 H354"
+          fill="none" stroke="#087f78" stroke-width="30" stroke-linecap="round" stroke-linejoin="round"/>
+  </g>
+</svg>

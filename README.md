@@ -1,14 +1,35 @@
 # dWarp
 
-dWarp is a local terminal fork of [Warp](https://github.com/warpdotdev/warp),
-based on [OpenWarp](https://github.com/zerx-lab/warp). It retains terminal blocks,
-completion, keybindings, local files and workflows, SSH, and integrations with
-third-party CLI agents.
+dWarp is a fork of [Warp](https://github.com/warpdotdev/warp), based on
+[OpenWarp](https://github.com/zerx-lab/warp). It keeps the terminal, local
+development tools, SSH, and integrations with external CLI agents. Warp account
+login, Warp Drive, and the built-in Warp agent have been removed.
 
-Warp account login, Warp Drive sync, and the built-in Warp agent are removed.
-AI command suggestions use a provider configured under Settings → Agents →
-Providers. Provider keys stay in the operating system's secure storage.
-CLI agents manage their own accounts, models, and MCP servers.
+![dWarp icon](app/channels/oss/icon/no-padding/128x128.png)
+
+## How dWarp differs from Warp
+
+These differences describe this fork relative to the upstream code it started
+from. dWarp is maintained independently and does not follow every upstream change.
+
+| Area | dWarp |
+| --- | --- |
+| Warp accounts | No Warp login, signup, account token, or subscription is needed to use the terminal. |
+| Warp Drive and cloud sync | Removed, together with cloud object synchronization and the related server clients. |
+| Built-in Warp agent | Removed. dWarp does not provide Warp-hosted agent execution, cloud agents, or their MCP/OAuth configuration. |
+| External CLI agents | Retained. CLI agents manage their own accounts, models, and MCP servers. |
+| AI command suggestions | Optional, using a provider configured under **Settings → Agents → Providers**. Provider keys use the operating system's secure storage. |
+| Rendering | GPU rendering remains the default. A selectable CPU renderer is available for native builds. |
+| Terminal launches | New invocations open tabs in the running application by default. `--new-window` requests another window. |
+| Local development | Terminal blocks, completion, keybindings, splits, the editor, local files/workflows, code diffs, and local code review remain. |
+| SSH | Retained, including local SSH configuration and remote-terminal support. |
+| Build infrastructure | The local OSS build does not require Warp's private channel repository or a Warp server. |
+| Identity | Application name **dWarp**, executable `dwarp`, and a distinct overlapping-terminal icon. |
+
+External CLI agents and configured suggestion providers can make their own
+network requests. Removing Warp's cloud features does not make those programs
+offline. The shared-session subsystem was left outside the removal work; its
+remaining source is not a promise that Warp's hosted sharing services work here.
 
 ## Rendering
 
@@ -21,8 +42,24 @@ WARP_CPU_RENDERER=1 WARP_CPU_FPS=30 dwarp
 WARP_CPU_RENDERER=1 WARP_CPU_TERMINAL_FPS=10 dwarp
 ```
 
-CPU rendering avoids a GPU rendering device for the window. The desktop compositor
-can still use the GPU. Native rendering behavior must be verified on each platform.
+The CPU path draws the application window without a GPU rendering device. The
+desktop compositor can still use the GPU. Native Windows/macOS behavior and every
+Linux graphics stack are not verified by a successful Linux build.
+
+## Watch external-tool commands in dWarp
+
+The repository includes a wrapper for making a coding assistant's shell commands
+visible in dWarp while returning output and exit status to its calling tool:
+
+```bash
+./script/run-in-dwarp --cwd /mnt/Data/Apps/warp -- cargo --version
+```
+
+This uses ordinary terminal sessions, not the removed built-in agent. It retains
+private command logs, supports timeouts and cancellation, and preserves PTY
+behavior. Commands reuse an owned tab and split when busy, without raising the
+app. Keep the rebuilt dWarp running with an open window. It currently targets POSIX hosts and is tested on Linux. See
+[visible-command instructions](script/README-agent-terminal.md) for details.
 
 ## Build and run
 
@@ -45,9 +82,11 @@ On Linux, build and install with:
 ./script/build-and-install.sh
 ```
 
-The script installs the `dwarp` launcher, desktop entry, and icons. It retains
-complete build logs under `logs/build-and-install/` and removes its scratch files
-on success or failure. Compiled outputs and shared Cargo caches are preserved.
+The installer adds the launcher, desktop entry, terminal helper, and icons, then
+refreshes desktop/icon caches. It retains build logs in `logs/build-and-install/`
+and removes its scratch files on success or failure. Compiled outputs and shared
+Cargo caches are preserved. Restart the running app after rebuilding to load new
+code and the embedded window icon.
 
 On Windows, run `script\build-and-install.bat`. Add `-BuildOnly` to build the
 installer without opening its installation wizard. See
