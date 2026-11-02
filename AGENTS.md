@@ -318,6 +318,12 @@ Under `app/src/`, there are 60+ flat product domain directories. Each directory 
 
 ---
 
+### 5.10 Visible shell commands
+
+- Run development shell commands through `./script/run-in-dwarp --cwd /mnt/Data/Apps/warp -- PROGRAM ARGUMENT ...` so the user can watch them in dWarp. The wrapper mirrors output and returns the command's exit status to the calling tool.
+- Put environment overrides after `--` using `env NAME=VALUE PROGRAM ...`. Use an explicit shell for shell syntax. See `script/README-agent-terminal.md` for interruption, logs, and platform scope.
+- Direct execution is appropriate for diagnosing the wrapper itself when it cannot launch. Explain that exception. Keep the removed built-in Warp agent and shared-session subsystem out of this workflow.
+
 ## 6. Quick Reference for Common Entry Points
 
 | Intended Action | Starting Point |
