@@ -151,6 +151,16 @@ if [ -d "$ICON_DIR" ]; then
     sudo install -Dm644 "$icon" "/usr/share/icons/hicolor/${size}/apps/$BUNDLE_ID.png"
   done
   echo "  Installed icons"
+  # Refresh after copying icons: an existing cache can hide newly installed names.
+  if command -v gtk-update-icon-cache >/dev/null 2>&1; then
+    sudo gtk-update-icon-cache -f -t /usr/share/icons/hicolor
+  else
+    echo "Refresh the icon cache after installing gtk-update-icon-cache." >&2
+  fi
+fi
+
+if command -v update-desktop-database >/dev/null 2>&1; then
+  sudo update-desktop-database /usr/share/applications
 fi
 
 echo ""
@@ -158,5 +168,3 @@ echo "=== Build & install complete ==="
 echo ""
 echo "Run '$DESKTOP_COMMAND'"
 echo ""
-echo "You may need to run: sudo update-desktop-database"
-echo "And:                sudo update-icon-caches /usr/share/icons/*"

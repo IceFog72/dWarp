@@ -39,7 +39,12 @@ printf scratch > "$TMPDIR/compiler-temp"
 if [[ ${CHECK_BUILD_WAIT:-0} == 1 ]]; then sleep 60; fi
 exit "${CHECK_BUILD_STATUS:-0}"
 ''')
+        self.executable(tools / "gtk-update-icon-cache", "exit 0")
         self.executable(tools / "sudo", '''
+printf '%s\\n' "$*" >> "$PWD/install-calls"
+if [[ ${CHECK_CACHE_FAIL:-0} == 1 && $1 == gtk-update-icon-cache ]]; then
+  exit 31
+fi
 if [[ ${CHECK_INSTALL_FAIL:-0} == 1 && ${!#} == /usr/local/bin/dwarp ]]; then
   exit 29
 fi
@@ -77,6 +82,28 @@ exit 0
             (self.root / "dependency-calls").read_text().splitlines(),
             ["install_runtime_deps", "install_build_deps"],
         )
+
+    def add_icon(self):
+        icon = self.root / "app/channels/oss/icon/no-padding/48x48.png"
+        icon.parent.mkdir(parents=True)
+        icon.write_bytes(b"test icon")
+
+    def test_icon_cache_is_refreshed_after_installing_icons(self):
+        self.add_icon()
+        result = self.run_build()
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        calls = (self.root / "install-calls").read_text().splitlines()
+        icon_install = next(i for i, call in enumerate(calls)
+                            if call.endswith("/48x48/apps/dev.warp.dWarp.png"))
+        cache_refresh = calls.index("gtk-update-icon-cache -f -t /usr/share/icons/hicolor")
+        self.assertLess(icon_install, cache_refresh)
+        self.assert_clean_with_log(0)
+
+    def test_icon_cache_failure_is_reported_and_cleans_scratch(self):
+        self.add_icon()
+        result = self.run_build(CHECK_CACHE_FAIL="1")
+        self.assertEqual(result.returncode, 31, result.stdout + result.stderr)
+        self.assert_clean_with_log(31)
 
     def test_build_channels_only_request_declared_features(self):
         manifest = SCRIPT.parents[1] / "app/Cargo.toml"
