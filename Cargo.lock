@@ -3545,6 +3545,22 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "92773504d58c093f6de2459af4af33faa518c13451eb8f2b5698ed3d36e7c813"
 
 [[package]]
+name = "dwarp_command"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "clap",
+ "command",
+ "instant",
+ "libc",
+ "nix 0.26.4",
+ "serde",
+ "serde_json",
+ "signal-hook",
+ "tempfile",
+]
+
+[[package]]
 name = "dwrote"
 version = "0.11.5"
 source = "git+https://github.com/warpdotdev/dwrote-rs?rev=a71ce6c0136f7d0954a9a8b181b5b2d8ace5eb9c#a71ce6c0136f7d0954a9a8b181b5b2d8ace5eb9c"
@@ -13268,6 +13284,7 @@ dependencies = [
  "directories",
  "dirs 6.0.0",
  "dunce",
+ "dwarp_command",
  "embed-resource",
  "embed_plist",
  "enclose",
@@ -13514,6 +13531,7 @@ dependencies = [
  "clap",
  "clap_complete",
  "color-print",
+ "dwarp_command",
  "humantime",
  "jaq-all",
  "serde",

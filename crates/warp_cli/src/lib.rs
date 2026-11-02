@@ -307,6 +307,9 @@ pub enum Command {
     #[clap(flatten)]
     Worker(WorkerCommand),
 
+    /// Run a command visibly in dWarp, streaming its output and returning its exit status.
+    Run(dwarp_command::RunArgs),
+
     /// Generate shell completions for your shell to stdout.
     ///
     ///
@@ -340,6 +343,7 @@ impl Command {
     pub fn prints_to_stdout(&self) -> bool {
         match self {
             Command::Worker(_) => false,
+            Command::Run(_) => true,
             Command::DumpDebugInfo => true,
             Command::Completions { .. } => true,
         }

@@ -48,16 +48,17 @@ Linux graphics stack are not verified by a successful Linux build.
 
 ## Watch external-tool commands in dWarp
 
-The repository includes a wrapper for making a coding assistant's shell commands
-visible in dWarp while returning output and exit status to its calling tool:
+The native command interface makes a coding assistant's shell commands visible
+in dWarp while streaming output and exit status back to its calling tool:
 
 ```bash
-./script/run-in-dwarp --cwd /mnt/Data/Apps/warp -- cargo --version
+dwarp run --cwd /mnt/Data/Apps/warp -- cargo --version
 ```
 
 This uses ordinary terminal sessions, not the removed built-in agent. It retains
 private command logs, supports timeouts and cancellation, and preserves PTY
-behavior. Commands reuse an owned tab and split when busy, without raising the
+behavior without a Python bridge. `dwarp-run` and `script/run-in-dwarp` exec this
+native interface. Commands reuse an owned tab and split when busy, without raising the
 app. Use `--focus` when you need to answer an interactive prompt, such as sudo.
 Keep the rebuilt dWarp running with an open window. It currently targets POSIX
 hosts and is tested on Linux. See

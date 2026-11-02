@@ -34,6 +34,7 @@ asset_cache = { path = "crates/asset_cache" }
 asset_macro = { path = "crates/asset_macro" }
 channel_versions = { path = "crates/channel_versions", default-features = false }
 command = { path = "crates/command" }
+dwarp_command = { path = "crates/dwarp_command" }
 command-signatures-v2 = { path = "crates/command-signatures-v2" }
 field_mask = { path = "crates/field_mask" }
 fuzzy_match = { path = "crates/fuzzy_match" }

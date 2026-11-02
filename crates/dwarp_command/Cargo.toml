@@ -1,0 +1,24 @@
+[package]
+name = "dwarp_command"
+version = "0.1.0"
+edition = "2024"
+publish.workspace = true
+license.workspace = true
+
+[dependencies]
+anyhow.workspace = true
+clap = { workspace = true, features = ["derive", "env"] }
+
+[target.'cfg(unix)'.dependencies]
+command.workspace = true
+instant.workspace = true
+libc.workspace = true
+nix = { workspace = true, features = ["term", "process", "fs", "user"] }
+serde = { workspace = true, features = ["derive"] }
+serde_json.workspace = true
+signal-hook = "0.3.17"
+tempfile.workspace = true
+
+[[bin]]
+name = "dwarp-run"
+path = "src/main.rs"

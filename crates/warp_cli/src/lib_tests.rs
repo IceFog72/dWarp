@@ -7,7 +7,6 @@ fn removed_cloud_commands_are_rejected() {
     for command in [
         "agent",
         "mcp",
-        "run",
         "task",
         "model",
         "provider",
@@ -28,6 +27,30 @@ fn app_and_completions_still_parse() {
     assert!(Args::try_parse_from(["warp"]).is_ok());
     let args = Args::try_parse_from(["warp", "completions", "bash"]).unwrap();
     assert!(matches!(args.command(), Some(Command::Completions { .. })));
+}
+
+#[test]
+fn native_run_keeps_arguments_literal_and_requires_a_program() {
+    let args = Args::try_parse_from([
+        "dwarp",
+        "run",
+        "--group",
+        "Codex",
+        "--focus",
+        "--",
+        "bash",
+        "-lc",
+        "printf '%s' '$HOME'",
+    ])
+    .unwrap();
+    let Some(Command::Run(run)) = args.command() else {
+        panic!("expected native run");
+    };
+    assert!(run.focus);
+    assert_eq!(run.group, "Codex");
+    assert_eq!(run.command, ["bash", "-lc", "printf '%s' '$HOME'"]);
+    assert!(Args::try_parse_from(["dwarp", "run"]).is_err());
+    assert!(Args::try_parse_from(["dwarp", "run", "--timeout", "0", "--", "true"]).is_err());
 }
 
 #[test]
