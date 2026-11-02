@@ -556,4 +556,3 @@ impl Response {
         self.0.url()
     }
 }
-

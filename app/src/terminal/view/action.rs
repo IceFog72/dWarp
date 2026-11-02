@@ -32,10 +32,7 @@ use crate::terminal::{
     },
 };
 
-use super::inline_banner::{
-    AwsBedrockLoginBannerAction, AwsCliNotInstalledBannerAction, OpenInWarpBannerAction,
-    VimModeBannerAction,
-};
+use super::inline_banner::{OpenInWarpBannerAction, VimModeBannerAction};
 use super::{
     AliasExpansionBannerAction, ContextMenuAction, GridHighlightedLink, InputContextMenuAction,
     NotificationsDiscoveryBannerAction, NotificationsErrorBannerAction, RichContentLink,
@@ -285,8 +282,6 @@ pub enum TerminalAction {
     /// Start a Language Server for the current working directory (if supported)
     StartLspServer,
     OpenInlineHistoryMenu,
-    AwsBedrockLoginBanner(AwsBedrockLoginBannerAction),
-    AwsCliNotInstalledBanner(AwsCliNotInstalledBannerAction),
     /// Toggle PTY recording for this session.
     ToggleSessionRecording,
     /// Open the rich input editor for composing a prompt to send to a CLI agent.
@@ -477,8 +472,6 @@ impl fmt::Debug for TerminalAction {
             DismissCodeToolbeltTooltip => write!(f, "DismissCodeToolbeltTooltip"),
             StartLspServer => write!(f, "StartLspServer"),
             OpenInlineHistoryMenu => write!(f, "OpenInlineHistoryMenu"),
-            AwsBedrockLoginBanner(action) => write!(f, "AwsBedrockLoginBanner({action:?})"),
-            AwsCliNotInstalledBanner(action) => write!(f, "AwsCliNotInstalledBanner({action:?})"),
             ToggleSessionRecording => write!(f, "ToggleSessionRecording"),
             OpenCLIAgentRichInput => write!(f, "OpenCLIAgentRichInput"),
         }

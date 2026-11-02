@@ -1,8 +1,6 @@
 //! AI functionality that remains after removing the Warp agent: BYOP providers, AI command
 //! suggestions, and skill discovery for third-party CLI agents.
 pub(crate) mod agent_providers;
-#[cfg(not(target_family = "wasm"))]
-pub mod aws_credentials;
 pub(crate) mod block_context;
 pub mod execution_context;
 pub(crate) mod llms;

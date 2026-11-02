@@ -3,7 +3,6 @@
 //! 数据形态: `HashMap<provider_id, api_key>`,通过 `serde_json` 序列化后写入
 //! `secure_storage` 的 `AgentProviderSecrets` 键。
 //!
-//! 设计参考 `crates/ai/src/api_keys.rs::ApiKeyManager`。
 
 use std::collections::HashMap;
 
