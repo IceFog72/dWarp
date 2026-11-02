@@ -1,6 +1,4 @@
 use std::fmt;
-use std::future::Future;
-use std::pin::Pin;
 use std::time::Duration;
 
 #[cfg(not(target_family = "wasm"))]
@@ -559,46 +557,3 @@ impl Response {
     }
 }
 
-/// Adapter to use our HTTP client wrapper with [`oauth2`]. This is modeled on the [`reqwest`]
-/// implementation of [`oauth2::AsyncHttpClient`].
-impl<'c> oauth2::AsyncHttpClient<'c> for Client {
-    type Error = oauth2::HttpClientError<reqwest::Error>;
-
-    #[cfg(target_arch = "wasm32")]
-    type Future = Pin<Box<dyn Future<Output = Result<oauth2::HttpResponse, Self::Error>> + 'c>>;
-    #[cfg(not(target_arch = "wasm32"))]
-    type Future =
-        Pin<Box<dyn Future<Output = Result<oauth2::HttpResponse, Self::Error>> + Send + Sync + 'c>>;
-
-    fn call(&'c self, request: oauth2::HttpRequest) -> Self::Future {
-        Box::pin(async move {
-            let include_warp_headers = Self::include_warp_http_headers(request.uri().to_string());
-            let builder = reqwest::RequestBuilder::from_parts(
-                self.wrapped.clone(),
-                request.try_into().map_err(Box::new)?,
-            );
-
-            let response = self
-                .builder(builder, include_warp_headers)
-                .send()
-                .await
-                .map_err(Box::new)?;
-
-            let mut builder = ::http::Response::builder().status(response.status());
-
-            #[cfg(not(target_arch = "wasm32"))]
-            {
-                builder = builder.version(response.0.version());
-            }
-
-            for (name, value) in response.0.headers().iter() {
-                builder = builder.header(name, value);
-            }
-
-            let response_body = response.bytes().await.map_err(Box::new)?.to_vec();
-            builder
-                .body(response_body)
-                .map_err(oauth2::HttpClientError::Http)
-        })
-    }
-}

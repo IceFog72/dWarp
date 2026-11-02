@@ -275,7 +275,6 @@ dependencies = [
  "rayon",
  "regex",
  "repo_metadata",
- "rmcp",
  "sentry",
  "serde",
  "serde_json",
@@ -296,7 +295,6 @@ dependencies = [
  "uuid",
  "virtual-fs",
  "warp_core",
- "warp_graphql",
  "warp_multi_agent_api",
  "warp_terminal",
  "warp_util",
@@ -1345,7 +1343,7 @@ dependencies = [
  "log",
  "num-rational",
  "num-traits",
- "pastey 0.1.1",
+ "pastey",
  "rayon",
  "thiserror 2.0.17",
  "v_frame",
@@ -2789,17 +2787,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "comfy-table"
-version = "7.2.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b03b7db8e0b4b2fdad6c551e634134e99ec000e5c8c3b6856c65e8bbaded7a3b"
-dependencies = [
- "crossterm",
- "unicode-segmentation",
- "unicode-width 0.2.1",
-]
-
-[[package]]
 name = "command"
 version = "0.1.0"
 dependencies = [
@@ -3230,33 +3217,6 @@ name = "crossbeam-utils"
 version = "0.8.21"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d0a5c400df2834b80a4c3327b3aad3a4c4cd4de0629063962b03235697506a28"
-
-[[package]]
-name = "crossterm"
-version = "0.29.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d8b9f2e4c67f833b660cdb0a3523065869fb35570177239812ed4c905aeff87b"
-dependencies = [
- "bitflags 2.9.4",
- "crossterm_winapi",
- "derive_more 2.0.1",
- "document-features",
- "mio",
- "parking_lot",
- "rustix 1.1.2",
- "signal-hook",
- "signal-hook-mio",
- "winapi",
-]
-
-[[package]]
-name = "crossterm_winapi"
-version = "0.9.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "acdd7c62a3665c7f6830a51635d9ac9b23ed385797f70a83bb8bafe9c572ab2b"
-dependencies = [
- "winapi",
-]
 
 [[package]]
 name = "crunchy"
@@ -3745,7 +3705,6 @@ version = "2.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "bda628edc44c4bb645fbe0f758797143e4e07926f7ebf4e9bdfbd3d2ce621df3"
 dependencies = [
- "convert_case 0.7.1",
  "proc-macro2",
  "quote",
  "syn 2.0.117",
@@ -4121,14 +4080,6 @@ dependencies = [
  "sec1",
  "subtle",
  "zeroize",
-]
-
-[[package]]
-name = "email_address"
-version = "0.2.3"
-source = "git+https://github.com/warpdotdev/rust-email_address?branch=main#b3e5205b4efdc83832f230d8eb6894fd00a9ec32"
-dependencies = [
- "serde",
 ]
 
 [[package]]
@@ -5837,17 +5788,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "htmd"
-version = "0.2.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "be5de9d3e28558a12296e07d6cd7789c879417fbb3f07bdc77f1dd1df74ccbd8"
-dependencies = [
- "html-escape",
- "html5ever 0.31.0",
- "markup5ever_rcdom 0.5.3-unofficial",
-]
-
-[[package]]
 name = "html-escape"
 version = "0.2.13"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5858,25 +5798,13 @@ dependencies = [
 
 [[package]]
 name = "html5ever"
-version = "0.31.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "953cbbe631aae7fc0a112702ad5d3aaf09da38beaf45ea84610d6e1c358f569c"
-dependencies = [
- "log",
- "mac",
- "markup5ever 0.16.2",
- "match_token 0.1.0",
-]
-
-[[package]]
-name = "html5ever"
 version = "0.35.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "55d958c2f74b664487a2035fe1dadb032c48718a03b63f3ab0b8537db8549ed4"
 dependencies = [
  "log",
- "markup5ever 0.35.0",
- "match_token 0.35.0",
+ "markup5ever",
+ "match_token",
 ]
 
 [[package]]
@@ -6494,20 +6422,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "inquire"
-version = "0.9.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2628910d0114e9139056161d8644a2026be7b117f8498943f9437748b04c9e0a"
-dependencies = [
- "bitflags 2.9.4",
- "crossterm",
- "dyn-clone",
- "fuzzy-matcher",
- "unicode-segmentation",
- "unicode-width 0.2.1",
-]
-
-[[package]]
 name = "instant"
 version = "0.1.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -6978,7 +6892,7 @@ dependencies = [
  "ahash 0.8.11",
  "bytecount",
  "data-encoding",
- "email_address 0.2.9",
+ "email_address",
  "fancy-regex 0.17.0",
  "fraction",
  "getrandom 0.3.4",
@@ -7597,23 +7511,12 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "enum-iterator",
- "html5ever 0.35.0",
+ "html5ever",
  "itertools 0.14.0",
- "markup5ever_rcdom 0.35.0+unofficial",
+ "markup5ever_rcdom",
  "nom 7.1.3",
  "serde_yaml",
  "thiserror 2.0.17",
-]
-
-[[package]]
-name = "markup5ever"
-version = "0.16.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2e4cd8c02f18a011991a039855480c64d74291c5792fcc160d55d77dc4de4a39"
-dependencies = [
- "log",
- "tendril",
- "web_atoms",
 ]
 
 [[package]]
@@ -7629,37 +7532,14 @@ dependencies = [
 
 [[package]]
 name = "markup5ever_rcdom"
-version = "0.5.3-unofficial"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "853740b93240b82f68a23d8b296b2d19fc81521c298fcae44bf34bed6e445f00"
-dependencies = [
- "html5ever 0.31.0",
- "markup5ever 0.16.2",
- "tendril",
- "xml5ever 0.22.1",
-]
-
-[[package]]
-name = "markup5ever_rcdom"
 version = "0.35.0+unofficial"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c8bcd53df4748257345b8bc156d620340ce0f015ec1c7ef1cff475543888a31d"
 dependencies = [
- "html5ever 0.35.0",
- "markup5ever 0.35.0",
+ "html5ever",
+ "markup5ever",
  "tendril",
- "xml5ever 0.35.0",
-]
-
-[[package]]
-name = "match_token"
-version = "0.1.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "88a9689d8d44bf9964484516275f5cd4c9b59457a6940c1d5d0ecbb94510a36b"
-dependencies = [
- "proc-macro2",
- "quote",
- "syn 2.0.117",
+ "xml5ever",
 ]
 
 [[package]]
@@ -9237,12 +9117,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "35fb2e5f958ec131621fdd531e9fc186ed768cbe395337403ae56c17a74c68ec"
 
 [[package]]
-name = "pastey"
-version = "0.2.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b867cad97c0791bbd3aaa6472142568c6c9e8f71937e98379f584cfb0cf35bec"
-
-[[package]]
 name = "pathdiff"
 version = "0.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -9778,20 +9652,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "60946a68e5f9d28b0dc1c21bb8a97ee7d018a8b322fa57838ba31cc878e22d99"
 dependencies = [
  "unicode-ident",
-]
-
-[[package]]
-name = "process-wrap"
-version = "8.2.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a3ef4f2f0422f23a82ec9f628ea2acd12871c81a9362b02c43c1aa86acfc3ba1"
-dependencies = [
- "futures",
- "indexmap 2.12.0",
- "nix 0.30.1",
- "tokio",
- "tracing",
- "windows 0.61.3",
 ]
 
 [[package]]
@@ -10779,46 +10639,6 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 1.0.109",
-]
-
-[[package]]
-name = "rmcp"
-version = "0.10.0"
-source = "git+https://github.com/warpdotdev/rmcp.git?rev=c0f65dc441af7d714b9c453ac5e7ef641451abe3#c0f65dc441af7d714b9c453ac5e7ef641451abe3"
-dependencies = [
- "async-trait",
- "base64 0.22.1",
- "chrono",
- "futures",
- "http 1.1.0",
- "oauth2",
- "pastey 0.2.1",
- "pin-project-lite",
- "process-wrap",
- "reqwest 0.12.28",
- "rmcp-macros",
- "schemars 1.0.4",
- "serde",
- "serde_json",
- "sse-stream",
- "thiserror 2.0.17",
- "tokio",
- "tokio-stream",
- "tokio-util",
- "tracing",
- "url",
-]
-
-[[package]]
-name = "rmcp-macros"
-version = "0.10.0"
-source = "git+https://github.com/warpdotdev/rmcp.git?rev=c0f65dc441af7d714b9c453ac5e7ef641451abe3#c0f65dc441af7d714b9c453ac5e7ef641451abe3"
-dependencies = [
- "darling 0.21.3",
- "proc-macro2",
- "quote",
- "serde_json",
- "syn 2.0.117",
 ]
 
 [[package]]
@@ -12255,19 +12075,6 @@ dependencies = [
  "wasm-bindgen",
  "wasm-bindgen-futures",
  "web-sys",
-]
-
-[[package]]
-name = "sse-stream"
-version = "0.2.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "eb4dc4d33c68ec1f27d386b5610a351922656e1fdf5c05bbaad930cd1519479a"
-dependencies = [
- "bytes",
- "futures-util",
- "http-body 1.0.0",
- "http-body-util",
- "pin-project-lite",
 ]
 
 [[package]]
@@ -14193,7 +14000,6 @@ dependencies = [
  "chrono",
  "clap",
  "cocoa 0.26.0",
- "comfy-table",
  "command",
  "command-corrections",
  "command-signatures-v2",
@@ -14218,7 +14024,6 @@ dependencies = [
  "directories",
  "dirs 6.0.0",
  "dunce",
- "email_address 0.2.3",
  "embed-resource",
  "embed_plist",
  "enclose",
@@ -14243,7 +14048,6 @@ dependencies = [
  "gloo",
  "handlebars",
  "hex",
- "htmd",
  "http 1.1.0",
  "http_client",
  "http_server",
@@ -14253,7 +14057,6 @@ dependencies = [
  "image",
  "indexmap 2.12.0",
  "infer",
- "inquire",
  "instant",
  "inventory",
  "ipc",
@@ -14292,7 +14095,6 @@ dependencies = [
  "notify-debouncer-full",
  "num-traits",
  "num_cpus",
- "oauth2",
  "objc",
  "objc2-foundation 0.3.2",
  "onboarding",
@@ -14320,8 +14122,6 @@ dependencies = [
  "remote_server",
  "repo_metadata",
  "reqwest 0.12.28",
- "reqwest-eventsource",
- "rmcp",
  "rquickjs",
  "rust-embed 8.7.2",
  "rustls",
@@ -14608,7 +14408,7 @@ dependencies = [
  "env_logger",
  "float-cmp",
  "futures-lite 1.13.0",
- "html5ever 0.35.0",
+ "html5ever",
  "imara-diff",
  "instant",
  "itertools 0.14.0",
@@ -14616,7 +14416,7 @@ dependencies = [
  "line-ending",
  "log",
  "markdown_parser",
- "markup5ever 0.35.0",
+ "markup5ever",
  "mermaid_to_svg",
  "mime_guess",
  "num-traits",
@@ -16577,23 +16377,12 @@ checksum = "0fcb9cbac069e033553e8bb871be2fbdffcab578eb25bd0f7c508cedc6dcd75a"
 
 [[package]]
 name = "xml5ever"
-version = "0.22.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0a91563ba5a5ab749488164063f1317e327ca1daa80f00e5bd1e670ad0d78154"
-dependencies = [
- "log",
- "mac",
- "markup5ever 0.16.2",
-]
-
-[[package]]
-name = "xml5ever"
 version = "0.35.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ee3f1e41afb31a75aef076563b0ad3ecc24f5bd9d12a72b132222664eb76b494"
 dependencies = [
  "log",
- "markup5ever 0.35.0",
+ "markup5ever",
 ]
 
 [[package]]
