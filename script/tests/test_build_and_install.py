@@ -81,7 +81,7 @@ exit 0
     def test_build_channels_only_request_declared_features(self):
         manifest = SCRIPT.parents[1] / "app/Cargo.toml"
         declared_features = tomllib.loads(manifest.read_text())["features"]
-        for channel, binary in (("oss", "dwarp"), ("dev", "dev"), ("local", "warp")):
+        for channel, binary in (("oss", "dwarp"),):
             with self.subTest(channel=channel):
                 result = self.run_build(channel)
                 self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
@@ -89,6 +89,15 @@ exit 0
                 self.assertEqual(args[args.index("--bin") + 1], binary)
                 selected = args[args.index("--features") + 1].split(",")
                 self.assertEqual(set(selected) - declared_features.keys(), set())
+
+    def test_removed_channels_fail_before_build_or_dependency_install(self):
+        for channel in ("dev", "local", "stable", "preview"):
+            with self.subTest(channel=channel):
+                result = self.run_build(channel)
+                self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+                self.assertIn("Unknown channel", result.stdout + result.stderr)
+                self.assertFalse((self.root / "dependency-calls").exists())
+                self.assertFalse((self.root / "target/cargo-args").exists())
 
     def test_build_failure_removes_scratch_and_keeps_exit_status(self):
         result = self.run_build(CHECK_BUILD_STATUS="23")

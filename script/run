@@ -6,8 +6,7 @@
 # as a real `.app` bundle (with code signing, plist updates, etc.). On Linux
 # and Windows it invokes `cargo run` directly for the appropriate binary.
 #
-# Defaults to the OSS binary. Explicit internal builds can set WARP_BIN_NAME
-# and WARP_CHANNEL after installing their configuration tool separately.
+# Builds the dWarp OSS binary.
 
 set -e
 
@@ -18,8 +17,8 @@ OS_TYPE="$(uname -s)"
 
 FEATURES="gui"
 
-WARP_BIN_NAME="${WARP_BIN_NAME:-dwarp}"
-WARP_CHANNEL="${WARP_CHANNEL:-oss}"
+WARP_BIN_NAME="dwarp"
+WARP_CHANNEL="oss"
 
 # Shared argument parsing. macOS-specific flags (--dont-open,
 # --open_with_launchd, --generate-schema) are forwarded through MAC_ARGS and

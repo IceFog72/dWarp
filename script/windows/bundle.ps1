@@ -3,14 +3,14 @@
 # Bundle the application for release.
 
 Param (
-    # Build dev bundles by default.
+    # Build debug bundles when requested.
     [Switch]$DEBUG_BUILD = $False,
 
     [Alias('check-only')]
     [Switch]$CHECK_ONLY,
 
-    [ValidateSet('local', 'dev', 'preview', 'stable', 'oss')]
-    [String]$CHANNEL = 'dev',
+    [ValidateSet('oss')]
+    [String]$CHANNEL = 'oss',
 
     [Alias('release-tag')]
     [String]$RELEASE_TAG = '',
@@ -69,11 +69,6 @@ $WINDOWS_INSTALLER_DIR = $WORKSPACE_ROOT_DIR + '\script\windows'
 
 if ($DEBUG_BUILD) {
     $CARGO_PROFILE = 'dev'
-} elseif (("$CHANNEL" -eq 'local') -or ("$CHANNEL" -eq 'dev')) {
-    # For dev bundles, we want to enable debug assertions to
-    # catch violations that would otherwise silently pass in
-    # a normal release build (e.g. in stable).
-    $CARGO_PROFILE = 'rltoda'
 } else {
     $CARGO_PROFILE = 'rlto'
 }
@@ -92,33 +87,13 @@ $BUNDLE_ID = "dev.warp.$app_name"
 #
 # WARP_BIN is the name of the binary produced by cargo;
 # BINARY_NAME is the desired name of the binary in the final package.
-if ("$CHANNEL" -eq 'local') {
-    $WARP_BIN = 'warp'
-    $BINARY_NAME = 'warp.exe'
-    $APP_NAME = 'WarpLocal'
-} elseif ("$CHANNEL" -eq 'dev') {
-    $WARP_BIN = 'dev'
-    $BINARY_NAME = 'dev.exe'
-    $APP_NAME = 'WarpDev'
-    $FEATURES = "$FEATURES,agent_mode_debug"
-} elseif ("$CHANNEL" -eq 'preview') {
-    $WARP_BIN = 'preview'
-    $BINARY_NAME = 'preview.exe'
-    $APP_NAME = 'WarpPreview'
-    $FEATURES = "$FEATURES,preview_channel"
-} elseif ("$CHANNEL" -eq 'stable') {
-    $WARP_BIN = 'stable'
-    $BINARY_NAME = 'warp.exe'
-    $APP_NAME = 'Warp'
-} elseif ("$CHANNEL" -eq 'oss') {
-    $WARP_BIN = 'dwarp'
-    $BINARY_NAME = 'dwarp.exe'
-    $APP_NAME = 'dWarp'
-    # The OSS channel does not ship Sentry, so drop the crash_reporting feature
-    # (which would otherwise pull in the Sentry SDK as a dependency).
-    # Download GitHub releases to Downloads for manual installation.
-    $FEATURES = 'release_bundle,gui,autoupdate'
-}
+$WARP_BIN = 'dwarp'
+$BINARY_NAME = 'dwarp.exe'
+$APP_NAME = 'dWarp'
+# The OSS channel does not ship Sentry, so drop the crash_reporting feature
+# (which would otherwise pull in the Sentry SDK as a dependency).
+# Download GitHub releases to Downloads for manual installation.
+$FEATURES = 'release_bundle,gui,autoupdate'
 
 $BINARY_PATH = "$CARGO_TARGET_OUTPUT_DIR\$BINARY_NAME"
 $BUNDLE_ID = "dev.warp.$APP_NAME"

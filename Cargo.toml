@@ -120,8 +120,6 @@ clap = { version = "4.5", features = ["derive"] }
 cocoa = "=0.26.0"
 ctrlc = "3.4.7"
 crc = "3.4.0"
-cynic = { version = "3" }
-cynic-codegen = { version = "3", features = ["rkyv"] }
 dashmap = "6.1.0"
 derive_more = "0.99.17"
 diesel = { version = "2.3.4", default-features = false }
@@ -150,7 +148,6 @@ hyper = "1.6.0"
 html5ever = "0.35.0"
 # OpenWarp BYOP webfetch:HTML→Markdown(纯 Rust 端口的 Turndown 实现,
 # 对应 opencode webfetch.ts 用的 turndown JS 库)。
-htmd = "0.2"
 http = "1.1.0"
 humantime = "2.1.0"
 image = { version = "0.25.9", default-features = false, features = [
@@ -193,7 +190,6 @@ num-traits = "0.2"
 # We disable default features as the "rustls-tls" feature enables the reqwest
 # feature of the same name, which itself enables the "rustls-tls-webpki-roots"
 # feature, whereas we want to use native roots instead.
-oauth2 = { version = "5.0.0", default-features = false, features = ["reqwest"] }
 openh264 = "0.8"
 static_assertions = "1.1.0"
 url = "2.5.4"
@@ -241,7 +237,6 @@ reqwest = { version = "0.12.28", default-features = false, features = [
   "stream",
   "system-proxy",
 ] }
-reqwest-eventsource = "0.6.0"
 resvg = "0.47.0"
 rust-embed = { version = "8.7.0", features = ["include-exclude"] }
 # i18n: Fluent-based localization with fallback chain (zh-CN → zh → en)
@@ -400,7 +395,6 @@ typed-path = "0.10.0"
 streaming-iterator = "0.1.0"
 derivative = "2.2.0"
 parquet = { version = "55.0.0", features = ["arrow"] }
-rmcp = { git = "https://github.com/warpdotdev/rmcp.git", rev = "c0f65dc441af7d714b9c453ac5e7ef641451abe3" }
 
 [profile.release]
 # Use line-tables-only (debug = 1) rather than full debuginfo (debug = 2 /

@@ -90,6 +90,15 @@ class BuildDependencyTests(unittest.TestCase):
             ["run", "--bin", "dwarp", "--features", "gui"],
         )
 
+    def test_run_ignores_removed_internal_channel_environment(self):
+        self.executable("bin/uname", "echo Linux")
+        self.executable("bin/cargo", 'printf "%s\\n" "$@" > cargo-args')
+        self.env.update(WARP_BIN_NAME="dev", WARP_CHANNEL="local")
+        result = self.run_script("run")
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        args = (self.root / "cargo-args").read_text().splitlines()
+        self.assertEqual(args[args.index("--bin") + 1], "dwarp")
+
 
 if __name__ == "__main__":
     unittest.main()

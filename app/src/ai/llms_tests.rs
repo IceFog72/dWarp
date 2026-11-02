@@ -22,40 +22,31 @@ fn llm_info_deserializes_without_base_model_name() {
 }
 
 #[test]
-fn llm_info_deserializes_host_configs_as_vec() {
-    // Wire format from server: host_configs is a Vec
-    let raw = r#"{
-            "display_name": "gpt-4o",
-            "id": "gpt-4o",
-            "usage_metadata": { "request_multiplier": 1, "credit_multiplier": null },
-            "provider": "OpenAI",
-            "host_configs": [
-                { "enabled": true, "model_routing_host": "DirectApi" },
-                { "enabled": false, "model_routing_host": "AwsBedrock" }
-            ]
-        }"#;
-
-    let info: LLMInfo = serde_json::from_str(raw).expect("should deserialize vec format");
-    assert_eq!(info.display_name, "gpt-4o");
-    assert_eq!(info.host_configs.len(), 2);
-    assert!(
-        info.host_configs
-            .get(&LLMModelHost::DirectApi)
-            .unwrap()
-            .enabled
-    );
-    assert!(
-        !info
-            .host_configs
-            .get(&LLMModelHost::AwsBedrock)
-            .unwrap()
-            .enabled
-    );
+fn llm_info_ignores_legacy_server_routing_and_billing_fields() {
+    for hosts in [serde_json::json!([]), serde_json::json!({"obsolete": {}})] {
+        let raw = serde_json::json!({
+            "display_name": "Local model",
+            "id": "local-model",
+            "provider": "Unknown",
+            "host_configs": hosts,
+            "usage_metadata": {"request_multiplier": 1, "credit_multiplier": 2},
+            "discount_percentage": 50
+        });
+        let info: LLMInfo = serde_json::from_value(raw).expect("legacy metadata remains readable");
+        assert_eq!(info.base_model_name, "Local model");
+        let saved = serde_json::to_value(info).expect("serialize");
+        for removed in ["host_configs", "usage_metadata", "discount_percentage"] {
+            assert!(
+                saved.get(removed).is_none(),
+                "obsolete field persisted: {removed}"
+            );
+        }
+    }
 }
 
 #[test]
 fn llm_info_round_trip_serializes_and_deserializes() {
-    // Start with wire format (Vec)
+    // Legacy server fields are accepted and discarded.
     let wire_json = r#"{
             "display_name": "claude-3",
             "base_model_name": "claude-3",
@@ -72,10 +63,10 @@ fn llm_info_round_trip_serializes_and_deserializes() {
     // Deserialize from wire format
     let info: LLMInfo = serde_json::from_str(wire_json).expect("should deserialize");
 
-    // Serialize (produces HashMap format)
+    // Serialize the retained local metadata.
     let serialized = serde_json::to_string(&info).expect("should serialize");
 
-    // Deserialize again (from HashMap format)
+    // Deserialize again.
     let round_tripped: LLMInfo =
         serde_json::from_str(&serialized).expect("should deserialize after round trip");
 

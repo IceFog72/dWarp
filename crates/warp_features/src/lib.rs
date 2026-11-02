@@ -23,9 +23,6 @@ pub enum FeatureFlag {
 
     RuntimeFeatureFlags,
 
-    /// Enables cloud object related features for an explicit allowlist of team testers.
-    CloudObjects,
-
     /// If `true`, fetch updated Warp channel versions from the Warp server endpoint instead of
     /// from GCP directly.
     FetchChannelVersionsFromWarpServer,
@@ -79,12 +76,6 @@ pub enum FeatureFlag {
     /// Warp Agent Mode.
     AgentMode,
 
-    /// Whether the user is part of the Warp Alpha Program (AI Trusted Testers).
-    /// This is enabled automatically for local and dev builds.
-    /// Collect conversation and input autodetection data for agent mode.
-    /// Also collects block data for Next Command, if enabled.
-    AgentModeAnalytics,
-
     /// A setting to enable a traditional completions experience.
     ClassicCompletions,
 
@@ -122,9 +113,6 @@ pub enum FeatureFlag {
 
     /// Enable dynamic enum parameter types for workflow arguments
     DynamicWorkflowEnums,
-
-    /// Enables next action prediction within Warp, powered by AI.
-    AgentPredict,
 
     /// Enables receiving shared Warp Drive objects.
     SharedWithMe,
@@ -204,8 +192,6 @@ pub enum FeatureFlag {
     /// Enables partial next command suggestions with a prefix.
     PartialNextCommandSuggestions,
 
-    AIGeneratedOnboardingSuggestions,
-
     /// Enables iTerm image rendering
     ITermImages,
 
@@ -241,23 +227,8 @@ pub enum FeatureFlag {
     /// Enables auto-generated AI memories.
     AIMemories,
 
-    /// Enables the XML output system prompt for the primary (terminal) agent in Agent Mode.
-    AgentModePrimaryXML,
-
-    /// Enables the XML output system prompt for the pre-plan agent in Agent Mode.
-    AgentModePrePlanXML,
-
-    /// Enables Agent Mode onboarding.
-    AgentOnboarding,
-
     /// Enables suggested rules.
     SuggestedRules,
-
-    /// Enables suggested workflows for Agent Mode.
-    SuggestedAgentModeWorkflows,
-
-    /// Forces users to login.
-    ForceLogin,
 
     /// Enables prediction of Agent Mode queries.
     PredictAMQueries,
@@ -267,9 +238,6 @@ pub enum FeatureFlag {
 
     /// Allows AI to call the grep tool.
     GrepTool,
-
-    /// MCP server v0 functionality.
-    McpServer,
 
     /// Enables image as context for AM.
     ImageAsContext,
@@ -292,8 +260,6 @@ pub enum FeatureFlag {
     /// Enables reading images with the `read_files` tool.
     ReadImageFiles,
 
-    UsageBasedPricing,
-
     /// Enables cross-repo codebase context.
     CrossRepoContext,
 
@@ -305,9 +271,6 @@ pub enum FeatureFlag {
 
     /// Enables the resume button for cancelled AI conversations.
     AIResumeButton,
-
-    /// Enables the agent to decide whether to execute a command.
-    AgentDecidesCommandExecution,
 
     /// Enables inline review comments on specific lines of code.
     ContextLineReviewComments,
@@ -335,9 +298,6 @@ pub enum FeatureFlag {
 
     /// Enables code symbols in AI context menu
     AIContextMenuCode,
-
-    /// Enables Warp Drive objects (like workflows) as context in AI context menu
-    DriveObjectsAsContext,
 
     /// Expands code diff edits to replace the current pane instead of opening in a new tab.
     ExpandEditToPane,
@@ -430,15 +390,6 @@ pub enum FeatureFlag {
     /// Enables the one-time modal on app startup for existing users for the Code launch.
     CodeLaunchModal,
 
-    /// Enables API key authentication for Agent SDK
-    APIKeyAuthentication,
-
-    /// Enables API key management UI in settings
-    APIKeyManagement,
-
-    /// Enables OAuth support for MCP.
-    McpOauth,
-
     /// Enables attaching diff sets (multiple hunks from multiple files) as context in Agent Mode.
     DiffSetAsContext,
 
@@ -463,18 +414,12 @@ pub enum FeatureFlag {
     /// Enables auto-opening code review pane on first agent change and its setting UI.
     AutoOpenCodeReviewPane,
 
-    /// Enables the ambient agents command-line interface.
-    AmbientAgentsCommandLine,
-
     /// Feature flags for the Build Plan Auto Reload experiment.
     BuildPlanAutoReloadBannerToggle,
     BuildPlanAutoReloadPostPurchaseModal,
 
     /// Enables inline code review functionality
     InlineCodeReview,
-
-    /// Enables cloud environments management via CLI.
-    CloudEnvironments,
 
     /// Enables the /create-environment slash command for setting up Warp Environments
     CreateEnvironmentSlashCommand,
@@ -494,17 +439,11 @@ pub enum FeatureFlag {
     /// Enables the artifact command for uploading and downloading CLI artifacts.
     ArtifactCommand,
 
-    /// Groups MCP tools and resources by their originating server when sending context to the AI backend.
-    MCPGroupedServerContext,
-
     /// Enables the web search UI (when the model executes a web search).
     WebSearchUI,
 
     /// Enables the web fetch UI (when the model fetches content from URLs).
     WebFetchUI,
-
-    /// Displays debugging IDs for MCP servers, installations, and gallery items.
-    McpDebuggingIds,
 
     /// Enables rendering of images in markdown files and AI responses.
     MarkdownImages,
@@ -542,12 +481,6 @@ pub enum FeatureFlag {
     /// Agent Management View.
     AgentManagementView,
 
-    /// Agent Management Details View - enables new details panel on card click.
-    AgentManagementDetailsView,
-
-    /// Enables scheduled ambient agents.
-    ScheduledAmbientAgents,
-
     AgentView,
 
     /// Enables block context functionality in Agent View.
@@ -559,15 +492,6 @@ pub enum FeatureFlag {
     /// Enables the inline repo switcher menu for switching between indexed repos.
     InlineRepoMenu,
 
-    /// Enables cloud mode functionality for ambient agents.
-    CloudMode,
-
-    /// Enables starting cloud mode from a local session.
-    CloudModeFromLocalSession,
-
-    /// Enables host selection in cloud mode.
-    CloudModeHostSelector,
-
     /// Enables Warp Managed Secrets functionality.
     WarpManagedSecrets,
 
@@ -577,31 +501,14 @@ pub enum FeatureFlag {
     /// Enables loading conversations in the Agent Management View.
     InteractiveConversationManagementView,
 
-    /// Enables agent tips displayed below the warping indicator in Agent Mode.
-    AgentTips,
-
-    /// Allows agent mode to use computer use tools.
-    AgentModeComputerUse,
-
     /// Enables computer use functionality in local clients.
     LocalComputerUse,
-
-    /// Enables team API key creation in the API key management UI.
-    TeamApiKeys,
-
-    /// Enables the "New agent" prompt chip in terminal mode when AgentView is enabled.
-    ///
-    /// When disabled (the default), the terminal message bar is shown instead.
-    AgentViewPromptChip,
 
     /// Enables editing the agent input footer layout from the prompt context menu.
     AgentToolbarEditor,
 
     /// Enables configuring header toolbar item order, side placement, and visibility.
     ConfigurableToolbar,
-
-    /// Enables real-time communication updates for ambient agent tasks.
-    AmbientAgentsRTC,
 
     // Enables a side panel conversation list view for AgentView mode.
     AgentViewConversationListView,
@@ -633,9 +540,6 @@ pub enum FeatureFlag {
     /// Enables conversation artifacts.
     ConversationArtifacts,
 
-    /// Enables auto-syncing ambient plans to Warp Drive.
-    SyncAmbientPlans,
-
     /// Enables platform skills support (--skill flag) for agent runs.
     ///
     /// Skills are loaded from `.agents/skills/`, `.warp/skills/`, `.claude/skills/`, and `.codex/skills/`
@@ -646,12 +550,6 @@ pub enum FeatureFlag {
 
     /// Gates populating/reading oz updates from channel versions in the changelog model.
     OzChangelogUpdates,
-
-    /// Enables image upload for ambient agents.
-    AmbientAgentsImageUpload,
-
-    /// Enables image attachment support for cloud mode conversations.
-    CloudModeImageContext,
 
     /// Enables loading and returning bundled skills in the SkillManager.
     BundledSkills,
@@ -665,9 +563,6 @@ pub enum FeatureFlag {
 
     /// Updated tab styling (background colors, border, close button positioning, margins).
     NewTabStyling,
-
-    /// Enables file-based MCP server support via .mcp.json files in repo roots.
-    FileBasedMcp,
 
     /// Enables passing user query arguments to skill invocations ($ARGUMENTS, $N).
     SkillArguments,
@@ -736,10 +631,6 @@ pub enum FeatureFlag {
     /// from code review + code editor for House Of Agents work
     HoaCodeReview,
 
-    /// Enables the `--harness` flag for `oz agent run`, allowing external agent
-    /// CLIs (e.g. `claude`) to execute prompts instead of Warp's agent harness.
-    AgentHarness,
-
     /// Enables workspace- and block-snapshot handoff between cloud agent runs
     /// and the local Warp client.
     /// When enabled:
@@ -807,14 +698,9 @@ pub enum FeatureFlag {
     /// for command execution.
     SshRemoteServer,
 
-    /// Redux of the setup/initial user query UI for cloud mode.
-    CloudModeSetupV2,
-
     /// Enables summary mode in vertical tabs, showing condensed tab summaries
     /// instead of individual pane rows.
     VerticalTabsSummaryMode,
-
-    CloudModeInputV2,
 
     /// Gates the user-configurable context window slider in AI settings and
     /// the execution profile editor. When disabled, the slider is hidden and
@@ -851,7 +737,6 @@ pub const DOGFOOD_FLAGS: &[FeatureFlag] = &[
     FeatureFlag::AgentModeWorkflows,
     #[cfg(not(windows))]
     FeatureFlag::SSHTmuxWrapper,
-    FeatureFlag::AgentModeAnalytics,
     FeatureFlag::LazySceneBuilding,
     FeatureFlag::SshDragAndDrop,
     FeatureFlag::MultiWorkspace,
@@ -883,7 +768,6 @@ pub const DOGFOOD_FLAGS: &[FeatureFlag] = &[
     FeatureFlag::EditableMarkdownMermaid,
     FeatureFlag::CodeReviewScrollPreservation,
     FeatureFlag::OzIdentityFederation,
-    FeatureFlag::AgentHarness,
     FeatureFlag::OzHandoff,
     FeatureFlag::ConversationApi,
     FeatureFlag::RememberFastForwardState,
@@ -892,7 +776,6 @@ pub const DOGFOOD_FLAGS: &[FeatureFlag] = &[
     FeatureFlag::GeminiNotifications,
     FeatureFlag::LocalDockerSandbox,
     FeatureFlag::VerticalTabsSummaryMode,
-    FeatureFlag::CloudModeSetupV2,
     FeatureFlag::ConfigurableContextWindow,
     FeatureFlag::DragTabsToWindows,
 ];
@@ -927,19 +810,10 @@ pub const RUNTIME_FEATURE_FLAGS: &[FeatureFlag] = &[];
 
 impl FeatureFlag {
     pub fn is_enabled(&self) -> bool {
-        // Account and cloud features stay disabled regardless of channel configuration.
+        // Removed account and remote-control UI stays disabled regardless of channel configuration.
         if matches!(
             self,
-            FeatureFlag::ForceLogin
-                | FeatureFlag::AvatarInTabBar
-                | FeatureFlag::AgentModeComputerUse
-                | FeatureFlag::CloudMode
-                | FeatureFlag::CloudModeFromLocalSession
-                | FeatureFlag::CloudModeHostSelector
-                | FeatureFlag::CloudModeImageContext
-                | FeatureFlag::CloudModeSetupV2
-                | FeatureFlag::CloudModeInputV2
-                | FeatureFlag::HOARemoteControl
+            FeatureFlag::AvatarInTabBar | FeatureFlag::HOARemoteControl
         ) {
             return false;
         }
@@ -1007,7 +881,6 @@ impl FeatureFlag {
             BlocklistMarkdownImages => {
                 Some("Enables rendering markdown images inline in AI block list responses.")
             }
-            CloudEnvironments => Some("Enables creating and managing Warp Environments via the CLI."),
             CreateEnvironmentSlashCommand => Some("Enables the /create environment slash command for setting up Warp Environments with custom configurations."),
             GlobalSearch => Some("Enables global search in the left panel"),
             BlocklistMarkdownTableRendering => {

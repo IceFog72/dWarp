@@ -5,12 +5,6 @@ use warpui::{AppContext, Entity, ModelContext, SingletonEntity};
 
 pub use ai::LLMId;
 
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-pub struct LLMUsageMetadata {
-    pub request_multiplier: usize,
-    pub credit_multiplier: Option<f32>,
-}
-
 #[derive(Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum DisableReason {
     AdminDisabled,
@@ -40,22 +34,6 @@ pub enum LLMProvider {
 
 impl LLMProvider {}
 
-/// The host where an LLM can be routed to.
-#[derive(Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
-pub enum LLMModelHost {
-    DirectApi,
-    AwsBedrock,
-    #[serde(other)]
-    Unknown,
-}
-
-/// Configuration for routing an LLM to a specific host.
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-pub struct RoutingHostConfig {
-    pub enabled: bool,
-    pub model_routing_host: LLMModelHost,
-}
-
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct LLMContextWindow {
     #[serde(default)]
@@ -75,14 +53,11 @@ pub struct LLMInfo {
     pub base_model_name: String,
     pub id: LLMId,
     pub reasoning_level: Option<String>,
-    pub usage_metadata: LLMUsageMetadata,
     pub description: Option<String>,
     pub disable_reason: Option<DisableReason>,
     pub vision_supported: bool,
     pub spec: Option<LLMSpec>,
     pub provider: LLMProvider,
-    pub host_configs: HashMap<LLMModelHost, RoutingHostConfig>,
-    pub discount_percentage: Option<f32>,
     pub context_window: LLMContextWindow,
 }
 
@@ -91,22 +66,6 @@ impl<'de> Deserialize<'de> for LLMInfo {
     where
         D: de::Deserializer<'de>,
     {
-        /// Helper type that can deserialize host_configs from either:
-        /// - A Vec (wire format from server)
-        /// - A HashMap (cached format after commit a8a82421c3)
-        #[derive(Deserialize)]
-        #[serde(untagged)]
-        enum HostConfigsWire {
-            Vec(Vec<RoutingHostConfig>),
-            Map(HashMap<LLMModelHost, RoutingHostConfig>),
-        }
-
-        impl Default for HostConfigsWire {
-            fn default() -> Self {
-                HostConfigsWire::Vec(Vec::new())
-            }
-        }
-
         #[derive(Deserialize)]
         struct WireLLMInfo {
             display_name: String,
@@ -115,7 +74,6 @@ impl<'de> Deserialize<'de> for LLMInfo {
             id: LLMId,
             #[serde(default)]
             reasoning_level: Option<String>,
-            usage_metadata: LLMUsageMetadata,
             #[serde(default)]
             description: Option<String>,
             #[serde(default)]
@@ -126,30 +84,10 @@ impl<'de> Deserialize<'de> for LLMInfo {
             spec: Option<LLMSpec>,
             provider: LLMProvider,
             #[serde(default)]
-            host_configs: HostConfigsWire,
-            #[serde(default)]
-            discount_percentage: Option<f32>,
-            #[serde(default)]
             context_window: LLMContextWindow,
         }
 
         let wire = WireLLMInfo::deserialize(deserializer)?;
-        let host_configs = match wire.host_configs {
-            HostConfigsWire::Map(map) => map,
-            HostConfigsWire::Vec(vec) => {
-                let mut map = HashMap::new();
-                for config in vec {
-                    let host = config.model_routing_host.clone();
-                    if map.insert(host.clone(), config).is_some() {
-                        log::warn!(
-                            "Duplicate LLMModelHost entry for {:?}, using latest value",
-                            host
-                        );
-                    }
-                }
-                map
-            }
-        };
         Ok(Self {
             base_model_name: wire
                 .base_model_name
@@ -159,12 +97,9 @@ impl<'de> Deserialize<'de> for LLMInfo {
             display_name: wire.display_name,
             id: wire.id,
             reasoning_level: wire.reasoning_level,
-            usage_metadata: wire.usage_metadata,
             description: wire.description,
             disable_reason: wire.disable_reason,
             spec: wire.spec,
-            host_configs,
-            discount_percentage: wire.discount_percentage,
             context_window: wire.context_window,
         })
     }
@@ -275,17 +210,11 @@ fn default_computer_use_llms() -> AvailableLLMs {
             base_model_name: "auto".to_owned(),
             id: "computer-use-agent-auto".to_owned().into(),
             reasoning_level: None,
-            usage_metadata: LLMUsageMetadata {
-                request_multiplier: 1,
-                credit_multiplier: None,
-            },
             description: None,
             disable_reason: None,
             vision_supported: true,
             spec: None,
             provider: LLMProvider::Unknown,
-            host_configs: HashMap::new(),
-            discount_percentage: None,
             context_window: LLMContextWindow::default(),
         }],
         preferred_codex_model_id: None,
@@ -302,17 +231,11 @@ impl Default for ModelsByFeature {
                     base_model_name: "auto (cost-efficient)".to_owned(),
                     id: "auto".to_owned().into(),
                     reasoning_level: None,
-                    usage_metadata: LLMUsageMetadata {
-                        request_multiplier: 1,
-                        credit_multiplier: None,
-                    },
                     description: None,
                     disable_reason: None,
                     vision_supported: true,
                     spec: None,
                     provider: LLMProvider::Unknown,
-                    host_configs: HashMap::new(),
-                    discount_percentage: None,
                     context_window: LLMContextWindow::default(),
                 }],
                 preferred_codex_model_id: None,
@@ -324,17 +247,11 @@ impl Default for ModelsByFeature {
                     base_model_name: "auto (responsive)".to_owned(),
                     id: "auto".to_owned().into(),
                     reasoning_level: None,
-                    usage_metadata: LLMUsageMetadata {
-                        request_multiplier: 1,
-                        credit_multiplier: None,
-                    },
                     description: None,
                     disable_reason: None,
                     vision_supported: true,
                     spec: None,
                     provider: LLMProvider::Unknown,
-                    host_configs: HashMap::new(),
-                    discount_percentage: None,
                     context_window: LLMContextWindow::default(),
                 }],
                 preferred_codex_model_id: None,
@@ -346,17 +263,11 @@ impl Default for ModelsByFeature {
                     base_model_name: "auto".to_owned(),
                     id: "cli-agent-auto".to_owned().into(),
                     reasoning_level: None,
-                    usage_metadata: LLMUsageMetadata {
-                        request_multiplier: 1,
-                        credit_multiplier: None,
-                    },
                     description: None,
                     disable_reason: None,
                     vision_supported: false,
                     spec: None,
                     provider: LLMProvider::Unknown,
-                    host_configs: HashMap::new(),
-                    discount_percentage: None,
                     context_window: LLMContextWindow::default(),
                 }],
                 preferred_codex_model_id: None,

@@ -3,7 +3,7 @@
 # Build and install Warp to the system.
 #
 # Usage:
-#   ./script/build-and-install.sh [oss|dev|local]
+#   ./script/build-and-install.sh [oss]
 #   ./script/build-and-install.sh --channel oss
 #
 # Environment variables:
@@ -61,24 +61,8 @@ case "$CHANNEL" in
     BUNDLE_ID="dev.warp.dWarp"
     FEATURES="release_bundle,gui,pprof_cpu_profiling"
     ;;
-  dev)
-    WARP_BIN="dev"
-    BINARY_NAME="warp-dev"
-    DESKTOP_COMMAND="warp-terminal-dev"
-    APP_NAME="WarpDev"
-    BUNDLE_ID="dev.warp.WarpDev"
-    FEATURES="release_bundle,gui,crash_reporting,agent_mode_debug"
-    ;;
-  local)
-    WARP_BIN="warp"
-    BINARY_NAME="warp-local"
-    DESKTOP_COMMAND="warp-terminal-local"
-    APP_NAME="WarpLocal"
-    BUNDLE_ID="dev.warp.WarpLocal"
-    FEATURES="release_bundle,gui,crash_reporting,agent_mode_debug"
-    ;;
   *)
-    echo "Unknown channel: $CHANNEL (use oss, dev, or local)"
+    echo "Unknown channel: $CHANNEL (use oss)"
     exit 1
     ;;
 esac

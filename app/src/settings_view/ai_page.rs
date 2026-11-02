@@ -42,14 +42,8 @@ const CONTENT_FONT_SIZE: f32 = 12.;
 /// When `None`, the page shows all widgets (legacy/full view).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum AISubpage {
-    /// The main "WarpAgent" page: global AI toggle + Active AI + Input + Other sections.
-    WarpAgent,
-    /// Agent profiles and permissions.
-    Profiles,
     /// 自定义 AI 提供商(BYOP) 配置子页。
     Providers,
-    /// Knowledge / Rules settings.
-    Knowledge,
     /// Third-party CLI agent settings.
     ThirdPartyCLIAgents,
 }
@@ -57,12 +51,8 @@ pub enum AISubpage {
 impl AISubpage {
     pub fn from_section(section: SettingsSection) -> Option<Self> {
         match section {
-            SettingsSection::WarpAgent => Some(Self::WarpAgent),
-            SettingsSection::AgentProfiles => Some(Self::Profiles),
             SettingsSection::AgentProviders => Some(Self::Providers),
-            SettingsSection::Knowledge => Some(Self::Knowledge),
             SettingsSection::ThirdPartyCLIAgents => Some(Self::ThirdPartyCLIAgents),
-            // AgentMCPServers renders the standalone MCPServers page, not an AI subpage.
             _ => None,
         }
     }

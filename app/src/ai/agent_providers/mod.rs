@@ -1,13 +1,5 @@
-//! 自定义 Agent 提供商支持。
-//!
-//! 这个模块负责:
-//! - 把每个 Provider 的 `api_key` 安全地存到 OS keychain (secure_storage),
-//!   而 Provider 元数据(name/base_url/model 列表) 走普通 settings.toml。
-//! - 通过 `OpenAiCompatibleClient` 调用 `${base_url}/models`
-//!   抓取上游可用模型列表(供 UI "Fetch models" 按钮使用)。
-//!
-//! 第二阶段会基于这套配置实现 `AiProvider` trait,
-//! 把 Agent 的 multi-agent 调用分流到本地 Provider。
+//! Custom provider configuration, model discovery, and BYOP command suggestions.
+//! Provider API keys use OS secure storage. Provider metadata uses settings.toml.
 
 pub mod active_ai;
 pub mod attachment_caps;
@@ -32,14 +24,11 @@ pub use secrets::AgentProviderSecrets;
 // LLMInfo 合成:把 settings 中配置的 agent_providers 转成 picker 可用的形态
 // ---------------------------------------------------------------------------
 
-use std::collections::HashMap;
-
 use settings::Setting;
 use warpui::{AppContext, SingletonEntity};
 
 use crate::ai::llms::{
-    AvailableLLMs, DisableReason, LLMContextWindow, LLMInfo, LLMProvider, LLMUsageMetadata,
-    ModelsByFeature,
+    AvailableLLMs, DisableReason, LLMContextWindow, LLMInfo, LLMProvider, ModelsByFeature,
 };
 use crate::settings::{AISettings, AgentProvider};
 
@@ -95,17 +84,11 @@ fn build_byop_llm_infos(app: &AppContext) -> Vec<LLMInfo> {
                 base_model_name: format!("{provider_label} / {display_name}"),
                 id: llm_id::encode(&provider.id, &model.id),
                 reasoning_level: None,
-                usage_metadata: LLMUsageMetadata {
-                    request_multiplier: 1,
-                    credit_multiplier: None,
-                },
                 description: None,
                 disable_reason: None,
                 vision_supported,
                 spec: None,
                 provider: LLMProvider::Unknown,
-                host_configs: HashMap::new(),
-                discount_percentage: None,
                 context_window: LLMContextWindow::default(),
             });
         }
@@ -124,17 +107,11 @@ fn placeholder_llm_info() -> LLMInfo {
         base_model_name: "未配置".to_owned(),
         id: ai::LLMId::from("byop-placeholder"),
         reasoning_level: None,
-        usage_metadata: LLMUsageMetadata {
-            request_multiplier: 1,
-            credit_multiplier: None,
-        },
         description: None,
         disable_reason: Some(DisableReason::Unavailable),
         vision_supported: false,
         spec: None,
         provider: LLMProvider::Unknown,
-        host_configs: HashMap::new(),
-        discount_percentage: None,
         context_window: LLMContextWindow::default(),
     }
 }

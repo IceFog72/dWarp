@@ -19,8 +19,8 @@ cleanup() {
 # Run cleanup() when the script terminates (whether it succeeded or failed).
 trap cleanup EXIT
 
-# By default we build dev bundles.
-RELEASE_CHANNEL="${RELEASE_CHANNEL:-dev}"
+# Build OSS bundles by default.
+RELEASE_CHANNEL="${RELEASE_CHANNEL:-oss}"
 FEATURES="release_bundle,crash_reporting"
 PACKAGES=( appimage )
 BUILD="true"
@@ -114,15 +114,6 @@ eval set -- "$PARAMS"
 
 if [[ $DEBUG = true ]]; then
   CARGO_PROFILE="dev"
-elif [[ $RELEASE_CHANNEL = "local" || $RELEASE_CHANNEL = "dev" ]]; then
-  # For dev bundles, we want to enable debug assertions to
-  # catch violations that would otherwise silently pass in
-  # a normal release build (e.g. in stable).
-  if [[ "$ARTIFACT" == "cli" ]]; then
-    CARGO_PROFILE="release-cli-debug_assertions"
-  else
-    CARGO_PROFILE="release-lto-debug_assertions"
-  fi
 else
   if [[ "$ARTIFACT" == "cli" ]]; then
     CARGO_PROFILE="release-cli"
@@ -149,47 +140,16 @@ mkdir -p "$OUT_DIR"
 #
 # WARP_BIN is the name of the binary produced by cargo;
 # BINARY_NAME is the desired name of the binary in the final package.
-if [[ $RELEASE_CHANNEL = "local" ]]; then
-  WARP_BIN="warp"
-  BINARY_NAME="warp-local"
-  APP_NAME="WarpLocal"
-  FEATURES="$FEATURES,agent_mode_debug"
-  export HANDLE_MARKDOWN=1
-elif [[ $RELEASE_CHANNEL = "dev" ]]; then
-  WARP_BIN="dev"
-  BINARY_NAME="warp-dev"
-  APP_NAME="WarpDev"
-  FEATURES="$FEATURES,agent_mode_debug"
-  # Enable heap profiling using jemalloc through pprof.
-  FEATURES="$FEATURES,jemalloc_pprof"
-  export HANDLE_MARKDOWN=1
-elif [[ $RELEASE_CHANNEL = "preview" ]]; then
-  WARP_BIN="preview"
-  BINARY_NAME="warp-preview"
-  APP_NAME="WarpPreview"
-  FEATURES="$FEATURES,preview_channel"
-elif [[ $RELEASE_CHANNEL = "stable" ]]; then
-  WARP_BIN="stable"
-  BINARY_NAME="warp"
-  APP_NAME="Warp"
-elif [[ $RELEASE_CHANNEL = "oss" ]]; then
-  WARP_BIN="dwarp"
-  BINARY_NAME="dwarp"
-  APP_NAME="dWarp"
-  # The OSS channel does not ship Sentry, so drop the crash_reporting feature
-  # (which would otherwise pull in the Sentry SDK as a dependency).
-  FEATURES="release_bundle,pprof_cpu_profiling"
+if [[ $RELEASE_CHANNEL != "oss" ]]; then
+  echo "Only the oss channel is supported by dWarp" >&2
+  exit 1
 fi
-
-# Artifact-specific binary naming
-if [[ "$ARTIFACT" == "cli" ]]; then
-  # For CLI artifacts, use oz instead of warp as the binary name.  The OSS
-  # channel is an exception: its CLI command name is `dwarp`, matching
-  # `Channel::cli_command_name` in the Rust source.
-  if [[ $RELEASE_CHANNEL != "oss" ]]; then
-    BINARY_NAME="${BINARY_NAME/warp/oz}"
-  fi
-fi
+WARP_BIN="dwarp"
+BINARY_NAME="dwarp"
+APP_NAME="dWarp"
+# The OSS channel does not ship Sentry, so drop the crash_reporting feature
+# (which would otherwise pull in the Sentry SDK as a dependency).
+FEATURES="release_bundle,pprof_cpu_profiling"
 
 # Artifact-specific configuration
 if [[ "$ARTIFACT" == "cli" ]]; then
@@ -223,8 +183,8 @@ if [[ "$BUILD" == "true" ]]; then
   cp "$EXECUTABLE_PATH" "$DEBUG_EXECUTABLE_PATH"
 
   echo "Stripping debug symbols from '$EXECUTABLE_PATH'"
-  if [[ $RELEASE_CHANNEL = "dev" || "$FEATURES" == *"pprof_cpu_profiling"* ]]; then
-    # For dev builds or profiling builds, only strip debug symbols, as we want to keep some
+  if [[ "$FEATURES" == *"pprof_cpu_profiling"* ]]; then
+    # For profiling builds, only strip debug symbols, as we want to keep some
     # symbols for profiling purposes.
     strip --strip-debug "$EXECUTABLE_PATH"
   else

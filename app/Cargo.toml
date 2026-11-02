@@ -1,7 +1,7 @@
 [package]
 authors = ["Warp Team <dev@warp.dev>"]
 default-run = "dwarp"
-description = "The cloud-backed terminal for individuals and teams"
+description = "A local terminal with third-party CLI agent integration"
 edition = "2021"
 autobins = false
 name = "warp"
@@ -13,34 +13,9 @@ license.workspace = true
 name = "warp"
 path = "src/lib.rs"
 
-# We define separate targets for each channel (stable, preview, dev) so that we can
-# bundle with its own icon, app name, and channel-specific configuration (such as
-# flag overrides). Otherwise these binaries are exactly identical to our main binary.
-
 [[bin]]
 name = "dwarp"
 path = "src/bin/oss.rs"
-test = false
-
-[[bin]]
-name = "warp"
-path = "src/bin/local.rs"
-test = false
-
-[[bin]]
-name = "stable"
-path = "src/bin/stable.rs"
-test = false
-
-[[bin]]
-name = "dev"
-path = "src/bin/dev.rs"
-test = false
-
-[[bin]]
-name = "preview"
-path = "src/bin/preview.rs"
-required-features = ["preview_channel"]
 test = false
 
 [[bin]]
@@ -57,16 +32,13 @@ asset_cache.workspace = true
 asset_macro.workspace = true
 async-broadcast.workspace = true
 async-channel.workspace = true
-async-compat.workspace = true
 async-fs.workspace = true
 async-recursion.workspace = true
-async-stream.workspace = true
 async-trait.workspace = true
 base64.workspace = true
 bimap = "0.6.2"
 bincode.workspace = true
 bitflags.workspace = true
-bitflags-serde-legacy.workspace = true
 blocking.workspace = true
 bounded-vec-deque = "0.1"
 bytecount = "0.6.9"
@@ -75,20 +47,15 @@ byte-unit = "5.1.4"
 cfg-if.workspace = true
 channel_versions.workspace = true
 chrono.workspace = true
-clap.workspace = true
 command = { workspace = true }
 command-corrections.workspace = true
 command-signatures-v2 = { workspace = true, optional = true }
-crc.workspace = true
-content_inspector = "0.2.4"
 concat-idents.workspace = true
 csv = "1.3.1"
 dashmap.workspace = true
 deltae = "0.3.1"
-derivative.workspace = true
 dhat = { version = "0.3.2", optional = true }
 diesel.workspace = true
-difflib = { git = "https://github.com/warpdotdev/difflib.git", rev = "114177e7d8e1f8017baca397f943e11644b14d63" }
 directories.workspace = true
 dirs.workspace = true
 dunce.workspace = true
@@ -96,7 +63,6 @@ embed_plist = "1.2"
 enclose = "1.1.8"
 enum-iterator.workspace = true
 event-listener = "5.4.0"
-field_mask.workspace = true
 flate2 = "1.0.17"
 float-cmp.workspace = true
 futures-lite.workspace = true
@@ -104,7 +70,6 @@ futures-util.workspace = true
 futures.workspace = true
 fuzzy_match.workspace = true
 genai.workspace = true
-getset.workspace = true
 handlebars.workspace = true
 hex.workspace = true
 # BYOP system prompt 模板渲染。轻量(运行时引擎),Jinja2 子集。
@@ -114,8 +79,6 @@ http.workspace = true
 http_client.workspace = true
 image.workspace = true
 infer = "0.19.0"
-jaq-json.workspace = true
-jaq-all.workspace = true
 jemalloc_pprof = { version = "0.8.1", optional = true, features = [
     "symbolize",
 ] }
@@ -131,17 +94,14 @@ lazy_static.workspace = true
 libc.workspace = true
 line-ending.workspace = true
 log.workspace = true
-log-panics = { version = "2.1.0", features = ["with-backtrace"] }
 lsp.workspace = true
 warp_logging.workspace = true
 sentry = { workspace = true, optional = true }
-lz4_flex = "0.11"
 markdown_parser.workspace = true
 memchr.workspace = true
 memo-map.workspace = true
 mermaid_to_svg.workspace = true
 num-traits.workspace = true
-num_cpus = "1.13.0"
 once_cell.workspace = true
 ordered-float.workspace = true
 os_info = { version = "3.7.0", default-features = false }
@@ -154,8 +114,6 @@ persistence.workspace = true
 pin-project.workspace = true
 plist = "1"
 pprof = { workspace = true, optional = true, features = ["protobuf-codec"] }
-prost.workspace = true
-prost-types.workspace = true
 rand.workspace = true
 rangemap.workspace = true
 rayon.workspace = true
@@ -185,19 +143,15 @@ settings_value = { workspace = true, features = ["derive"] }
 sha2.workspace = true
 shellexpand.workspace = true
 shell-words = "1.1.0"
-shlex = "1.3.0"
 siphasher = "0.3.11"
 similar.workspace = true
 simple_logger.workspace = true
 smallvec.workspace = true
 smol_str.workspace = true
-static_assertions.workspace = true
 string-offset.workspace = true
 sum_tree.workspace = true
-tabwriter = "1.4"
 tempfile.workspace = true
 thiserror.workspace = true
-thousands = "0.2.0"
 tikv-jemallocator = { version = "0.6", optional = true, features = [
     "override_allocator_on_supported_platforms",
 ] }
@@ -233,12 +187,8 @@ languages.workspace = true
 warp_terminal.workspace = true
 websocket.workspace = true
 wgpu = { workspace = true, optional = true }
-natural_language_detection.workspace = true
-onboarding.workspace = true
-aho-corasick = "1.1.3"
 strum.workspace = true
 strum_macros.workspace = true
-lasso.workspace = true
 counter = "0.6.0"
 typed-path.workspace = true
 urlencoding = "2.1.3"
@@ -271,7 +221,6 @@ async-io.workspace = true
 axum.workspace = true
 diesel = { workspace = true, features = ["sqlite", "chrono"] }
 diesel_migrations = { version = "2.2.0", features = ["sqlite"] }
-env_logger.workspace = true
 git2 = { version = "0.20.4", default-features = false, features = [
     "vendored-libgit2",
 ] }
@@ -280,7 +229,6 @@ hyper.workspace = true
 libsqlite3-sys = { version = "0.33.0", features = ["bundled"] }
 mio = { version = "1.1.1", features = ["os-poll", "os-ext"] }
 tokio.workspace = true
-tokio-util.workspace = true
 
 
 notify-debouncer-full.workspace = true
@@ -416,16 +364,11 @@ autoupdate = []
 figma_detection = []
 bundled_skills = []
 agent_mode = []
-agent_mode_computer_use = []
 agent_mode_debug = []
-agent_mode_primary_xml = []
-agent_mode_pre_plan_xml = []
-agent_onboarding = []
 agent_shared_sessions = []
 ask_user_question = []
 changelog = []
 clear_autosuggestion_on_escape = []
-cloud_object_initial_load = ["enforce_revisions_to_cloud_objects"]
 cocoa_sentry = ["crash_reporting"]
 command_predictor = []
 context_line_review_comments = []
@@ -472,8 +415,6 @@ default = [
     "am_workflows",
     "autoupdate_ui_revamp",
     "render_agent_mode_output_markdown",
-    "agent_mode_primary_xml",
-    "agent_mode_pre_plan_xml",
     "command_correction_key",
     "kitty_images",
     "global_ai_analytics_collection",
@@ -481,24 +422,19 @@ default = [
     "validate_autosuggestions",
     "clear_autosuggestion_on_escape",
     "file_retrieval_tools",
-    "mcp_server",
     "fast_forward_autoexecute_button",
     "image_as_context",
     "command_palette_file_search",
-    "usage_based_pricing",
     "ai_context_menu",
     "at_menu_outside_of_ai_mode",
     "agent_management_view",
-    "agent_management_details_view",
     "interactive_conversation_management_view",
     "shared_block_title_generation",
     "tab_close_button_on_left",
     "ai_resume_button",
     "code_find_replace",
     "ai_context_menu_code",
-    "agent_decides_command_execution",
     "linked_code_blocks",
-    "drive_objects_as_context",
     "search_codebase_ui",
     "profiles_design_revamp",
     "multi_profile",
@@ -516,11 +452,8 @@ default = [
     "vim_code_editor",
     "code_launch_modal",
     "allow_ignoring_input_suggestions",
-    "mcp_oauth",
     "expand_edit_to_pane",
     "fallback_model_load_output_messaging",
-    "api_key_authentication",
-    "api_key_management",
     "summarization_cancellation_confirmation",
     "ui_zoom",
     "discard_per_file_and_all_changes",
@@ -532,31 +465,20 @@ default = [
     "agent_shared_sessions",
     "integration_command",
     "artifact_command",
-    "cloud_environments",
     "create_environment_slash_command",
     "code_review_find",
     "shared_session_long_running_commands",
-    "mcp_grouped_server_context",
     "fork_from_command",
     "context_window_usage_v2",
-    "ambient_agents_command_line",
-    "ambient_agents_image_upload",
-    "scheduled_ambient_agents",
     "v4a_file_diffs",
     "classic_completions",
     "force_classic_completions",
-    "team_api_keys",
-    "agent_tips",
     "pluggable_notifications",
-    "agent_onboarding",
     "global_search",
     "list_skills",
     "ask_user_question",
     "bundled_skills",
-    "ambient_agents_rtc",
-    "agent_mode_computer_use",
     "oz_platform_skills",
-    "sync_ambient_plans",
     "conversation_artifacts",
     "agent_view",
     "agent_view_block_context",
@@ -575,7 +497,6 @@ default = [
     "incremental_auto_reload",
     "active_conversation_requires_interaction",
     "figma_detection",
-    "file_based_mcp",
     "inline_repo_menu",
     "kitty_keyboard_protocol",
     "inline_menu_headers",
@@ -615,11 +536,8 @@ default_adeberry_theme = []
 drag_tabs_to_windows = []
 embedded_code_review_comments = []
 agent_management_view = []
-agent_management_details_view = []
 interactive_conversation_management_view = []
 default_waterfall_mode = []
-enforce_revisions_to_cloud_objects = []
-suggested_agent_mode_workflows = []
 ssh_tmux_wrapper = []
 ssh_enable_host_denylist_in_settings = []
 extern_plist = []
@@ -649,9 +567,6 @@ agent_mode_evals = [
     "warpui/log_named_telemetry_events",
     "warp_logging/agent_mode_evals",
 ]
-ambient_agents_command_line = []
-ambient_agents_image_upload = []
-scheduled_ambient_agents = []
 allow_ignoring_input_suggestions = []
 inline_slash_commands = ["agent_view"]
 
@@ -693,12 +608,8 @@ local_fs = [
 log_expensive_frames_in_sentry = []
 markdown_tables = []
 markdown_mermaid = []
-mcp_server = []
-mcp_oauth = []
-mcp_debugging_ids = []
 notebook_parameter = []
 oz_changelog_updates = []
-personal_cloud_objects = []
 # Remote-backed tty that connects to a PTY-like interface via a server.
 remote_tty = []
 # Fix for cursor reflow bug during window resize, from Alacritty resizing logic.
@@ -774,7 +685,6 @@ cycle_next_command_suggestion = []
 multi_workspace = []
 ime_marked_text = []
 partial_next_command_suggestions = []
-drive_objects_as_context = []
 iterm_images = []
 validate_autosuggestions = []
 autoupdate_ui_revamp = []
@@ -787,16 +697,13 @@ simulate_github_unauthed = []
 reload_stale_conversation_files = []
 shared_block_title_generation = []
 retry_truncated_code_responses = []
-usage_based_pricing = []
 ai_context_menu = []
 at_menu_outside_of_ai_mode = []
-agent_decides_command_execution = []
 fast_forward_autoexecute_button = []
 code_find_replace = []
 command_palette_file_search = []
 conversation_filter = []
 ai_context_menu_commands = []
-preview_channel = []
 ai_context_menu_code = []
 expand_edit_to_pane = []
 fallback_model_load_output_messaging = []
@@ -813,7 +720,6 @@ pr_comments_v2 = []
 pr_comments_skill = []
 conversation_artifacts = []
 conversations_as_context = []
-sync_ambient_plans = []
 projects = []
 vim_code_editor = []
 allow_opening_file_links_using_editor_env = []
@@ -822,8 +728,6 @@ revert_diff_hunk = []
 code_review_save_changes = []
 file_tree = []
 code_launch_modal = []
-api_key_authentication = []
-api_key_management = []
 diff_set_as_context = []
 discard_per_file_and_all_changes = []
 ui_zoom = []
@@ -833,10 +737,8 @@ auto_open_code_review_pane = []
 inline_code_review = []
 integration_command = []
 artifact_command = []
-cloud_environments = []
 create_environment_slash_command = []
 summarize_conversation_command = []
-mcp_grouped_server_context = []
 web_search_ui = []
 web_fetch_ui = []
 fork_from_command = []
@@ -848,15 +750,8 @@ rewind_slash_command = []
 agent_view = []
 agent_view_block_context = ["agent_view"]
 v4a_file_diffs = []
-agent_tips = []
 agent_toolbar_editor = ["agent_view"]
-agent_view_prompt_chip = ["agent_view"]
-ambient_agents_rtc = []
-team_api_keys = []
 classic_completions = []
-cloud_mode = []
-cloud_mode_from_local_session = []
-cloud_mode_image_context = []
 force_classic_completions = []
 agent_view_conversation_list_view = ["agent_view"]
 inline_history_menu = ["agent_view"]
@@ -870,7 +765,6 @@ oz_identity_federation = []
 oz_launch_modal = []
 open_warp_launch_modal = []
 new_tab_styling = []
-file_based_mcp = []
 skill_arguments = []
 active_conversation_requires_interaction = []
 incremental_auto_reload = []
@@ -885,7 +779,6 @@ hoa_code_review = []
 vertical_tabs = []
 vertical_tabs_summary_mode = []
 tab_configs = []
-agent_harness = []
 oz_handoff = []
 hoa_notifications = []
 open_code_notifications = []
@@ -897,8 +790,6 @@ hoa_onboarding_flow = []
 git_operations_in_code_review = []
 hoa_remote_control = []
 codex_notifications = []
-cloud_mode_setup_v2 = ["cloud_mode"]
-cloud_mode_input_v2 = ["cloud_mode"]
 configurable_context_window = []
 
 [package.metadata.bundle.bin.dwarp]
@@ -908,48 +799,7 @@ identifier = "dev.openwarp.OpenWarp"
 name = "dWarp"
 resources = ["assets/onboarding"]
 icon = ["channels/oss/icon/no-padding/512x512.png", "channels/oss/icon/no-padding/icon.ico"]
-short_description = "The open-source, cloud-backed terminal for individuals and teams."
-
-[package.metadata.bundle.bin.stable]
-category = "public.app-category.developer-tools"
-copyright = "© 2025, Denver Technologies, Inc"
-identifier = "dev.warp.Warp-Stable"
-name = "Warp"
-osx_frameworks = [
-    "frameworks/default/Sentry-Dynamic-WithARM64e.xcframework/macos-arm64_arm64e_x86_64/Sentry.framework",
-]
-resources = ["assets/onboarding"]
-short_description = "The cloud-backed terminal for individuals and teams, stable build."
-
-[package.metadata.bundle.bin.preview]
-category = "public.app-category.developer-tools"
-copyright = "© 2025, Denver Technologies, Inc"
-identifier = "dev.warp.Warp-Preview"
-name = "WarpPreview"
-osx_frameworks = [
-    "frameworks/default/Sentry-Dynamic-WithARM64e.xcframework/macos-arm64_arm64e_x86_64/Sentry.framework",
-]
-resources = ["assets/onboarding"]
-short_description = "The cloud-backed terminal for individuals and teams, feature preview build."
-
-[package.metadata.bundle.bin.dev]
-category = "public.app-category.developer-tools"
-copyright = "© 2025, Denver Technologies, Inc"
-identifier = "dev.warp.Warp-Dev"
-name = "WarpDev"
-osx_frameworks = [
-    "frameworks/dev/Sentry-Dynamic-WithARM64e.xcframework/macos-arm64_arm64e_x86_64/Sentry.framework",
-]
-resources = ["assets/onboarding"]
-short_description = "The cloud-backed terminal for individuals and teams, developer build."
-
-[package.metadata.bundle.bin.warp]
-category = "public.app-category.developer-tools"
-copyright = "© 2025, Denver Technologies, Inc"
-identifier = "dev.warp.Warp-Local"
-name = "WarpLocal"
-resources = ["assets/onboarding"]
-short_description = "The cloud-backed terminal for individuals and teams, developer build."
+short_description = "A local terminal with third-party CLI agents and BYOP suggestions."
 
 [package.metadata.cargo-udeps.ignore]
 normal = ["embed_plist"]
