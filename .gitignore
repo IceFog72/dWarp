@@ -81,3 +81,8 @@ graphify-out/
 
 # Keep dot-prefixed directories local at any depth.
 .*/
+
+# Keep runtime and build logs local.
+logs/
+*.log
+*.log.*
