@@ -119,7 +119,7 @@ if ("$CHANNEL" -eq 'local') {
     $APP_NAME = 'dWarp'
     # The OSS channel does not ship Sentry, so drop the crash_reporting feature
     # (which would otherwise pull in the Sentry SDK as a dependency).
-    # autoupdate 走 GitHub Release(zerx-lab/warp),仅下载到 Downloads,不调 Inno Setup。
+    # Download GitHub releases to Downloads for manual installation.
     $FEATURES = 'release_bundle,gui,nld_improvements,autoupdate'
 }
 
@@ -183,61 +183,68 @@ if ($SKIP_BUILD_INSTALLER) {
 Write-Output "Built for $ARCH with executable at $BINARY_PATH"
 
 # Prepare bundled resources
-$BUNDLED_RESOURCES_DIR = "$CARGO_TARGET_OUTPUT_DIR\resources"
-Write-Output "Preparing bundled resources..."
-# Only forward --target to the schema generator when the build target is
-# runnable on the host; otherwise `cargo run` would try to execute a
-# cross-compiled binary (e.g. aarch64-pc-windows-msvc on an x64 runner)
-# and fail.
-if ($env:PROCESSOR_ARCHITECTURE -eq 'AMD64') {
-    $HOST_TARGET = 'x86_64-pc-windows-msvc'
-} elseif ($env:PROCESSOR_ARCHITECTURE -eq 'ARM64') {
-    $HOST_TARGET = 'aarch64-pc-windows-msvc'
-} else {
-    $HOST_TARGET = ''
-}
-if ($PLATFORM_TARGET -eq $HOST_TARGET) {
-    $SCHEMA_CARGO_TARGET = $PLATFORM_TARGET
-} else {
-    $SCHEMA_CARGO_TARGET = ''
-}
-& "$WINDOWS_INSTALLER_DIR\prepare_bundled_resources.ps1" -DestinationDir "$BUNDLED_RESOURCES_DIR" -Channel "$CHANNEL" -CargoProfile "$CARGO_PROFILE" -CargoFeatures "$FEATURES" -CargoTarget "$SCHEMA_CARGO_TARGET"
-if (-Not $?) {
-    Write-Error "Failed to prepare bundled resources"
-    exit 1
-}
+$BUNDLED_RESOURCES_DIR = Join-Path $CARGO_TARGET_OUTPUT_DIR ('bundle-resources.' + [Guid]::NewGuid().ToString('N'))
+try {
+    Write-Output "Preparing bundled resources..."
+    # Only forward --target to the schema generator when the build target is
+    # runnable on the host; otherwise `cargo run` would try to execute a
+    # cross-compiled binary (e.g. aarch64-pc-windows-msvc on an x64 runner)
+    # and fail.
+    if ($env:PROCESSOR_ARCHITECTURE -eq 'AMD64') {
+        $HOST_TARGET = 'x86_64-pc-windows-msvc'
+    } elseif ($env:PROCESSOR_ARCHITECTURE -eq 'ARM64') {
+        $HOST_TARGET = 'aarch64-pc-windows-msvc'
+    } else {
+        $HOST_TARGET = ''
+    }
+    if ($PLATFORM_TARGET -eq $HOST_TARGET) {
+        $SCHEMA_CARGO_TARGET = $PLATFORM_TARGET
+    } else {
+        $SCHEMA_CARGO_TARGET = ''
+    }
+    & "$WINDOWS_INSTALLER_DIR\prepare_bundled_resources.ps1" -DestinationDir "$BUNDLED_RESOURCES_DIR" -Channel "$CHANNEL" -CargoProfile "$CARGO_PROFILE" -CargoFeatures "$FEATURES" -CargoTarget "$SCHEMA_CARGO_TARGET"
+    if (-Not $?) {
+        Write-Error "Failed to prepare bundled resources"
+        exit 1
+    }
 
-Write-Output 'Building Warp installer'
-$ISCC_ARGS = @(
-    "$WINDOWS_INSTALLER_DIR\windows-installer.iss",
-    "/DReleaseChannel=$CHANNEL",
-    "/DMyAppExeName=$BINARY_NAME",
-    "/DTargetProfileDir=$CARGO_TARGET_OUTPUT_DIR",
-    "/DMyAppName=$APP_NAME",
-    "/DMyAppVersion=$env:GIT_RELEASE_TAG",
-    "/DArch=$ARCH",
-    "/DOutputName=$INSTALLER_NAME"
-)
-# Also accept the sign tool command via env var
-if (-not $SIGN_TOOL_CMD -and $env:SIGN_TOOL_CMD) {
-    $SIGN_TOOL_CMD = $env:SIGN_TOOL_CMD
-}
-if ($SIGN_TOOL_CMD) {
-    $ISCC_ARGS += '/DSIGN_TOOL=1'
-    $ISCC_ARGS += "/Scodesign=$SIGN_TOOL_CMD"
-}
-& ISCC @ISCC_ARGS
-if (-Not $?) {
-    Write-Error "Failed to build $APP_NAME installer"
-    exit 1
-}
+    Write-Output 'Building Warp installer'
+    $ISCC_ARGS = @(
+        "$WINDOWS_INSTALLER_DIR\windows-installer.iss",
+        "/DReleaseChannel=$CHANNEL",
+        "/DMyAppExeName=$BINARY_NAME",
+        "/DTargetProfileDir=$CARGO_TARGET_OUTPUT_DIR",
+        "/DBundledResourcesDir=$BUNDLED_RESOURCES_DIR",
+        "/DMyAppName=$APP_NAME",
+        "/DMyAppVersion=$env:GIT_RELEASE_TAG",
+        "/DArch=$ARCH",
+        "/DOutputName=$INSTALLER_NAME"
+    )
+    # Also accept the sign tool command via env var
+    if (-not $SIGN_TOOL_CMD -and $env:SIGN_TOOL_CMD) {
+        $SIGN_TOOL_CMD = $env:SIGN_TOOL_CMD
+    }
+    if ($SIGN_TOOL_CMD) {
+        $ISCC_ARGS += '/DSIGN_TOOL=1'
+        $ISCC_ARGS += "/Scodesign=$SIGN_TOOL_CMD"
+    }
+    & ISCC @ISCC_ARGS
+    if (-Not $?) {
+        Write-Error "Failed to build $APP_NAME installer"
+        exit 1
+    }
 
-# If this is being run within a GitHub action, set an output variable with the
-# location of the installer so it can be referenced by subsequent actions.
-if ($env:GITHUB_ACTIONS -eq 'true') {
-    Write-Output '::echo::on'
-    $INSTALLER_PATH = $INSTALLER_PATH -replace '\\', '/'
-    "installer_path=$INSTALLER_PATH" >> "$env:GITHUB_OUTPUT"
-    "pdb_file_path=$PDB_PATH" >> "$env:GITHUB_OUTPUT"
-    Write-Output '::echo::off'
+    # If this is being run within a GitHub action, set an output variable with the
+    # location of the installer so it can be referenced by subsequent actions.
+    if ($env:GITHUB_ACTIONS -eq 'true') {
+        Write-Output '::echo::on'
+        $INSTALLER_PATH = $INSTALLER_PATH -replace '\\', '/'
+        "installer_path=$INSTALLER_PATH" >> "$env:GITHUB_OUTPUT"
+        "pdb_file_path=$PDB_PATH" >> "$env:GITHUB_OUTPUT"
+        Write-Output '::echo::off'
+    }
+} finally {
+    if (Test-Path -LiteralPath $BUNDLED_RESOURCES_DIR) {
+        Remove-Item -LiteralPath $BUNDLED_RESOURCES_DIR -Recurse -Force
+    }
 }

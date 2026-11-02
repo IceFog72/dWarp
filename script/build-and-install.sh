@@ -19,8 +19,27 @@ LOG_DIR="$WORKSPACE_ROOT_DIR/logs/build-and-install"
 mkdir -p "$LOG_DIR"
 LOG_FILE="$(mktemp "$LOG_DIR/$(date -u +%Y%m%dT%H%M%SZ)-XXXXXX.log")"
 
-{
-trap 'status=$?; printf "\nBuild/install exited with status %s. Log: %s\n" "$status" "$LOG_FILE"' EXIT
+# Keep logging alive long enough to record cleanup after a group interrupt.
+exec > >(trap '' INT TERM; exec tee "$LOG_FILE") 2>&1
+LOG_TEE_PID=$!
+BUILD_TEMP_DIR=""
+cleanup() {
+  local status=$?
+  trap - EXIT
+  if [[ -n "$BUILD_TEMP_DIR" ]] && ! rm -rf -- "$BUILD_TEMP_DIR"; then
+    echo "Could not remove build temporary files: $BUILD_TEMP_DIR" >&2
+    [[ $status -ne 0 ]] || status=1
+  fi
+  printf '\nBuild/install exited with status %s. Log: %s\n' "$status" "$LOG_FILE"
+  exec 1>&- 2>&-
+  if ! wait "$LOG_TEE_PID"; then
+    [[ $status -ne 0 ]] || status=1
+  fi
+  exit "$status"
+}
+trap cleanup EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
 echo "Build/install log: $LOG_FILE"
 cd "$WORKSPACE_ROOT_DIR"
 
@@ -74,9 +93,15 @@ echo "  Binary: $WARP_BIN"
 echo "  Profile: $CARGO_PROFILE"
 echo "  Features: $FEATURES"
 
+CARGO_TARGET_DIR="${CARGO_TARGET_DIR:-$WORKSPACE_ROOT_DIR/target}"
+mkdir -p "$CARGO_TARGET_DIR"
+CARGO_TARGET_DIR="$(cd "$CARGO_TARGET_DIR" && pwd)"
+export CARGO_TARGET_DIR
+BUILD_TEMP_DIR="$(mktemp -d "$CARGO_TARGET_DIR/build-install.XXXXXXXX")"
+echo "$$" > "$BUILD_TEMP_DIR/.owner-pid"
+export TMPDIR="$BUILD_TEMP_DIR"
 cargo build -p warp --profile "$CARGO_PROFILE" --bin "$WARP_BIN" --features "$FEATURES"
 
-CARGO_TARGET_DIR="${CARGO_TARGET_DIR:-$WORKSPACE_ROOT_DIR/target}"
 EXECUTABLE_PATH="$CARGO_TARGET_DIR/$CARGO_PROFILE/$WARP_BIN"
 if [[ ! -x "$EXECUTABLE_PATH" ]]; then
   echo "Built executable not found: $EXECUTABLE_PATH"
@@ -97,7 +122,7 @@ REAL_COMMAND="/usr/local/bin/$DESKTOP_COMMAND.real"
 sudo install -D "$EXECUTABLE_PATH" "$REAL_COMMAND"
 
 if [[ -n "${WARP_CPU_RENDERER:-}" || -n "${WARP_CPU_FPS:-}" || -n "${WARP_CPU_TERMINAL_FPS:-}" ]]; then
-  WRAPPER_PATH="$(mktemp)"
+  WRAPPER_PATH="$BUILD_TEMP_DIR/launcher"
   cat > "$WRAPPER_PATH" <<EOF
 #!/usr/bin/env bash
 export WARP_CPU_RENDERER="${WARP_CPU_RENDERER:-}"
@@ -152,4 +177,3 @@ echo "Run '$DESKTOP_COMMAND'"
 echo ""
 echo "You may need to run: sudo update-desktop-database"
 echo "And:                sudo update-icon-caches /usr/share/icons/*"
-} 2>&1 | tee "$LOG_FILE"

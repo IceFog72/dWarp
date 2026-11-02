@@ -19,6 +19,9 @@
 #ifndef TargetProfileDir
   #define TargetProfileDir "target\release-lto-debug_assertions"
 #endif
+#ifndef BundledResourcesDir
+  #define BundledResourcesDir TargetProfileDir + "\resources"
+#endif
 #define AssetsDir "..\..\app\assets\windows"
 
 // The mutex name must match what the Rust app creates in single_instance_manager.rs:
@@ -104,7 +107,7 @@ Source: "{#AssetsDir}\{#Arch}\msvcp140.dll"; DestDir: "{app}"
 Source: "..\..\app\assets\bundled\bootstrap\pwsh.ps1"; DestDir: "{app}"
 Source: "{#AssetsDir}\{#Arch}\dxcompiler.dll"; DestDir: "{app}"
 Source: "{#AssetsDir}\{#Arch}\dxil.dll"; DestDir: "{app}"
-Source: "{#TargetProfileDir}\resources\*"; DestDir: "{app}\resources"; Flags: ignoreversion recursesubdirs
+Source: "{#BundledResourcesDir}\*"; DestDir: "{app}\resources"; Flags: ignoreversion recursesubdirs
 
 #if ReleaseChannel == "oss"
 [InstallDelete]

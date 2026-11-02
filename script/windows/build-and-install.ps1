@@ -15,8 +15,18 @@ if ($env:OS -ne 'Windows_NT') {
 }
 
 $repoRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..\..'))
+$buildTemp = $null
+$previousTemp = $env:TEMP
+$previousTmp = $env:TMP
 Push-Location -LiteralPath $repoRoot
 try {
+    $tempRoot = if ($env:CARGO_TARGET_DIR) {
+        [IO.Path]::GetFullPath([IO.Path]::Combine($repoRoot, $env:CARGO_TARGET_DIR))
+    } else { Join-Path $repoRoot 'target' }
+    $buildTemp = Join-Path $tempRoot ('build-install.' + [Guid]::NewGuid().ToString('N'))
+    New-Item -ItemType Directory -Path $buildTemp -Force | Out-Null
+    $env:TEMP = $buildTemp
+    $env:TMP = $buildTemp
     $requiredTools = @('cargo', 'rustup', 'git', 'cmake', 'protoc', 'node', 'yarn')
     $missingTools = @($requiredTools | Where-Object {
         -not (Get-Command $_ -CommandType Application -ErrorAction SilentlyContinue)
@@ -88,5 +98,13 @@ try {
         }
     }
 } finally {
-    Pop-Location
+    $env:TEMP = $previousTemp
+    $env:TMP = $previousTmp
+    try {
+        if ($buildTemp -and (Test-Path -LiteralPath $buildTemp)) {
+            Remove-Item -LiteralPath $buildTemp -Recurse -Force
+        }
+    } finally {
+        Pop-Location
+    }
 }

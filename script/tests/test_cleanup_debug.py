@@ -94,6 +94,9 @@ class CleanupDebugTests(unittest.TestCase):
         abandoned = self.root / "dwarp-debug.12345678"
         abandoned.mkdir()
         (abandoned / "partial-build").write_text("incomplete")
+        abandoned_install = self.root / "build-install.12345678"
+        abandoned_install.mkdir()
+        (abandoned_install / "launcher").write_text("partial installer")
         active = self.root / "dwarp-debug.abcdefgh"
         active.mkdir()
         (active / ".owner-pid").write_text(str(os.getpid()))
@@ -106,6 +109,7 @@ class CleanupDebugTests(unittest.TestCase):
         )
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertFalse(abandoned.exists())
+        self.assertFalse(abandoned_install.exists())
         self.assertTrue(active.exists())
         self.assertTrue(link.is_symlink())
         self.assertEqual((self.shared / "keep").read_text(), "existing build output")

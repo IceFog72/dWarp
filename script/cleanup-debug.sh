@@ -43,7 +43,7 @@ if [[ $1 == --clean ]]; then
     fi
     shopt -s nullglob
     for cleanup_root in "${cleanup_roots[@]}"; do
-        for abandoned_dir in "$cleanup_root"/dwarp-debug.????????; do
+        for abandoned_dir in "$cleanup_root"/dwarp-debug.???????? "$cleanup_root"/build-install.????????; do
             [[ -d $abandoned_dir && ! -L $abandoned_dir && -O $abandoned_dir ]] || continue
             if [[ -f $abandoned_dir/.owner-pid ]]; then
                 owner_pid="$(cat -- "$abandoned_dir/.owner-pid")"
@@ -60,6 +60,7 @@ if [[ $1 == --clean ]]; then
 fi
 
 mkdir -p -- "$debug_temp_root"
+debug_temp_root="$(cd -- "$debug_temp_root" && pwd)"
 debug_target_dir="$(mktemp -d "$debug_temp_root/dwarp-debug.XXXXXXXX")"
 
 cleanup() {

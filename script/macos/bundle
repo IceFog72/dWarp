@@ -95,7 +95,21 @@ cleanup_codesign_keychain() {
 }
 
 # Set up cleanup trap
-trap 'cleanup_dmg_files "$DMG_DIR"; cleanup_codesign_keychain' EXIT
+tmp_bundle_dir=""
+cleanup_bundle() {
+    local status=$?
+    trap - EXIT
+    if [[ -n "$tmp_bundle_dir" ]] && ! rm -rf -- "$tmp_bundle_dir"; then
+        echo "Could not remove temporary universal binary: $tmp_bundle_dir" >&2
+        [[ $status -ne 0 ]] || status=1
+    fi
+    cleanup_dmg_files "$DMG_DIR" || { [[ $status -ne 0 ]] || status=1; }
+    cleanup_codesign_keychain || { [[ $status -ne 0 ]] || status=1; }
+    exit "$status"
+}
+trap cleanup_bundle EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
 
 # Define a helper function that uses Python to compute a relative path.
 function relpath() {
