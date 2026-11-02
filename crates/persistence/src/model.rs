@@ -271,9 +271,6 @@ pub struct WelcomePane {
     pub startup_directory: Option<String>,
 }
 
-/// Maps to the `ai_memory_panes` table
-/// (where table name is historical and not worth a migration to change).
-
 /// Subset of the [`terminal_panes`] table needed to retrieve per-session block lists.
 ///
 /// The true primary key of the table is [`terminal_panes::id`]. However, Diesel's associations API
