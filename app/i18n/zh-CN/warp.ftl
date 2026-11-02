@@ -70,47 +70,6 @@ common-learn-more = 了解更多
 # SECTION: agent-management (Owner: agent-i18n-remaining)
 # =============================================================================
 
-agent-management-filter-all-tooltip = 查看你的智能体任务以及所有共享的团队任务
-agent-management-filter-personal = 个人
-agent-management-filter-personal-tooltip = 查看你创建的智能体任务
-agent-management-get-started = 开始使用
-agent-management-view-agents = 查看智能体
-agent-management-clear-filters = 清除筛选
-agent-management-clear-all = 全部清除
-agent-management-new-agent = 新建智能体
-agent-management-status = 状态
-agent-management-source = 来源
-agent-management-created-on = 创建时间
-agent-management-has-artifact = 包含产物
-agent-management-harness = 执行器
-agent-management-environment = 环境
-agent-management-created-by = 创建者
-agent-management-last-24-hours = 最近 24 小时
-agent-management-past-3-days = 最近 3 天
-agent-management-last-week = 最近一周
-agent-management-artifact-pull-request = Pull Request
-agent-management-artifact-plan = 计划
-agent-management-artifact-screenshot = 截图
-agent-management-artifact-file = 文件
-agent-management-source-scheduled = 定时
-agent-management-source-local-agent = Warp（本地智能体）
-agent-management-source-cloud-agent = Warp（云端智能体）
-agent-management-source-oz-web = Oz Web
-agent-management-source-github-action = GitHub Action
-agent-management-no-session-available = 无可用会话
-agent-management-session-expired = 会话已过期
-agent-management-session-expired-tooltip = 会话会在一周后过期，且无法再打开。
-agent-management-metadata-source = 来源：{ $source }
-agent-management-metadata-harness = 执行器：{ $harness }
-agent-management-metadata-run-time = 运行时长：{ $run_time }
-agent-management-metadata-credits-used = 已用额度：{ $usage }
-agent-management-environment-selected = 环境：{ $environment }
-agent-management-loading-cloud-runs = 正在加载云端智能体运行
-
-# =============================================================================
-# SECTION: workspace-runtime (Owner: agent-i18n-remaining)
-# =============================================================================
-
 workspace-menu-update-warp-manually = 手动更新 Warp
 workspace-menu-whats-new = 最新变化
 workspace-menu-settings = 设置
@@ -165,7 +124,6 @@ terminal-dont-ask-again = 不再询问
 terminal-clear-upload = 清除上传
 terminal-manage-defaults = 管理默认值
 terminal-free-credits = 免费额度
-terminal-cloud-agent-run = 云端智能体运行
 terminal-agent-header-for-terminal = 用于终端
 ai-document-show-version-history = 显示版本历史
 ai-document-update-agent = 更新智能体
@@ -175,8 +133,6 @@ ai-document-save-as-markdown-file = 另存为 markdown 文件
 ai-document-attach-to-active-session = 附加到当前会话
 ai-document-copy-plan-id = 复制计划 ID
 ai-document-plan-id-copied = 计划 ID 已复制到剪贴板
-ai-conversation-view-in-oz = 在 Oz 中查看
-ai-conversation-view-in-oz-tooltip = 在 Oz Web 应用中查看此运行
 ai-artifact-prepare-download-failed = 准备文件下载失败。
 ai-block-open-in-github = 在 GitHub 中打开
 ai-block-open-in-code-review = 在代码评审中打开
@@ -275,15 +231,10 @@ settings-ai-repo-placeholder = 例如 ~/code-repos/repo
 settings-ai-commands-comma-separated-placeholder = 命令，英文逗号分隔
 settings-ai-regex-example-placeholder = 例如 ls .*
 settings-ai-command-supports-regex-placeholder = 命令（支持正则）
-settings-ai-aws-login-placeholder = aws login
 settings-ai-default-placeholder = default
 settings-working-directory-path-placeholder = 路径
 settings-startup-shell-executable-path-placeholder = 可执行文件路径
 settings-agent-providers-base-url-placeholder = https://api.deepseek.com/v1
-drive-sharing-only-people-invited = 仅受邀者
-drive-sharing-anyone-with-link = 拥有链接的任何人
-drive-sharing-only-invited-teammates = 仅受邀团队成员
-drive-sharing-teammates-with-link = 拥有链接的团队成员
 terminal-warpify-subshell = Warpify subshell
 terminal-warpify-subshell-tooltip = 在此会话中启用 Warp shell 集成
 terminal-use-agent = 使用智能体
@@ -412,12 +363,6 @@ notebook-copy-to-personal = 复制到个人空间
 notebook-tooltip-copy-to-clipboard = 将笔记内容复制到剪贴板
 notebook-copy-all = 全部复制
 object-toast-link-copied = 链接已复制到剪贴板
-drive-toast-finished-exporting = 对象导出完成
-
-# =============================================================================
-# SECTION: remaining-settings-tabs-env (Owner: agent-i18n-remaining)
-# =============================================================================
-
 settings-environment-delete-button = 删除环境
 settings-language-system-default = 系统默认
 settings-language-english = 英文
@@ -430,36 +375,6 @@ env-vars-variables-label = 变量
 
 # =============================================================================
 # SECTION: onboarding-callout (Owner: agent-i18n-remaining)
-# =============================================================================
-
-onboarding-callout-meet-input-title = 认识 Warp 输入框
-onboarding-callout-meet-input-text-prefix = 你的终端输入框同时支持终端命令和智能体提示，并会自动识别你的输入类型。使用
-onboarding-callout-meet-input-text-suffix = 可将输入锁定为智能体模式（自然语言）或终端模式（命令）。
-onboarding-callout-talk-agent-title = 与智能体对话
-onboarding-callout-talk-agent-text = 你可以直接输入自然语言来使用智能体。提交下方查询即可开始：这个仓库里有哪些测试？它们是如何组织的？覆盖了哪些内容？
-onboarding-callout-skip = 跳过
-onboarding-callout-submit = 提交
-onboarding-callout-finish = 完成
-onboarding-callout-meet-terminal-title = 认识你的终端输入框
-onboarding-callout-meet-updated-terminal-title = 认识升级后的终端输入框
-onboarding-callout-meet-terminal-text-prefix = 你可以在终端中运行命令，也可以使用
-onboarding-callout-meet-terminal-text-suffix = 来启动智能体或发送给智能体。
-onboarding-callout-nl-overrides-title = 自然语言覆盖
-onboarding-callout-nl-overrides-text-prefix = 你始终可以使用
-onboarding-callout-nl-support-title = 自然语言支持
-onboarding-callout-nl-support-text-prefix = 默认情况下自然语言输入处于关闭状态。启用后，你可以直接用自然语言输入请求，Warp 会为智能体自动识别查询。你也始终可以使用
-onboarding-callout-enable-nl-detection = 启用自然语言识别
-onboarding-callout-new-agent-title = 认识 Warp 全新的智能体体验
-onboarding-callout-new-agent-text = 智能体对话现在会作为终端之外的独立视图存在。你可以随时按 ESC 返回终端。
-onboarding-callout-updated-agent-input-title = 升级后的智能体输入框
-onboarding-callout-updated-agent-input-project-text = 默认情况下，你的智能体输入框会同时识别自然语言和命令。使用 ! 可将输入锁定为 bash 模式以编写命令。\n\n提交下方查询即可让智能体初始化此项目，或按 ⊗ 清空输入后自行开始！
-onboarding-callout-skip-initialization = 跳过初始化
-onboarding-callout-initialize = 初始化
-onboarding-callout-updated-agent-input-text = 默认情况下，你的智能体输入框会同时识别自然语言和命令。使用 ! 可将输入锁定为 bash 模式以编写命令。
-onboarding-callout-back-terminal = 返回终端
-
-# =============================================================================
-# SECTION: language (Owner: foundation)
 # =============================================================================
 
 language-widget-label = 语言
@@ -477,8 +392,6 @@ language-restart-required-body = Warp 的界面语言已更新。部分文字会
 # 侧边栏 / SettingsSection 标签 (Display impl)
 settings-section-about = 关于
 settings-section-account = 账户
-settings-section-mcp-servers = MCP 服务器
-settings-section-billing-and-usage = 账单与用量
 settings-section-appearance = 外观
 settings-section-features = 功能
 settings-section-keybindings = 快捷键
@@ -486,20 +399,15 @@ settings-section-privacy = 隐私
 settings-section-referrals = 推荐
 settings-section-shared-blocks = 共享命令块
 settings-section-teams = 团队
-settings-section-warp-drive = Warp Drive
 settings-section-warpify = Warpify
 settings-section-ai = AI
-settings-section-warp-agent = Warp 智能体
-settings-section-agent-profiles = 配置
 settings-section-agent-mcp-servers = MCP 服务器
 settings-section-agent-providers = 提供商
-settings-section-knowledge = Rules
 settings-section-third-party-cli-agents = 第三方 CLI 智能体
 settings-section-code = 代码
 settings-section-code-indexing = 索引与项目
 settings-section-editor-and-code-review = 编辑器与代码评审
 settings-section-cloud-environments = 环境
-settings-section-oz-cloud-api-keys = Oz Cloud API 密钥
 settings-title = 设置
 
 # 上下文菜单项(分屏 / 关闭窗格)
@@ -523,7 +431,6 @@ settings-about-copyright = 版权所有 2026 Warp
 # main_page.rs — referral / account
 settings-main-referral-cta = 与朋友和同事分享 Warp,获得奖励
 settings-main-refer-a-friend = 推荐朋友
-settings-main-sign-up = 注册
 settings-main-plan-free = 免费版
 settings-main-compare-plans = 对比方案
 settings-main-contact-support = 联系支持
@@ -693,36 +600,6 @@ settings-keybindings-subheader = 配置键盘快捷键
 settings-keybindings-command-column = 命令
 
 # --- ANCHOR-SUB-REFERRALS (agent-settings-referrals) ---
-settings-referrals-page-title = 邀请朋友加入 Warp
-settings-referrals-anonymous-header = 注册以参与 Warp 推荐计划
-settings-referrals-sign-up = 注册
-settings-referrals-link-label = 链接
-settings-referrals-email-label = 邮箱
-settings-referrals-link-error = 加载邀请码失败。
-settings-referrals-loading = 加载中...
-settings-referrals-copy-link-button = 复制链接
-settings-referrals-email-send-button = 发送
-settings-referrals-email-sending-button = 发送中...
-settings-referrals-link-copied-toast = 链接已复制。
-settings-referrals-email-success-toast = 邮件发送成功。
-settings-referrals-email-failure-toast = 邮件发送失败,请重试。
-settings-referrals-email-empty-error = 请输入邮箱。
-settings-referrals-email-invalid-error = 请确认下列邮箱有效:{ $email }
-settings-referrals-reward-intro = 推荐朋友即可获得 Warp 专属周边*
-settings-referrals-claimed-count-singular = 当前推荐
-settings-referrals-claimed-count-plural = 当前推荐
-settings-referrals-terms-link = 部分条款适用。
-settings-referrals-terms-contact = { " " }如对推荐计划有任何疑问,请联系 referrals@warp.dev。
-settings-referrals-reward-theme = 专属主题
-settings-referrals-reward-keycaps = 键帽 + 贴纸
-settings-referrals-reward-tshirt = T 恤
-settings-referrals-reward-notebook = 笔记本
-settings-referrals-reward-cap = 棒球帽
-settings-referrals-reward-hoodie = 连帽衫
-settings-referrals-reward-hydroflask = 高级 Hydro Flask 水壶
-settings-referrals-reward-backpack = 双肩包
-
-# --- ANCHOR-SUB-WARPIFY (agent-settings-warpify) ---
 settings-warpify-page-title = Warpify
 settings-warpify-description-prefix = 配置 Warp 是否尝试对特定 Shell 执行 "Warpify"(为其添加命令块、输入模式等支持)。
 settings-warpify-learn-more = 了解更多
@@ -752,7 +629,6 @@ settings-ai-knowledge-section = Rules
 settings-ai-other-section = 其他
 settings-ai-third-party-cli-section = 第三方 CLI 智能体
 settings-ai-experimental-section = 实验性
-settings-ai-aws-bedrock-section = AWS Bedrock
 settings-ai-agents-header = 智能体
 settings-ai-profiles-header = 配置
 settings-ai-models-subheader = 模型
@@ -868,13 +744,6 @@ settings-ai-orchestration-label = 编排
 settings-ai-orchestration-description = 启用多智能体编排,允许智能体派生并协调并行的子智能体。
 
 # AWS Bedrock
-settings-ai-aws-bedrock-toggle = 使用 AWS Bedrock 凭证
-settings-ai-aws-bedrock-description = Warp 加载并发送本地 AWS CLI 凭证以使用 Bedrock 支持的模型。
-settings-ai-aws-bedrock-description-managed = Warp 加载并发送本地 AWS CLI 凭证以使用 Bedrock 支持的模型。此设置由你的组织管理。
-settings-ai-aws-login-command = 登录命令
-settings-ai-aws-profile = AWS Profile
-settings-ai-aws-auto-login = 自动运行登录命令
-settings-ai-aws-auto-login-description = 启用后,AWS Bedrock 凭证过期时将自动运行登录命令。
 settings-ai-refresh = 刷新
 
 # --- ANCHOR-SUB-FEATURES (agent-settings-features) ---
@@ -1001,94 +870,6 @@ settings-features-wayland-description = 启用此设置会禁用全局快捷键�
 settings-features-restart-warp-to-apply = 重启 Warp 以使更改生效。
 
 # --- ANCHOR-SUB-TEAMS (agent-settings-teams) ---
-settings-teams-page-title = 团队
-settings-teams-create-page-subtitle = 创建团队
-settings-teams-create-description = 创建团队后,您可以通过共享云端 agent 运行、环境、自动化与产物来协作进行 agent 驱动开发,也可以为队友与 agent 共享一个统一的知识库。
-settings-teams-create-button = 创建
-settings-teams-team-name-placeholder = 团队名称
-settings-teams-rename-placeholder = 新的团队名称
-settings-teams-leave-team-button = 退出团队
-settings-teams-delete-team-button = 删除团队
-settings-teams-emails-placeholder = 邮箱(逗号分隔)
-settings-teams-domains-placeholder = 域名(逗号分隔)
-settings-teams-set-button = 设置
-settings-teams-invite-button = 邀请
-settings-teams-join-button = 加入
-settings-teams-contact-admin-button = 联系管理员申请访问
-settings-teams-tab-link = 邀请链接
-settings-teams-tab-email = 邮箱邀请
-settings-teams-section-team-members = 团队成员
-settings-teams-section-team-members-pricing = 团队成员
-settings-teams-section-invite-by-link = 通过链接邀请
-settings-teams-section-invite-by-email = 通过邮箱邀请
-settings-teams-section-restrict-by-domain = 按域名限制
-settings-teams-section-make-discoverable = 设为可被发现
-settings-teams-section-plan-usage-free = 免费方案用量限制
-settings-teams-section-plan-usage = 方案用量限制
-settings-teams-shared-notebooks = 共享笔记本
-settings-teams-shared-workflows = 共享工作流
-settings-teams-reset-links = 重置链接
-settings-teams-compare-plans = 对比方案
-settings-teams-upgrade-build = 升级到 Build
-settings-teams-upgrade-turbo = 升级到 Turbo 方案
-settings-teams-upgrade-lightspeed = 升级到 Lightspeed 方案
-settings-teams-contact-support = 联系支持
-settings-teams-manage-billing = 管理账单
-settings-teams-manage-plan = 管理方案
-settings-teams-open-admin-panel = 打开管理员面板
-settings-teams-or-join-existing = 或加入您公司内已有的团队
-settings-teams-discovery-cta = 加入此团队,开始一起协作工作流、笔记本等内容。
-settings-teams-discovery-1-teammate = 1 名队友
-settings-teams-discovery-n-teammates = { $count } 名队友
-settings-teams-transfer-modal-title = 转移团队所有权?
-settings-teams-action-cancel-invite = 取消邀请
-settings-teams-action-transfer-ownership = 转移所有权
-settings-teams-action-demote-from-admin = 取消管理员
-settings-teams-action-promote-to-admin = 设为管理员
-settings-teams-action-remove-from-team = 从团队移除
-settings-teams-action-remove-domain = 移除域名
-settings-teams-state-expired = 已过期
-settings-teams-state-pending = 待处理
-settings-teams-state-owner = 拥有者
-settings-teams-state-admin = 管理员
-settings-teams-badge-past-due = 已逾期
-settings-teams-badge-unpaid = 未付款
-settings-teams-offline = 您当前处于离线状态。
-settings-teams-failed-load-invite-link = 加载邀请链接失败。
-settings-teams-toast-link-copied = 链接已复制到剪贴板!
-settings-teams-toast-invite-sent-one = 邀请已发出!
-settings-teams-toast-invites-sent = 已发出 { $count } 封邀请!
-settings-teams-toast-domain-added = 已添加域名限制:{ $count }
-settings-teams-toast-invalid-domains = 无效域名:{ $count }
-settings-teams-toast-invalid-emails = 无效邮箱:{ $count }
-settings-teams-toast-toggled-invite-links = 已切换邀请链接状态
-settings-teams-toast-reset-invite-links = 已重置邀请链接
-settings-teams-toast-deleted-invite = 已删除邀请
-settings-teams-toast-toggled-discoverability = 已切换团队可发现状态
-settings-teams-toast-joined-team = 已成功加入团队
-settings-teams-toast-joined-team-named = 已成功加入 { $name }
-settings-teams-toast-transferred-ownership = 已成功转移团队所有权
-settings-teams-toast-updated-role = 已成功更新团队成员角色
-settings-teams-toast-left-team = 已成功退出团队
-settings-teams-toast-renamed-team = 已成功重命名团队
-settings-teams-error-leave-team = 退出团队失败
-settings-teams-error-rename-team = 重命名团队失败
-settings-teams-error-send-invite = 发送邀请失败
-settings-teams-error-toggle-invite-links = 切换邀请链接失败
-settings-teams-error-reset-invite-links = 重置邀请链接失败
-settings-teams-error-delete-invite = 删除邀请失败
-settings-teams-error-add-domain = 添加域名限制失败
-settings-teams-error-delete-domain = 删除域名限制失败
-settings-teams-error-upgrade-link = 生成升级链接失败,请联系 feedback@warp.dev
-settings-teams-error-billing-link = 生成账单链接失败,请联系 feedback@warp.dev
-settings-teams-error-toggle-discoverability = 切换团队可发现状态失败
-settings-teams-error-join-team = 加入团队失败
-settings-teams-error-transfer-ownership = 转移团队所有权失败
-settings-teams-error-update-role = 更新团队成员角色失败
-
-# --- ANCHOR-SUB-SETTINGS-PAGE-NAV (agent-settings-page-nav) ---
-
-# ---- settings_page.rs ----
 settings-page-info-icon-tooltip = 点击查看文档详情
 settings-page-local-only-icon-tooltip = 此设置不会同步到你的其他设备
 settings-page-reset-to-default = 重置为默认值
@@ -1754,7 +1535,6 @@ keybinding-desc-workspace-show-settings-ai = 打开设置:AI
 keybinding-desc-workspace-show-settings-code = 打开设置:代码
 keybinding-desc-workspace-show-settings-referrals = 打开设置:推荐
 keybinding-desc-workspace-show-settings-environments = 打开设置:环境
-keybinding-desc-workspace-show-settings-mcp-servers = 打开设置:MCP 服务器
 keybinding-desc-workspace-open-settings-file = 打开设置文件
 
 # 溢出菜单 / 外部链接
@@ -1783,7 +1563,6 @@ keybinding-desc-workspace-open-view-tree-debugger = 打开视图树调试器
 keybinding-desc-workspace-view-first-time-user-experience = [调试] 查看首次启动引导体验
 keybinding-desc-workspace-open-build-plan-migration-modal = [调试] 打开构建计划迁移弹窗
 keybinding-desc-workspace-reset-build-plan-migration-modal-state = [调试] 重置构建计划迁移弹窗状态
-keybinding-desc-workspace-undismiss-aws-login-banner = [调试] 取消关闭 AWS 登录提示条
 keybinding-desc-workspace-open-oz-launch-modal = [调试] 打开 Oz 启动弹窗
 keybinding-desc-workspace-reset-oz-launch-modal-state = [调试] 重置 Oz 启动弹窗状态
 keybinding-desc-workspace-open-openwarp-launch-modal = [调试] 打开 dWarp 启动弹窗
@@ -2509,99 +2288,6 @@ ai-context-blocks-accessibility-label = 命令块: { $command }
 
 # --- ANCHOR-SUB-DRIVE-NAMING-IMPORT ---
 # Drive 命名弹窗(app/src/drive/cloud_object_naming_dialog.rs)
-drive-naming-notebook-name = 笔记本名称
-drive-naming-folder-name = 文件夹名称
-drive-naming-collection-name = 集合名称
-drive-naming-create = 创建
-drive-naming-cancel = 取消
-drive-naming-rename = 重命名
-
-# Drive 导入弹窗(app/src/drive/import/modal.rs, app/src/drive/import/modal_body.rs)
-drive-import-title = 导入
-drive-import-close = 关闭
-drive-import-cancel = 取消
-drive-import-preparing = 正在准备...
-drive-import-choose-files = 选择文件...
-drive-import-learn-file-support = 了解文件支持和格式设置
-drive-import-file-upload-error = 文件上传到服务器失败
-drive-import-folder-upload-error = 文件夹上传到服务器失败
-
-# Drive 主面板和 workflow 编辑器(app/src/drive/index.rs, app/src/drive/workflows/*)
-drive-title = Warp Drive
-drive-create-team-text = 与团队成员共享命令和知识。
-drive-join-team-header = 与已经在 Warp 上的 { $count } 位团队成员协作。
-drive-environment-variables = 环境变量
-drive-folder = 文件夹
-drive-notebook = 笔记本
-drive-workflow = workflow
-drive-prompt = 提示词
-drive-import = 导入
-drive-remove = 移除
-drive-new-folder = 新建文件夹
-drive-new-notebook = 新建笔记本
-drive-new-workflow = 新建 workflow
-drive-new-prompt = 新建提示词
-drive-new-environment-variables = 新建环境变量
-drive-offline-banner = 你已离线。部分文件将为只读。
-drive-sort-by = 排序方式
-drive-retry-sync = 重试同步
-drive-empty-trash = 清空废纸篓
-drive-trash-section-title = 废纸篓
-drive-trash-title = 废纸篓
-drive-trash-deletion-warning = 废纸篓中的项目将在 30 天后永久删除。
-drive-team-space-zero-state = 将个人 workflow 或笔记本拖放或移动到此处，即可与团队共享。
-drive-create-team-button = 创建团队
-drive-view-teams-to-join = 查看可加入的团队
-drive-or = 或
-drive-sign-up-storage-limit = 免费注册可提升存储上限并解锁更多功能。
-drive-sign-up = 注册
-drive-copy-link = 复制链接
-drive-collapse-all = 全部折叠
-drive-revert-to-server = 恢复为服务器版本
-drive-attach-to-active-session = 附加到活动会话
-drive-copy-prompt = 复制提示词
-drive-copy-workflow-text = 复制 workflow 文本
-drive-copy-id = 复制 ID
-drive-copy-variables = 复制变量
-drive-load-in-subshell = 在子 shell 中加载
-drive-delete-forever = 永久删除
-drive-rename = 重命名
-drive-share = 分享
-drive-retry = 重试
-drive-move-to-space = 移动到 { $space }
-drive-open-on-desktop = 在桌面端打开
-drive-duplicate = 复制副本
-drive-export = 导出
-drive-trash-menu = 移到废纸篓
-drive-open = 打开
-drive-edit = 编辑
-drive-restore = 恢复
-drive-compare-plans = 比较套餐
-drive-manage-billing = 管理账单
-drive-object-type-notebook-plural = 笔记本
-drive-object-type-workflow-plural = workflow
-drive-object-type-folder-plural = 文件夹
-drive-object-type-env-var-collection-plural = 环境变量集合
-drive-object-type-object-plural = 对象
-drive-object-type-notebooks = 笔记本
-drive-object-type-workflows = workflow
-drive-object-type-environment-variables = 环境变量
-drive-object-type-folders = 文件夹
-drive-object-type-agent-workflows = Agent workflow
-drive-object-type-ai-fact = AI 事实
-drive-object-type-rules = 规则
-drive-object-type-mcp-server = MCP 服务器
-drive-object-type-mcp-servers = MCP 服务器
-drive-shared-object-limit-hit-banner-prefix = 你当前套餐中的 { $object_type } 数量已用完。
-drive-shared-object-limit-hit-banner = 你当前套餐中的 { $object_type } 数量已用完。升级后可使用更多笔记本、workflow、共享会话和 AI 额度。
-drive-payment-issue-banner-prefix = 由于订阅付款问题，共享对象已受限。
-drive-payment-issue-banner-admin = 由于订阅付款问题，共享对象已受限。请更新付款信息以恢复访问。
-drive-payment-issue-banner-admin-enterprise = 由于订阅付款问题，共享对象已受限。请联系 support@warp.dev 恢复访问。
-drive-payment-issue-banner-nonadmin = 由于订阅付款问题，共享对象已受限。请联系团队管理员恢复访问。
-drive-empty-trash-title = 确定要清空废纸篓吗？
-drive-empty-trash-body = 此操作无法撤销。
-drive-empty-trash-confirm = 是，清空废纸篓
-drive-empty-trash-cancel = 取消
 workflow-title-placeholder = 未命名 workflow
 workflow-description-placeholder = 添加描述
 workflow-title-input-placeholder = 添加标题
@@ -2778,15 +2464,6 @@ wasm-nux-always-open-on-web-detail = 你可以随时在设置中更改此项。
 wasm-nux-yes = 是
 
 # Drive cloud action confirmation dialog (app/src/drive/cloud_action_confirmation_dialog.rs)
-drive-cloud-action-cancel = 取消
-drive-cloud-action-delete-team-title = 你确定要删除这个团队吗？
-drive-cloud-action-leave-team-title = 你确定要离开这个团队吗？
-drive-cloud-action-delete-team-body = 删除这个团队会永久移除该团队及其所有相关内容，包括账单信息或额度。删除后无法恢复。
-drive-cloud-action-leave-team-body = 如需重新加入，你需要再次被邀请。
-drive-cloud-action-delete-team-confirm = 是，删除
-drive-cloud-action-leave-team-confirm = 是，离开
-
-# Auth override warning (app/src/auth/auth_override_warning_body.rs)
 auth-override-warning-title = 检测到新的登录
 auth-override-warning-confirm-title = 要删除个人 Warp Drive 对象和偏好吗？
 auth-override-warning-description = 看起来你刚刚通过网页浏览器登录了一个 Warp 账号。如果继续，当前匿名会话中的所有个人 Warp Drive 对象和偏好都将被永久删除。
