@@ -1,4 +1,4 @@
-//! BYOP 模式下按 `api_type` × `model_id` 推断该模型支持哪些 multimodal 附件类型。
+//! In BYOP mode, infer supported multimodal attachment types from `api_type` and `model_id`.
 //!
 //! genai 0.6 的 `ContentPart::Binary` 在线协议层全自动适配(参见
 //! `chat_stream.rs` 注释表格):
@@ -6,12 +6,12 @@
 //! - Anthropic: image→`image base64`,其它→`document base64`(实际仅 PDF 有效)
 //! - Gemini: 全部走 `inline_data`
 //!
-//! 但**线协议支持** ≠ **模型支持**。这里只放"模型实际能消费"的判断,避免给 GPT-3.5
-//! 或 Claude Sonnet 1.0 这种纯文本模型送图片导致上游报错。
+//! **Wire protocol support** does not mean **model support**. This checks what the model can consume,
+//! so images are not sent to text-only models such as GPT-3.5 or Claude Sonnet 1.0.
 //!
 //! 判定走 model_id 子串匹配,与 `prompt_renderer::resolve_template` 风格对齐。
-//! 子串规则故意宽松(包含子串就算命中),目标是"覆盖未来同家族 minor 升级"
-//! 而不是"精确版本枚举",失误概率与维护成本权衡向后者倾斜。
+//! Substring matching is intentionally broad. It covers future minor releases in the same family
+//! instead of enumerating exact versions, favoring lower maintenance cost over precision.
 
 use super::models_dev;
 use crate::settings::{AgentProviderApiType, AgentProviderModel};
@@ -19,23 +19,22 @@ use crate::settings::{AgentProviderApiType, AgentProviderModel};
 /// 一个模型对附件类型的支持能力表。
 #[derive(Debug, Clone, Copy, Default)]
 pub struct AttachmentCaps {
-    /// 是否支持图片(image/* MIME)。
+    /// Whether image input (image/* MIME) is supported.
     pub images: bool,
-    /// 是否支持 PDF(application/pdf MIME)。
+    /// Whether PDF input (application/pdf MIME) is supported.
     pub pdf: bool,
-    /// 是否支持音频(audio/* MIME)。
+    /// Whether audio input (audio/* MIME) is supported.
     pub audio: bool,
 }
 
 impl AttachmentCaps {}
 
-/// 解析单个模型的最终 capability,**带用户三态覆盖**。三层优先级:
-/// 1. 用户在 settings 显式 `Some(_)` → 直接用,绕过推断
-/// 2. `None` → models.dev catalog 推断
+/// Resolve a model's final capabilities, including the user's three-state override.
+/// Priority: explicit settings override, models.dev catalog inference, then fallback rules.
 /// 3. catalog miss → substring fallback
 ///
-/// `provider_id` 用于 catalog 的 provider 精确匹配(应对 OpenRouter 这种聚合
-/// provider 的特殊路径);catalog miss 时降级走 fallback 不需要 provider_id。
+/// `provider_id` enables exact catalog matching for aggregate providers such as OpenRouter.
+/// Fallback rules do not need it when the catalog has no match.
 pub fn resolve_for_model(
     provider_id: &str,
     api_type: AgentProviderApiType,
@@ -57,8 +56,8 @@ pub fn resolve_for_model(
     }
 }
 
-/// 给 UI 用的"推断结果"快照(忽略用户覆盖,只看 catalog/fallback)。
-/// 用来在 chip tooltip 里展示"Auto: catalog says supported"语义。
+/// Return inferred capabilities for the UI, ignoring user overrides and using catalog/fallback data.
+/// Chip tooltips use this to explain the automatic result.
 pub fn inferred_for_model(
     provider_id: &str,
     api_type: AgentProviderApiType,
@@ -77,14 +76,13 @@ pub fn inferred_for_model(
 
 /// 按 (api_type, model_id 子串) 兜底查表。
 ///
-/// 默认对所有非已知模型保守返回"全 false",好处是不会错误地往不支持的模型
-/// 塞 binary 导致 400;代价是新模型上线后需要手动加入(可接受,反正每个新模型
-/// 还有 reasoning_effort / context_window 等其它配置要更新)。
+/// Unknown models conservatively return all false. This avoids sending binary data to unsupported
+/// models and getting a 400 response. New models must be added here, along with other model metadata.
 fn caps_for_by_substring(api_type: AgentProviderApiType, model_id: &str) -> AttachmentCaps {
     let lower = model_id.to_ascii_lowercase();
     match api_type {
         AgentProviderApiType::OpenAi | AgentProviderApiType::OpenAiResp => {
-            // GPT-4o / 4.1 / 5 系列:image + pdf。3.5 系列纯文本。
+            // GPT-4o / 4.1 / 5 families: image + PDF. The 3.5 family is text-only.
             if lower.contains("gpt-4o")
                 || lower.contains("gpt-4.1")
                 || lower.contains("gpt-5")
@@ -108,7 +106,7 @@ fn caps_for_by_substring(api_type: AgentProviderApiType, model_id: &str) -> Atta
             }
         }
         AgentProviderApiType::Anthropic => {
-            // Claude 3 / 3.5 / 4 / 4.5 / 4.7 全系都支持 vision + document(PDF)。
+            // All Claude 3 / 3.5 / 4 / 4.5 / 4.7 models support vision + documents (PDF).
             if lower.contains("claude-3")
                 || lower.contains("claude-4")
                 || lower.contains("claude-opus")
@@ -125,7 +123,7 @@ fn caps_for_by_substring(api_type: AgentProviderApiType, model_id: &str) -> Atta
             }
         }
         AgentProviderApiType::Gemini => {
-            // Gemini 1.5+ / 2 / 2.5 全系 multimodal,inline_data 支持 image/pdf/audio/video。
+            // All Gemini 1.5+ / 2 / 2.5 models are multimodal. inline_data supports image/PDF/audio/video.
             if lower.contains("gemini-1.5")
                 || lower.contains("gemini-2")
                 || lower.contains("gemini-pro-vision")
@@ -140,9 +138,9 @@ fn caps_for_by_substring(api_type: AgentProviderApiType, model_id: &str) -> Atta
             }
         }
         AgentProviderApiType::Ollama => {
-            // Ollama 多数模型纯文本。Vision 模型(LLaVA / bakllava / llama3.2-vision /
-            // qwen2-vl / minicpm-v / moondream)按 model_id 子串匹配开 image 能力。
-            // PDF/audio 在 Ollama 协议下基本无解,保守返 false。
+            // Most Ollama models are text-only. Enable image support for vision models by model_id
+            // substring (LLaVA / bakllava / llama3.2-vision / qwen2-vl / minicpm-v / moondream).
+            // PDF/audio are generally unavailable through the Ollama protocol, so return false.
             let vision = lower.contains("llava")
                 || lower.contains("bakllava")
                 || lower.contains("vision")
@@ -156,8 +154,8 @@ fn caps_for_by_substring(api_type: AgentProviderApiType, model_id: &str) -> Atta
             }
         }
         AgentProviderApiType::DeepSeek => {
-            // DeepSeek 现有公开模型(v3/r1/coder/chat)目前都是纯文本。
-            // 未来 deepseek-vl 系列上线时再开。
+            // Current public DeepSeek models (v3/r1/coder/chat) are text-only.
+            // Enable this if a deepseek-vl family becomes available.
             if lower.contains("vl") {
                 AttachmentCaps {
                     images: true,
@@ -177,7 +175,7 @@ mod tests {
 
     #[test]
     fn openai_4o_supports_image_and_pdf() {
-        // 走 fallback 规则:测试环境 models.dev catalog 未加载,lookup_caps 返回 None。
+        // Use fallback rules when the test environment has not loaded the models.dev catalog.
         let caps = caps_for_by_substring(AgentProviderApiType::OpenAi, "gpt-4o-2024-08-06");
         assert!(caps.images);
         assert!(caps.pdf);

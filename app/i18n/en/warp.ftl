@@ -1,9 +1,9 @@
 # Warp Desktop — English (source-of-truth locale)
-# 本文件由多 agent 并行编辑,各自维护自己的 SECTION,key 以 surface 前缀隔离避免冲突。
-# 加 key 时 ctrl-F 找到对应 SECTION 头追加;新 surface 在文件末尾加新 SECTION。
+# Multiple agents edit this file in parallel. Each maintains its own section and uses a surface prefix to avoid key conflicts.
+# To add a key, find the matching section and append it. Add new surfaces in a section at the end of the file.
 #
-# 命名规范:kebab-case,前缀按 surface,例 settings-ai-title / drive-folder-rename-title
-# 变量插值用 Fluent { $name } 语法,不要拼接
+# Use kebab-case names with a surface prefix, such as settings-ai-title or drive-folder-rename-title.
+# Use Fluent { $name } syntax for variables. Do not concatenate strings.
 
 # =============================================================================
 # SECTION: common (Owner: foundation)
