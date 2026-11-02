@@ -448,9 +448,9 @@ fn ls_script_for_dir(directory: &TypedPath) -> Option<String> {
     let command = format!(
         r#"
 cd {escaped_dir} && 
-find . -maxdepth 1 -type d -print0 &&
+find -L . -maxdepth 1 -type d -print0 &&
 printf '%b' '\0' &&
-find . -maxdepth 1 -not -type d -print0
+find -L . -maxdepth 1 -not -type d -print0
             "#
     )
     // Ensure all newlines are escaped, and that the command is a single line.
