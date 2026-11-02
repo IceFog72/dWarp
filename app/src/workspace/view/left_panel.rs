@@ -76,11 +76,9 @@ pub enum LeftPanelEvent {
         target: FileTarget,
         line_col: Option<LineAndColumnArg>,
     },
-    /// 用户从 SSH 管理器树点击 server / 双击 / 右键 "编辑" → 主窗口应在中央
-    /// 区开/聚焦 `SshServerPane`(具体 `WorkspaceView::open_ssh_server`)。
+    /// Open or focus the server editor selected in the SSH manager.
     OpenSshServerEditor { node_id: String },
-    /// 用户从 SSH 管理器右键 "连接" → 主窗口在新 terminal pane 跑 `ssh ...`
-    /// 并启动 SecretInjector(Commit 3 实施;当前为占位事件)。
+    /// Connect from a new terminal pane with SecretInjector.
     OpenSshTerminal {
         node_id: String,
         server: warp_ssh_manager::SshServerInfo,

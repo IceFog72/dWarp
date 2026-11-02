@@ -117,13 +117,12 @@ pub enum WorkspaceAction {
     AddTerminalTab {
         hide_homepage: bool,
     },
-    /// 在当前 tab 中央开新 terminal pane,执行 `ssh user@host`(openWarp 独有)。
-    /// 由 SshServerView 的 Connect 按钮 / SshManagerPanel 右键"连接" 触发。
+    /// Open a terminal pane and connect to an SSH server from the server editor or manager.
     OpenSshTerminal {
         node_id: String,
         server: warp_ssh_manager::SshServerInfo,
     },
-    /// 打开/关闭左侧 panel 的 SSH 管理器视图(openWarp 独有)。
+    /// Toggle the SSH manager in the left panel.
     ToggleSshManager,
     AddTabWithShell {
         shell: AvailableShell,
@@ -170,7 +169,7 @@ pub enum WorkspaceAction {
         mode: PaletteMode,
         source: PaletteSource,
     },
-    // 去中心化分支:`ShowUpgrade` / `ShowReferralSettingsPage` 已删除。
+
     JoinSlack,
     ViewUserDocs,
     ViewLatestChangelog,
@@ -255,7 +254,7 @@ pub enum WorkspaceAction {
     ShowHeaderToolbarContextMenu {
         position: Vector2F,
     },
-    // 去中心化分支:`Reauth` / `SignupAnonymousUser` / `SignInAnonymousWebUser` 已删除。
+
     OpenLink(String),
     ReopenClosedSession,
     AddWindow,
@@ -290,7 +289,7 @@ pub enum WorkspaceAction {
         content: String,
         replace_buffer: bool,
     },
-    // 去中心化分支:`AttemptLoginGatedAIUpgrade` 已删除。
+
     /// Dismisses the Wayland crash recovery banner and opens a link to our docs page with more
     /// information.
     #[cfg(target_os = "linux")]

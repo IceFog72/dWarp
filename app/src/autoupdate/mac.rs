@@ -339,8 +339,8 @@ pub(super) async fn download_update_and_cleanup(
     last_successful_update_id: Option<&str>,
     client: &http_client::Client,
 ) -> Result<DownloadReady> {
-    // openWarp 走 GitHub Release:DMG 直接下载到用户 Downloads,完成后用 `open`
-    // 拉起 Finder 显示该文件。不解压、不验签、不覆盖 .app —— 用户手动拖拽安装。
+    // Download the GitHub release DMG to Downloads and reveal it in Finder.
+    // The user installs the downloaded app manually.
     if matches!(ChannelState::channel(), Channel::Oss) {
         return download_oss_to_downloads(client).await;
     }
@@ -353,7 +353,7 @@ pub(super) async fn download_update_and_cleanup(
     result
 }
 
-/// openWarp(Channel::Oss)专用下载路径:DMG → Downloads + 打开 Finder。
+/// Download the OSS release DMG to Downloads and reveal it in Finder.
 async fn download_oss_to_downloads(client: &http_client::Client) -> Result<DownloadReady> {
     use std::time::Duration as StdDuration;
 
@@ -368,17 +368,22 @@ async fn download_oss_to_downloads(client: &http_client::Client) -> Result<Downl
 
     let asset = release.find_asset(&dmg_name).ok_or_else(|| {
         anyhow!(
-            "GitHub Release {} 缺少资产 {dmg_name},请前往 {} 手动下载",
+            "GitHub release {} has no asset {dmg_name}; download it manually from {}",
             release.tag_name,
             release.html_url
         )
     })?;
 
-    let download_dir = dirs::download_dir()
-        .ok_or_else(|| anyhow!("无法定位用户下载目录(dirs::download_dir 返回 None)"))?;
+    let download_dir = dirs::download_dir().ok_or_else(|| {
+        anyhow!("Could not locate the user Downloads directory (dirs::download_dir returned None)")
+    })?;
     if !download_dir.exists() {
-        fs::create_dir_all(&download_dir)
-            .map_err(|e| anyhow!("创建下载目录 {} 失败: {e:#}", download_dir.display()))?;
+        fs::create_dir_all(&download_dir).map_err(|e| {
+            anyhow!(
+                "Could not create Downloads directory {}: {e:#}",
+                download_dir.display()
+            )
+        })?;
     }
     let target_path = download_dir.join(&dmg_name);
 
@@ -389,7 +394,7 @@ async fn download_oss_to_downloads(client: &http_client::Client) -> Result<Downl
 
     if already_downloaded {
         log::info!(
-            "openWarp DMG 已存在,跳过下载: {} ({} bytes)",
+            "dWarp DMG already exists, skipping download: {} ({} bytes)",
             target_path.display(),
             asset.size
         );
@@ -408,17 +413,17 @@ async fn download_oss_to_downloads(client: &http_client::Client) -> Result<Downl
             .bytes()
             .await?;
         fs::write(&target_path, &bytes)
-            .map_err(|e| anyhow!("写入 DMG {} 失败: {e:#}", target_path.display()))?;
-        log::info!("openWarp DMG 下载完成: {}", target_path.display());
+            .map_err(|e| anyhow!("Could not write DMG {}: {e:#}", target_path.display()))?;
+        log::info!("dWarp DMG downloaded: {}", target_path.display());
     }
 
-    // `open -R <file>` 在 Finder 里显示并选中该文件;失败仅记日志。
+    // Reveal the downloaded file in Finder; log any failure.
     if let Err(e) = blocking::Command::new("/usr/bin/open")
         .arg("-R")
         .arg(&target_path)
         .spawn()
     {
-        log::warn!("打开 Finder 失败(已下载完成): {e:#}");
+        log::warn!("Could not open Finder after completing the download: {e:#}");
     }
 
     Ok(DownloadReady::Yes)

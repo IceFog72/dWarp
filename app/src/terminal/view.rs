@@ -8060,7 +8060,6 @@ impl TerminalView {
                 let is_copy_both_disabled =
                     is_copy_commands_disabled && tail_block.output_to_string().trim().is_empty();
 
-                // OpenWarp:删除 "Share block..." / "Share session..." 入口(云端依赖)
                 let _ = is_share_disabled;
 
                 let mut items = vec![
@@ -8191,7 +8190,6 @@ impl TerminalView {
             ) => {
                 // If selection is empty, only show non-block related options
                 let items: Vec<MenuItem<TerminalAction>> = Vec::new();
-                // OpenWarp:删除 session_sharing_context_menu_items(云端 shared session 入口)
                 items
             }
             _ => vec![],
@@ -8494,8 +8492,6 @@ impl TerminalView {
                 .into_item(),
         );
 
-        // OpenWarp:删除 session_sharing_context_menu_items(云端 shared session 入口)
-
         // Section 2: AI Command Search, Ask Warp AI
         items.extend([
             MenuItem::Separator,
@@ -8607,7 +8603,6 @@ impl TerminalView {
             );
         }
 
-        // OpenWarp:删除 session_sharing_context_menu_items(云端 shared session 入口)
         let current_shell = model.shell_launch_state().available_shell();
         let mut pane_context_menu_items = self.pane_context_menu_items(current_shell, ctx);
         if !menu_items.is_empty() && !pane_context_menu_items.is_empty() {

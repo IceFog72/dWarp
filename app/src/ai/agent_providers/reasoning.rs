@@ -66,11 +66,8 @@ pub fn model_reasoning_variants(
             }
             vec![]
         }
-        // DeepSeek thinking-mode 模型(deepseek-reasoner / v4 / thinking / r1)。
-        // OpenWarp 本地 fork(`lib/rust-genai`)放宽了 adapter_shared.rs 的注入条件,
-        // 让 `reasoning_effort` 顶层字段按 DeepSeek thinking_mode 文档下发。
-        //
-        // Ollama 后端模型 id 任意,保守留空。
+        // The local genai fork sends top-level reasoning_effort for DeepSeek
+        // thinking models. Ollama model IDs are arbitrary, so keep their list empty.
         AgentProviderApiType::DeepSeek => {
             if id.contains("deepseek-reasoner")
                 || id.contains("deepseek-v4")

@@ -927,8 +927,7 @@ pub const RUNTIME_FEATURE_FLAGS: &[FeatureFlag] = &[];
 
 impl FeatureFlag {
     pub fn is_enabled(&self) -> bool {
-        // 去中心化分支:本地模式下永远关闭以下账号 / 登录 / 云端 Agent 相关 flag,
-        // 不再受 channel / preview 配置影响。
+        // Account and cloud features stay disabled regardless of channel configuration.
         if matches!(
             self,
             FeatureFlag::ForceLogin

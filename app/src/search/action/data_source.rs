@@ -22,10 +22,9 @@ pub struct CommandBindingDataSource {
 impl CommandBindingDataSource {
     #[cfg(not(target_family = "wasm"))]
     pub fn new(binding_source: ModelHandle<BindingSource>, ctx: &mut ModelContext<Self>) -> Self {
-        // OpenWarp:命令面板 actions 始终走字符级 fuzzy(SkimMatcherV2),
-        // Tantivy 默认 tokenizer 不切 CJK,会把整段中文描述当成单 token 做前缀匹配,
-        // 导致 zh-CN 下搜"主题"无法命中"打开主题选择器"。
-        // 同时 fuzzy 还能让英文 keyword 经子序列匹配命中 binding.name(见下方 search 实现)。
+        // Use character-level fuzzy matching for CJK descriptions. Tantivy
+        // tokenizes an entire Chinese description as one token, missing substrings.
+        // Include binding names so English keywords also match translated actions.
         Self::new_fuzzy(binding_source, ctx)
     }
 
@@ -140,9 +139,8 @@ impl ActionSearcher for FuzzyActionSearcher {
                 // both the search term and the description to ensure that we are matching the two
                 // with the same casing.
                 //
-                // OpenWarp:把 binding.name(action 标识符,如 `workspace:show_theme_chooser`)
-                // 一并拼进可搜索串,`:` `_` 替换为空格,便于子序列匹配。
-                // 这样 zh-CN 下用户输入 "theme" 也能命中"打开主题选择器"。
+                // Include the action identifier, with punctuation replaced by spaces,
+                // so English keywords match actions whose descriptions are translated.
                 let mut searchable = binding
                     .description
                     .in_context(DescriptionContext::Default)

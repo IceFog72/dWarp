@@ -116,8 +116,8 @@ pub enum LeafContents {
     },
     /// A new first-time user experience which prioritizes choosing a coding repository.
     GetStarted,
-    /// SSH 服务器编辑器 pane(openWarp 独有)。引用 `ssh_servers.node_id` 主键
-    /// 加载/保存。**不持久化** — 重启后用户从左侧 SSH 管理器树重新打开。
+    /// SSH server editor, loaded and saved by `ssh_servers.node_id`.
+    /// Reopen it from the SSH manager after restarting; the pane is not persisted.
     SshServer {
         node_id: String,
     },

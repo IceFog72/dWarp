@@ -19,7 +19,6 @@ pub mod render_util;
 pub mod role_change_modal;
 mod selections;
 pub mod settings;
-// OpenWarp:删除 share_modal(云端 shared session 弹窗)
 pub mod viewer;
 
 #[cfg(test)]

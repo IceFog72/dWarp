@@ -359,7 +359,6 @@ fn handle_terminal_view_event(
                     terminal_pane.delete_blocks(ctx);
                 }
             }
-            // OpenWarp:删除 Event::ShareModalOpened 监听(云端 share block)
             Event::ShareModalOpened(_) => {}
             Event::SendNotification(notification) => {
                 ctx.emit(pane_group::Event::SendNotification {

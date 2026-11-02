@@ -56,8 +56,7 @@ async fn byop_generate_input_suggestions(
     request: &GenerateAIInputSuggestionsRequest,
 ) -> Result<GenerateAIInputSuggestionsResponseV2, anyhow::Error> {
     let Some(cfg) = byop_cfg else {
-        // OpenWarp 已剥云,无 BYOP 配置时不再 fallback ServerApi —— 返回空响应,
-        // UI 自然不会展示建议,也不会刷错误日志。
+        // No provider configuration means no suggestions; avoid repeated error logs.
         return Ok(GenerateAIInputSuggestionsResponseV2::default());
     };
     // 把 request 的扁平字段映射到 active_ai prompt 模板的输入。

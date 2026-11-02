@@ -106,8 +106,6 @@ use repo_metadata::RemoteRepositoryIdentifier;
 #[cfg(target_family = "wasm")]
 use url::Url;
 
-// OpenWarp:删除 SharedObjectsCreationDeniedModal(云端 Drive 配额拒绝弹窗)
-
 use crate::appearance::{Appearance, AppearanceManager};
 use crate::autoupdate::{
     is_incoming_version_past_current, AutoupdateState, AutoupdateStateEvent, RelaunchModel,
@@ -476,7 +474,7 @@ pub enum WorkspaceBanner {
     UnableToUpdateToNewVersion,
     /// to display the AutoupdateStage::UnableToLaunchNewVersion
     UnableToLaunchNewVersion,
-    // 去中心化分支:`Reauth` banner 已删除。
+
     // to display an anonymous user has X days left to sign in
     AnonymousUserAuth,
     /// to display when recovering from a crash that may have been due to use
@@ -497,7 +495,7 @@ impl WorkspaceBanner {
             Self::UnableToLaunchNewVersion => true,
             Self::VersionDeprecated => false,
             Self::AnonymousUserAuth => false,
-            // 去中心化分支:`Reauth` 已删除。
+
             #[cfg(target_os = "linux")]
             Self::WaylandCrashRecovery => true,
             Self::InvalidSettings => true,
@@ -2126,7 +2124,6 @@ impl Workspace {
         });
 
         let native_modal = Self::build_native_modal_view(ctx);
-        // OpenWarp:删除 SharedObjectsCreationDeniedModal 注册(云端 Drive 配额拒绝弹窗)
 
         ctx.subscribe_to_model(&AISettings::handle(ctx), |me, _, event, ctx| match event {
             AISettingsChangedEvent::IsAnyAIEnabled { .. }
@@ -5587,8 +5584,6 @@ impl Workspace {
     }
 
     fn user_menu_items(&self, app: &AppContext) -> Vec<MenuItem<WorkspaceAction>> {
-        // 去中心化分支:用户菜单不再展示账户名 / Sign up / Upgrade / Billing / Invite /
-        // Log out 等云端账户相关项,只保留本地可用入口(更新、设置、文档、反馈、日志)。
         let mut items = Vec::new();
 
         let appearance = Appearance::as_ref(app);
@@ -5675,8 +5670,6 @@ impl Workspace {
             MenuItem::Separator,
         ]);
 
-        // 去中心化分支:此处原本会追加 Sign up / Upgrade / Billing / Invite / Log out
-        // 等账号相关项,本地模式下全部移除。
         items
     }
 
@@ -10484,8 +10477,6 @@ impl Workspace {
         ctx.notify();
     }
 
-    // OpenWarp:删除 open_shared_objects_creation_denied_modal(云端 Drive 配额拒绝弹窗)
-
     fn render_tab_in_tab_bar(
         &self,
         tab_index: usize,
@@ -11298,7 +11289,6 @@ impl Workspace {
                     .finish(),
             );
         } else {
-            // 去中心化分支:不再渲染 Warp Essentials(灯泡)按钮,只保留设置齿轮。
             target.add_child(
                 Container::new(self.render_settings_button(appearance))
                     .with_margin_left(TAB_BAR_PADDING_LEFT)
@@ -11975,7 +11965,7 @@ impl Workspace {
         // more important that users are notified their settings file is broken
         // than that they continue to see any of the autoupdate or crash recovery
         // banners.
-        // 去中心化分支:reauth banner 已删除。
+
         let banner_fields = self
             .render_settings_error_banner()
             .or_else(|| self.render_autoupdate_banner_element(app));
@@ -12016,8 +12006,6 @@ impl Workspace {
         self.banner_fields(app)
             .map(|fields| self.render_workspace_banner(fields, appearance))
     }
-
-    // 去中心化分支:`render_reauth_banner_element` 已删除。
 
     fn render_autoupdate_banner_element(&self, app: &AppContext) -> Option<WorkspaceBannerFields> {
         if FeatureFlag::Autoupdate.is_enabled() {
@@ -13063,7 +13051,7 @@ impl Workspace {
                 entry_focus: GlobalSearchEntryFocus::Results,
             });
         }
-        // openWarp 独有:SSH 管理器,无 feature flag,默认始终显示。
+        // The SSH manager is always available.
         views.push(ToolPanelView::SshManager);
         views
     }
@@ -13362,7 +13350,7 @@ impl TypedActionView for Workspace {
                 mode: palette_mode,
                 source,
             } => self.toggle_palette(*palette_mode, *source, ctx),
-            // 去中心化分支:`ShowUpgrade` / `ShowReferralSettingsPage` 已删除。
+
             JoinSlack => self.join_slack(ctx),
             ViewUserDocs => self.view_user_docs(ctx),
             ViewLatestChangelog => self.view_latest_changelog(ctx),
@@ -13731,8 +13719,7 @@ impl TypedActionView for Workspace {
                     view.add_ephemeral_toast(new_toast, ctx);
                 });
             }
-            // 去中心化分支:`Reauth` 已删除。
-            // 去中心化分支:`SignupAnonymousUser` / `SignInAnonymousWebUser` 已删除。
+
             OpenPromptEditor { .. } => {
                 self.open_prompt_editor(ctx);
             }
@@ -13804,7 +13791,7 @@ impl TypedActionView for Workspace {
                 self.insert_in_input(content, *replace_buffer, false, ctx);
                 ctx.notify();
             }
-            // 去中心化分支:`AttemptLoginGatedAIUpgrade` 已删除。
+
             #[cfg(all(enable_crash_recovery, target_os = "linux"))]
             DismissWaylandCrashRecoveryBannerAndOpenLink => {
                 self.dismiss_workspace_banner(ctx, &WorkspaceBanner::WaylandCrashRecovery);
@@ -14020,11 +14007,10 @@ impl TypedActionView for Workspace {
                                             ty: Some(AttachmentType::Attachment),
                                             ..Default::default()
                                         };
-                                        // openWarp 闭源遥测剥离 P2:原会把 perf sample
-                                        // 作为 attachment 上报到 Warp 官方 Sentry,改本地 log。
+                                        // Keep performance diagnostics in the local log.
                                         let _ = attachment;
                                         log::info!(
-                                            "openWarp: dev performance sample taken (上报已剥离,sample 仅本地)"
+                                            "dWarp: dev performance sample recorded locally"
                                         );
                                     }
                                 }
@@ -14783,8 +14769,6 @@ impl View for Workspace {
         if self.current_workspace_state.is_theme_deletion_modal_open {
             stack.add_child(ChildView::new(&self.theme_deletion_modal).finish());
         }
-
-        // OpenWarp:删除 shared_objects_creation_denied_modal 渲染分支
 
         if self.launch_config_save_modal.is_open() {
             stack.add_child(self.launch_config_save_modal.render());

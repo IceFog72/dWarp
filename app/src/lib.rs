@@ -1188,7 +1188,6 @@ fn initialize_app(
     prompt::editor_modal::init(ctx);
     terminal::cli_agent_input::footer::editor::init(ctx);
     undo_close::init(ctx);
-    // OpenWarp:删除 billing::shared_objects_creation_denied_modal::init
     tab_configs::new_worktree_modal::init(ctx);
     tab_configs::params_modal::init(ctx);
     terminal::ssh::install_tmux::init(ctx);
@@ -1315,9 +1314,6 @@ fn app_callbacks(is_integration_test: bool) -> warpui::platform::AppCallbacks {
             NetworkStatus::handle(ctx)
                 .update(ctx, move |me, ctx| me.reachability_changed(reachable, ctx));
         })),
-        // openWarp 闭源遥测剥离 P4d:on_become_active 原会触发 ctx.record_app_focus
-        // 累积每日聚焦时长 → Rudder。剥离后 callback 留空(回调本身仍由平台层触发,
-        // 仅删 telemetry 副作用)。
         on_become_active: Some(Box::new(move |_ctx| {})),
         on_screen_changed: Some(Box::new(move |ctx| {
             ctx.dispatch_global_action(
@@ -1351,14 +1347,12 @@ fn app_callbacks(is_integration_test: bool) -> warpui::platform::AppCallbacks {
             let update_quake_mode_arg = UpdateQuakeModeEventArg { active_window_id };
 
             ctx.dispatch_global_action("root_view:update_quake_mode_state", &update_quake_mode_arg);
-            // openWarp 闭源遥测剥离 P4d:on_resigned_active 原同步累积聚焦时长 → Rudder。
         })),
         on_will_terminate: Some(Box::new(move |ctx| {
             PersistenceWriter::handle(ctx).update(ctx, |writer, _ctx| {
                 writer.terminate();
             });
 
-            // openWarp 闭源遥测剥离 P4d:on_will_terminate 原最后 flush 一次每日聚焦时长。
             // Shutdown all LSP servers gracefully before app termination
             lsp::LspManagerModel::handle(ctx).update(ctx, |manager, ctx| {
                 manager.terminate(ctx);

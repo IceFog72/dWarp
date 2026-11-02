@@ -913,8 +913,6 @@ pub fn init(app: &mut AppContext) {
         ]);
     }
 
-    // 去中心化分支:"Log out" 命令已删除。
-
     if !FeatureFlag::AvatarInTabBar.is_enabled() {
         app.register_editable_bindings([EditableBinding::new(
             "workspace:toggle_resource_center",
@@ -1145,7 +1143,7 @@ fn add_overflow_menu_items_as_editable_binding(app: &mut AppContext) {
     use warpui::keymap::macros::*;
 
     // Add the ability to open all overflow menu items to the command palette.
-    // 去中心化分支:"Invite People..." 命令对应 ShowReferralSettingsPage,已删除。
+
     app.register_editable_bindings([
         EditableBinding::new(
             "workspace:link_to_slack",

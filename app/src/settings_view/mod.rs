@@ -139,12 +139,11 @@ pub enum SettingsSection {
     /// External callers should navigate to a specific subpage (e.g. `WarpAgent`) instead.
     AI,
     // ── Agents umbrella subpages ──
-    // 去中心化分支:Settings 默认页改为 Warp Agent(本地 AI 设置)。
     #[default]
     WarpAgent,
     AgentProfiles,
     AgentMCPServers,
-    /// 自定义 AI 提供商配置(BYOP),Agents 二级菜单的 Providers 子页。
+    /// Custom AI provider configuration under Agents > Providers.
     AgentProviders,
     Knowledge,
     ThirdPartyCLIAgents,
@@ -982,9 +981,6 @@ impl SettingsView {
 
         settings_pages.extend(vec![SettingsPage::new(about_page_handle)]);
 
-        // 去中心化分支:本地模式下移除所有云端账号 / 计费 / 团队 / 同步 / 分享相关的
-        // 设置入口。`SettingsSection` 枚举与各 page 实现暂时保留,只是不挂到侧栏。
-        // 后续在 cloud 模块物理删除 commit 中再清理 enum 与 page。
         let mut nav_items = vec![
             SettingsNavItem::Umbrella(SettingsUmbrella::new(
                 "Agents",

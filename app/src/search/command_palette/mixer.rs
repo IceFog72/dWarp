@@ -48,9 +48,7 @@ pub enum CommandPaletteItemAction {
         path: String,
         project_name: String,
     },
-    /// Start a new AI conversation
-    /// 打开 SSH 服务器(openWarp 独有)→ 路由到 WorkspaceAction::OpenSshTerminal
-    /// 走 SecretInjector + 新 tab。
+    /// Connect to an SSH server in a new tab using SecretInjector.
     OpenSshServer {
         node_id: String,
         server: warp_ssh_manager::SshServerInfo,
@@ -146,7 +144,7 @@ pub enum ItemSummary {
         path: String,
     },
 
-    /// SSH 服务器(openWarp 独有)。`node_id` 是 ssh_nodes 表的 UUID。
+    /// SSH server identified by its UUID in the `ssh_nodes` table.
     SshServer {
         node_id: String,
     },

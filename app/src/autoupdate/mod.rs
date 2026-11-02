@@ -774,9 +774,9 @@ pub fn apply_update(
     _initiating_workspace: &mut Workspace,
     _ctx: &mut ViewContext<Workspace>,
 ) -> Result<ReadyForRelaunch> {
-    // openWarp 仅把安装包下载到 Downloads,由用户手动运行,绝不自动重启。
+    // The user runs the downloaded installer manually.
     if matches!(ChannelState::channel(), Channel::Oss) {
-        log::info!("openWarp: apply_update no-op,installer 已落 Downloads。");
+        log::info!("dWarp: installer saved to Downloads; run it manually.");
         return Ok(ReadyForRelaunch::No);
     }
 

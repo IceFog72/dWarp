@@ -873,8 +873,8 @@ define_settings_group!(AISettings, settings: [
 
 
 
-    // OpenWarp BYOP 模型 + 思考深度持久化(picker 切换后立即写入,新 tab/重启沿用)。
-    // 模型用 LLMId 字符串形式;空串 = 没有 last_used,落回 profile 默认。
+    // Persist the selected BYOP model and reasoning effort for new tabs and restarts.
+    // An empty LLMId string uses the profile default.
     byop_last_used_model_id: ByopLastUsedModelId {
         type: String,
         default: String::new(),
@@ -885,8 +885,7 @@ define_settings_group!(AISettings, settings: [
         description: "Last selected BYOP model id (picker hydrates new tabs/sessions from this).",
     }
 
-    // OpenWarp BYOP per-(api_type, model) 思考深度记忆。
-    // key = `<api_type>:<model_id>`,value = ReasoningEffortSetting。picker 切换写入。
+    // Remember reasoning effort per `<api_type>:<model_id>` when the picker changes.
     byop_last_used_reasoning: ByopLastUsedReasoning {
         type: BYOPLastUsedReasoningMap,
         default: BYOPLastUsedReasoningMap::default(),

@@ -1,6 +1,5 @@
-// openWarp(Channel::Oss)autoupdate 走 GitHub Releases API,而非 Warp 官方
-// channel_versions / GCS。本模块只负责"取最新 release 元数据" + "按文件名挑资产";
-// 实际的下载落盘 + 打开目录由 windows.rs / mac.rs 完成。
+//! Fetch OSS release metadata and select assets from GitHub Releases.
+//! Platform modules download the selected installer and reveal it in the file manager.
 
 use std::sync::Mutex;
 use std::time::Duration;
@@ -12,7 +11,7 @@ use serde::Deserialize;
 const REPO_OWNER: &str = "zerx-lab";
 const REPO_NAME: &str = "warp";
 
-// GitHub 强制要求 User-Agent;同时显式声明 API 版本避免未来 default 漂移。
+// GitHub requires a User-Agent. Pin the API version to avoid changes to its default.
 const USER_AGENT: &str = "dWarp-Autoupdate";
 const ACCEPT: &str = "application/vnd.github+json";
 const API_VERSION: &str = "2022-11-28";
@@ -44,8 +43,8 @@ impl GithubRelease {
 }
 
 lazy_static! {
-    /// 最近一次 fetch 到的 release。fetch_version 写入,download_update 读取。
-    /// 这样 download 阶段不必再次请求 GitHub API,也避免 race(两次请求间 release 翻新)。
+    /// Cache release metadata between the version check and the download.
+    /// This avoids a second request selecting a different release.
     static ref LATEST_RELEASE: Mutex<Option<GithubRelease>> = Mutex::new(None);
 }
 
@@ -70,12 +69,12 @@ pub async fn fetch_latest_release(client: &http_client::Client) -> Result<Github
         .timeout(FETCH_TIMEOUT)
         .send()
         .await
-        .context("调用 GitHub Releases API 失败")?
+        .context("GitHub Releases API request failed")?
         .error_for_status()
-        .context("GitHub Releases API 返回非 2xx 状态码")?
+        .context("GitHub Releases API returned an unsuccessful status")?
         .json()
         .await
-        .context("解析 GitHub Releases JSON 失败")?;
+        .context("Could not parse the GitHub Releases JSON response")?;
     log::info!(
         "GitHub latest release: tag={} assets={}",
         release.tag_name,

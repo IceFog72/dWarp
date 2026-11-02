@@ -181,16 +181,7 @@ unsafe fn init_logging() {
         // Sentry shouldn't panic, but to be safe, make sure we don't unwind across the FFI
         // boundary.
         let _ = panic::catch_unwind(|| {
-            // We report SQLite errors to Sentry in a more-structured format so that they have
-            // better grouping (all are under the same Sentry issue, with details for the specific
-            // error kind). Warning and debug SQLite messages are logged - with the default
-            // sentry_log configuration, warnings are added as breadcrumbs to other events and
-            // debug messages are ignored.
-            // In local builds without crash reporting, all SQLite messages get logged locally.
-
-            // openWarp 闭源遥测剥离 P2:原会把 SQLite error 以结构化 context 上报到 Warp
-            // 官方 Sentry(grouping by error kind)。剥离后统一走下方 log::log! 路径,
-            // 错误码/描述照常落本地日志,保留诊断价值。
+            // Preserve SQLite error codes and messages in the local log.
             #[cfg(feature = "crash_reporting")]
             let _ = level;
 

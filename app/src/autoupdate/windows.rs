@@ -30,8 +30,8 @@ pub(super) async fn download_update_and_cleanup(
 ) -> Result<DownloadReady> {
     const DOWNLOAD_TIMEOUT: Duration = Duration::from_secs(600);
 
-    // openWarp 走 GitHub Release:下载到用户 Downloads 目录,完成后用 explorer
-    // 打开目录并高亮 installer。不走 Inno Setup 静默安装,由用户手动运行。
+    // Download the GitHub release installer to Downloads and reveal it in Explorer.
+    // The user runs the installer manually.
     if matches!(ChannelState::channel(), Channel::Oss) {
         return download_oss_to_downloads(client).await;
     }
@@ -130,10 +130,7 @@ pub(super) fn check_and_report_update_errors(ctx: &mut AppContext) {
     let has_forcekill_failed =
         memchr::memmem::find(&contents_lowercase, b"force-kill failed for").is_some();
 
-    // openWarp 闭源遥测剥离 P2:原 #[cfg(feature = "crash_reporting")] 块会把 autoupdate 失败
-    // 日志(完整文件内容作为 sentry attachment)上报到 Warp 官方 Sentry。剥离后改为本地
-    // log 计数提示——日志文件已落本地(被下方 .log.reported 重命名保留),用户/调试需要时
-    // 直接看本地文件。`contents_lowercase` 仅用于 sentry 上报路径判断,一并去除。
+    // Summarize update errors locally and retain the source log as .log.reported.
     #[cfg(feature = "crash_reporting")]
     {
         const IGNOREABLE_ERRORS: &[&[u8]] = &[
@@ -153,7 +150,7 @@ pub(super) fn check_and_report_update_errors(ctx: &mut AppContext) {
 
         if error_count > 0 {
             log::error!(
-                "openWarp: Windows auto-update log contains {error_count} error(s) (log: {:?})",
+                "dWarp: Windows auto-update log contains {error_count} error(s) (log: {:?})",
                 log_path
             );
         }
@@ -169,9 +166,9 @@ pub(super) fn check_and_report_update_errors(ctx: &mut AppContext) {
 }
 
 pub(super) fn relaunch() -> Result<()> {
-    // openWarp 仅下载 installer 到 Downloads,由用户手动运行,不在此处拉起 Inno Setup。
+    // The downloaded installer is run manually.
     if matches!(ChannelState::channel(), Channel::Oss) {
-        log::info!("openWarp: 跳过 Inno Setup 自动安装,installer 已落 Downloads。");
+        log::info!("dWarp: installer saved to Downloads; run it manually.");
         return Ok(());
     }
 
@@ -251,8 +248,7 @@ fn app_name_prefix(channel: Channel) -> &'static str {
     }
 }
 
-/// openWarp(Channel::Oss)专用下载路径:从 GitHub Release 拉 installer 落到 Downloads,
-/// 完成后用 explorer 打开目录并高亮文件,不走 Inno Setup 自动安装。
+/// Download the OSS release installer to Downloads and reveal it in Explorer.
 async fn download_oss_to_downloads(client: &http_client::Client) -> Result<DownloadReady> {
     const DOWNLOAD_TIMEOUT: Duration = Duration::from_secs(600);
 
@@ -265,20 +261,25 @@ async fn download_oss_to_downloads(client: &http_client::Client) -> Result<Downl
 
     let asset = release.find_asset(&installer_name).with_context(|| {
         format!(
-            "GitHub Release {} 缺少资产 {installer_name},请前往 {} 手动下载",
+            "GitHub release {} has no asset {installer_name}; download it manually from {}",
             release.tag_name, release.html_url
         )
     })?;
 
-    let download_dir = dirs::download_dir()
-        .ok_or_else(|| anyhow!("无法定位用户下载目录(dirs::download_dir 返回 None)"))?;
+    let download_dir = dirs::download_dir().ok_or_else(|| {
+        anyhow!("Could not locate the user Downloads directory (dirs::download_dir returned None)")
+    })?;
     if !download_dir.exists() {
-        fs::create_dir_all(&download_dir)
-            .with_context(|| format!("创建下载目录失败: {}", download_dir.display()))?;
+        fs::create_dir_all(&download_dir).with_context(|| {
+            format!(
+                "Could not create Downloads directory: {}",
+                download_dir.display()
+            )
+        })?;
     }
     let target_path = download_dir.join(&installer_name);
 
-    // 已存在且大小一致 → 跳过下载(GitHub asset.size 是权威值)
+    // Skip an existing download only when its size matches the GitHub asset metadata.
     let already_downloaded = match fs::metadata(&target_path) {
         Ok(meta) => meta.len() == asset.size,
         Err(_) => false,
@@ -286,7 +287,7 @@ async fn download_oss_to_downloads(client: &http_client::Client) -> Result<Downl
 
     if already_downloaded {
         log::info!(
-            "openWarp installer 已存在,跳过下载: {} ({} bytes)",
+            "dWarp installer already exists, skipping download: {} ({} bytes)",
             target_path.display(),
             asset.size
         );
@@ -305,17 +306,17 @@ async fn download_oss_to_downloads(client: &http_client::Client) -> Result<Downl
             .bytes()
             .await?;
         let mut file = File::create(&target_path)
-            .with_context(|| format!("创建文件失败: {}", target_path.display()))?;
+            .with_context(|| format!("Could not create file: {}", target_path.display()))?;
         file.write_all(&bytes)?;
-        log::info!("openWarp installer 下载完成: {}", target_path.display());
+        log::info!("dWarp installer downloaded: {}", target_path.display());
     }
 
-    // 用 explorer /select,<file> 打开下载目录并高亮文件;失败仅记日志,不阻塞下载结果。
+    // Reveal the completed download in Explorer; a failure does not invalidate the download.
     if let Err(e) = Command::new("explorer")
         .arg(format!("/select,{}", target_path.display()))
         .spawn()
     {
-        log::warn!("打开 explorer 失败(已下载完成): {e:#}");
+        log::warn!("Could not open Explorer after completing the download: {e:#}");
     }
 
     Ok(DownloadReady::Yes)

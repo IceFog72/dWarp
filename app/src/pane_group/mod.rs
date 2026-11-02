@@ -70,6 +70,7 @@ use crate::app_state::{
 use crate::appearance::Appearance;
 use crate::banner::{Banner, BannerEvent, BannerState, BannerTextContent, DismissalType};
 use crate::channel::{Channel, ChannelState};
+use crate::cmd_or_ctrl_shift;
 use crate::code::view::CodeView;
 use crate::features::FeatureFlag;
 use crate::launch_configs::launch_config::{self, PaneTemplateType};
@@ -91,8 +92,6 @@ use crate::terminal::shared_session::render_util::ParticipantAvatarParams;
 use crate::terminal::shared_session::role_change_modal::{
     RoleChangeCloseSource, RoleChangeModal, RoleChangeModalEvent,
 };
-// OpenWarp:删除 ShareSessionModal import(云端 shared session 弹窗)
-use crate::cmd_or_ctrl_shift;
 use crate::terminal::view::ssh_file_upload::FileUploadId;
 use crate::terminal::view::{
     BlockNotification, ExecuteCommandEvent, LeftPanelTargetView, SyncEvent, TerminalViewState,
@@ -692,11 +691,9 @@ pub struct PaneGroup {
 
     server_api: Arc<ServerApi>,
 
-    // OpenWarp:删除 terminal_with_open_share_block_modal / share_block_modal 字段(云端 share block)
     dragged_border: Option<DraggedBorder>,
     user_default_shell_changed_banner: ViewHandle<Banner<PaneGroupAction>>,
 
-    // OpenWarp:删除 terminal_with_open_share_session_modal / share_session_modal 字段(云端 shared session)
     /// If there is a shared session role change modal open, this is the `TerminalPaneId` of the relevant session. Modal is opened whenever a shared session participant attempts to change a
     /// role. For a viewer when they request a role. For a sharer when they receive a role request,
     /// or when they attempt to grant a role.
@@ -2039,8 +2036,6 @@ impl PaneGroup {
             me.handle_focus_state_event(event, ctx);
         });
 
-        // OpenWarp:删除 share_block_modal 注册(云端 share block)
-
         ctx.subscribe_to_model(&PaneSettings::handle(ctx), |_, _, _, ctx| {
             ctx.notify();
         });
@@ -2079,8 +2074,6 @@ impl PaneGroup {
                 ctx.notify();
             },
         );
-
-        // OpenWarp:删除 share_session_modal 注册(云端 shared session 弹窗)
 
         let shared_session_role_change_modal = ctx.add_view(RoleChangeModal::new);
         ctx.subscribe_to_view(&shared_session_role_change_modal, |me, _, event, ctx| {
@@ -2301,8 +2294,6 @@ impl PaneGroup {
             PaneGroupFocusEvent::FocusedPaneMaximizedChanged => ctx.notify(),
         }
     }
-
-    // OpenWarp:删除 handle_share_block_modal_event(云端 share block)
 
     /// Used to add a new pane but not splitting panes.
     pub fn add_terminal_pane(
@@ -2713,8 +2704,6 @@ impl PaneGroup {
                 self.hide_closed_pane(pane_id, ctx);
             }
 
-            // OpenWarp:删除 share_block_modal cleanup(云端 share block)
-
             self.focus_next_terminal_pane_and_activate_session(
                 pane_id,
                 PaneRemovalReason::Close,
@@ -2734,8 +2723,6 @@ impl PaneGroup {
             }
 
             self.clean_up_pane(pane_id, ctx);
-
-            // OpenWarp:删除 share_block_modal cleanup(云端 share block)
 
             self.focus_next_terminal_pane_and_activate_session(
                 pane_id,
@@ -4496,7 +4483,6 @@ impl PaneGroup {
         );
 
         self.close_shared_session_role_change_modal(RoleChangeCloseSource::ViewerRequest, ctx);
-        // OpenWarp:删除 terminal_with_open_share_block_modal 清空(字段已不存在)
         ctx.notify();
     }
 
@@ -4639,7 +4625,6 @@ impl View for PaneGroup {
 
         let mut stack = Stack::new().with_child(column.finish());
 
-        // OpenWarp:删除 share_block_modal / share_session_modal 渲染分支(字段已不存在)
         if self
             .terminal_with_shared_session_role_change_modal_open
             .is_some()

@@ -73,10 +73,7 @@ pub fn create_event(
     )
 }
 
-// openWarp 闭源遥测剥离 P1:
-// 三个 record_* 入口全部 no-op,EventStore 永远不再被填充,后续 flush 拿到的是空 Vec,
-// `send_batch_messages_to_rudder` 因 messages.is_empty() 立即返回 → 929 处宏调用原地不动,
-// 全链路无外发。`TELEMETRY` lazy_static / `EventStore` 暂留死代码,P4 物理清理。
+// Telemetry recording is disabled; retain these entry points for existing callers.
 pub fn record_event(
     _user_id: Option<String>,
     _anonymous_id: String,

@@ -456,7 +456,6 @@ pub fn init(app: &mut AppContext) {
         .with_context_predicate(
             id!("Terminal") & id!("TerminalView_NonEmptyBlockList") & !id!("AltScreen"),
         ),
-        // OpenWarp:删除 terminal:open_share_block_modal keybinding(云端 share block)
         EditableBinding::new(
             "terminal:bookmark_selected_block",
             crate::t!("keybinding-desc-terminal-bookmark-selected-block"),
@@ -623,8 +622,6 @@ pub fn init(app: &mut AppContext) {
         TerminalAction::ImportSettings,
     )
     .with_context_predicate(id!("Terminal") & id!(flags::HAS_SETTINGS_TO_IMPORT_FLAG))]);
-
-    // OpenWarp:删除 terminal:share_current_session / terminal:stop_sharing_current_session keybindings(云端 shared session)
 
     app.register_editable_bindings([EditableBinding::new(
         TOGGLE_BLOCK_FILTER_KEYBINDING,
