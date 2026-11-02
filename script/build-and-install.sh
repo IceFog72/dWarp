@@ -128,6 +128,9 @@ if [[ "$BINARY_NAME" != "$DESKTOP_COMMAND" ]]; then
 fi
 echo "  Installed binary: /usr/local/bin/$DESKTOP_COMMAND"
 
+# External coding tools can use this launcher to show commands and sudo prompts in dWarp.
+sudo install -Dm755 "$WORKSPACE_ROOT_DIR/script/run-in-dwarp" /usr/local/bin/dwarp-run
+
 
 # Install .desktop file
 DESKTOP_SRC="$WORKSPACE_ROOT_DIR/app/channels/$CHANNEL/$BUNDLE_ID.desktop"
@@ -144,16 +147,27 @@ fi
 
 # Install icons
 ICON_DIR="$WORKSPACE_ROOT_DIR/app/channels/$CHANNEL/icon/no-padding"
+USER_ICON_DIR="${XDG_DATA_HOME:-$HOME/.local/share}/icons/hicolor"
+USER_ICONS_UPDATED=0
 if [ -d "$ICON_DIR" ]; then
   for icon in "$ICON_DIR"/*.png; do
     [ -e "$icon" ] || continue
     size="$(basename "$icon" .png)"
     sudo install -Dm644 "$icon" "/usr/share/icons/hicolor/${size}/apps/$BUNDLE_ID.png"
+    # Update an existing user override so it cannot hide a newly installed app icon.
+    user_icon="$USER_ICON_DIR/${size}/apps/$BUNDLE_ID.png"
+    if [[ -f "$user_icon" && ! -L "$user_icon" ]]; then
+      install -Dm644 "$icon" "$user_icon"
+      USER_ICONS_UPDATED=1
+    fi
   done
   echo "  Installed icons"
   # Refresh after copying icons: an existing cache can hide newly installed names.
   if command -v gtk-update-icon-cache >/dev/null 2>&1; then
     sudo gtk-update-icon-cache -f -t /usr/share/icons/hicolor
+    if [[ $USER_ICONS_UPDATED == 1 ]]; then
+      gtk-update-icon-cache -f -t "$USER_ICON_DIR"
+    fi
   else
     echo "Refresh the icon cache after installing gtk-update-icon-cache." >&2
   fi

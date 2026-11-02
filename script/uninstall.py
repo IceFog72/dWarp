@@ -103,7 +103,7 @@ def linux():
     packages = ["warp-terminal-oss"]
     if not args.legacy_only:
         ids.append("dev.warp.dWarp")
-        commands.append("dwarp")
+        commands.extend(["dwarp", "dwarp-run"])
         packages.append("dwarp")
     # Let the owning package manager remove registered installations first.
     for package in packages:
@@ -172,6 +172,8 @@ def linux():
                     file.write_text("".join(result))
     if args.purge:
         purge_linux_credentials()
+        state = Path(os.environ.get("XDG_STATE_HOME", str(home / ".local/state")))
+        remove(state / "dwarp" / "agent-runs")
         for base in [config, data,
                      Path(os.environ.get("XDG_CACHE_HOME", str(home / ".cache"))),
                      Path(os.environ.get("XDG_STATE_HOME", str(home / ".local/state")))]:

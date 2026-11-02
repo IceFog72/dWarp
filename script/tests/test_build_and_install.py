@@ -20,6 +20,7 @@ class BuildAndInstallCleanupTests(unittest.TestCase):
         scripts = self.root / "script"
         (scripts / "linux").mkdir(parents=True)
         shutil.copy2(SCRIPT, scripts / SCRIPT.name)
+        shutil.copy2(SCRIPT.parent / "run-in-dwarp", scripts / "run-in-dwarp")
         for name in ("install_build_deps", "install_runtime_deps"):
             self.executable(scripts / "linux" / name, f'echo {name} >> "$PWD/dependency-calls"')
         with (scripts / "linux/install_runtime_deps").open("a") as runtime:
@@ -54,6 +55,7 @@ exit 0
             os.environ,
             PATH=f"{tools}:{os.environ['PATH']}",
             CARGO_TARGET_DIR=str(self.root / "target"),
+            XDG_DATA_HOME=str(self.root / "data"),
             WARP_CPU_RENDERER="1",
         )
 
@@ -98,6 +100,16 @@ exit 0
         cache_refresh = calls.index("gtk-update-icon-cache -f -t /usr/share/icons/hicolor")
         self.assertLess(icon_install, cache_refresh)
         self.assert_clean_with_log(0)
+
+    def test_existing_user_icon_override_is_updated(self):
+        self.add_icon()
+        icon = self.root / "data/icons/hicolor/48x48/apps/dev.warp.dWarp.png"
+        icon.parent.mkdir(parents=True)
+        icon.write_bytes(b"old icon")
+        result = self.run_build()
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertEqual(icon.read_bytes(), b"test icon")
+        self.assertIn("/usr/local/bin/dwarp-run", (self.root / "install-calls").read_text())
 
     def test_icon_cache_failure_is_reported_and_cleans_scratch(self):
         self.add_icon()
