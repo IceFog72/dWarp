@@ -21,7 +21,6 @@ Top-level directories:
 | `resources/` | Runtime resources such as fonts, icons, shell integration scripts, shaders, etc. |
 | `docker/` | Containerized build configuration |
 | `specs/` | Product and technical spec documents |
-| `.agents/skills`, `.claude/skills` | Skill descriptions for agent workflows (creating PRs, fixing errors, feature rollouts, etc.) |
 | `.warp/`, `.config/`, `.cargo/`, `.vscode/` | Various tool configurations |
 
 Build system: Cargo workspace, `resolver = "2"`. The `default-members` are intentionally restricted to the subset that requires frequent compilation/testing (see `Cargo.toml`). `serve-wasm` and `integration` are excluded from `default-members` by default.
