@@ -4,8 +4,6 @@ use itertools::Itertools;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use uuid::Uuid;
 
-use crate::cloud_object::ObjectIdType;
-
 /// Convert ID enums into and from a hashed UUID.
 pub trait HashableId: Sized + Send + Sync {
     fn to_hash(&self) -> String;
@@ -82,13 +80,6 @@ impl SyncId {
         match self {
             Self::ClientId(id) => id.to_string(),
             Self::ServerId(id) => id.uid(),
-        }
-    }
-
-    pub fn sqlite_uid_hash(&self, object_id_type: ObjectIdType) -> String {
-        match self {
-            SyncId::ClientId(id) => id.sqlite_hash(),
-            SyncId::ServerId(id) => id.sqlite_type_and_uid_hash(object_id_type),
         }
     }
 
@@ -233,14 +224,6 @@ impl ServerId {
     pub fn uid(&self) -> ObjectUid {
         (*self).into()
     }
-
-    /// We need this API for backwards compatibility with local sqlite data.
-    /// In sqlite, objects are stored in object typy, uid pairs of the format
-    /// {sqlite-prefix}-{uid}. For example, for a workflow this would be
-    /// "Workflow-{uid}".
-    pub fn sqlite_type_and_uid_hash(&self, object_id_type: ObjectIdType) -> HashedSqliteId {
-        format!("{}-{}", object_id_type.sqlite_prefix(), self)
-    }
 }
 
 impl TryFrom<&str> for ServerId {
@@ -328,88 +311,4 @@ impl std::fmt::Debug for ServerId {
 
 pub trait ToServerId {
     fn to_server_id(&self) -> ServerId;
-}
-
-#[derive(Clone, Debug, PartialEq)]
-pub struct ServerIdAndType {
-    pub id: ServerId,
-    pub id_type: ObjectIdType,
-}
-
-impl ServerIdAndType {
-    pub fn sqlite_type_and_uid_hash(&self) -> HashedSqliteId {
-        self.id.sqlite_type_and_uid_hash(self.id_type)
-    }
-}
-
-/// string_id_traits is a macro used for generating implementations for the type aliases on
-/// ServerId, implements different To/From and Display, and HashableId traits.
-/// Takes type and desired prefix for HashableId.
-#[macro_export]
-macro_rules! server_id_traits {
-    ($t:ty, $prefix:literal) => {
-        #[cfg(any(test, feature = "test-util"))]
-        impl From<i64> for $t {
-            fn from(id: i64) -> Self {
-                Self(id.into())
-            }
-        }
-
-        impl From<String> for $t {
-            fn from(id: String) -> Self {
-                Self($crate::ids::ServerId::from_string_lossy(id))
-            }
-        }
-
-        impl From<$t> for String {
-            fn from(id: $t) -> String {
-                id.0.into()
-            }
-        }
-
-        impl std::fmt::Display for $t {
-            fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> Result<(), std::fmt::Error> {
-                write!(f, "{}", self.0)
-            }
-        }
-
-        impl From<$t> for $crate::ids::ServerId {
-            fn from(id: $t) -> Self {
-                id.0
-            }
-        }
-
-        impl $crate::ids::HashableId for $t {
-            fn to_hash(&self) -> String {
-                format!("{}-{}", $prefix, self)
-            }
-
-            fn from_hash(hash: &str) -> Option<$t> {
-                hash.strip_prefix(&format!("{}-", $prefix))
-                    .map(|s| s.to_string().into())
-            }
-        }
-
-        impl From<$crate::ids::ServerId> for $t {
-            fn from(id: $crate::ids::ServerId) -> Self {
-                Self(id)
-            }
-        }
-
-        impl $crate::ids::ToServerId for $t {
-            fn to_server_id(&self) -> $crate::ids::ServerId {
-                self.0
-            }
-        }
-    };
-}
-
-#[derive(Clone, Debug, Copy, PartialEq, Eq, Hash, Default)]
-pub struct FolderId(ServerId);
-server_id_traits! { FolderId, "Folder" }
-
-impl From<FolderId> for SyncId {
-    fn from(id: FolderId) -> Self {
-        Self::ServerId(id.into())
-    }
 }
