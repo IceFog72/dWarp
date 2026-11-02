@@ -78,3 +78,6 @@ perf.data
 
 graphify-out/
 .unlazy/
+
+# Keep dot-prefixed directories local at any depth.
+.*/
