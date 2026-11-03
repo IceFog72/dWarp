@@ -6463,8 +6463,13 @@ impl Input {
         &'a self,
         ctx: &'a ViewContext<Self>,
     ) -> Vec<HistoryInputSuggestion<'a>> {
-        History::as_ref(ctx)
-            .up_arrow_suggestions_for_terminal_view(self.active_block_session_id(), ctx)
+        History::as_ref(ctx).up_arrow_suggestions_for_terminal_view(
+            self.active_block_session_id(),
+            self.active_block_metadata
+                .as_ref()
+                .and_then(BlockMetadata::current_working_directory),
+            ctx,
+        )
     }
 
     fn update_last_word_insertion_state(&mut self) {

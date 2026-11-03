@@ -1,10 +1,11 @@
 //! Data source for the inline history menu, providing command history.
 //!
 //! Ordering semantics match the legacy up-arrow history menu:
-//! - Items from different sessions appear before items from the current session
-//! - Within each group, items are sorted by timestamp (oldest first)
+//! - Saved commands for the current folder and commands run there in other tabs appear last
+//! - Other items retain their session grouping
+//! - Folder records are oldest first; new live commands follow in execution order
 //! - Commands are deduplicated, keeping the most recent occurrence
-//! - The result is that current session items appear at the bottom (closer to input)
+//! - The newest command for the current folder appears at the bottom (closer to input)
 
 use crate::input_suggestions::HistoryInputSuggestion;
 use crate::search::data_source::{Query, QueryResult};
@@ -69,7 +70,14 @@ impl SyncDataSource for InlineHistoryMenuDataSource {
         let session_id = self.active_session.as_ref(app).session(app).map(|s| s.id());
 
         let history = History::handle(app).as_ref(app);
-        let suggestions = history.up_arrow_suggestions_for_terminal_view(session_id, app);
+        let suggestions = history.up_arrow_suggestions_for_terminal_view(
+            session_id,
+            self.active_session
+                .as_ref(app)
+                .current_working_directory()
+                .map(String::as_str),
+            app,
+        );
 
         let mut results: Vec<QueryResult<AcceptHistoryItem>> = Vec::new();
         for suggestion in suggestions {

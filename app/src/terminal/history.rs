@@ -187,6 +187,8 @@ pub struct History {
     /// Each time a history file is read, it gets "joined" to the commands in here to add the
     /// execution metadata from the most recent run.
     persisted_commands_summary: HashMap<ShellHost, HashMap<String, CommandHistorySummary>>,
+    // Keep each folder's latest occurrence of a command, even if it ran elsewhere later.
+    persisted_folder_commands: HashMap<(ShellHost, String), HashMap<String, (i32, HistoryEntry)>>,
 
     /// Entries from the history file for the host.  Immutable once loaded and
     /// shared between sessions.
@@ -409,6 +411,11 @@ impl History {
         let mut persisted_commands_summary =
             HashMap::<ShellHost, HashMap<String, CommandHistorySummary>>::new();
 
+        let mut persisted_folder_commands: HashMap<
+            (ShellHost, String),
+            HashMap<String, (i32, HistoryEntry)>,
+        > = HashMap::new();
+
         // Commands run by the removed Warp agent were hidden from history by default; keep them hidden.
         for command in persisted_commands
             .into_iter()
@@ -418,7 +425,16 @@ impl History {
                 let summaries = persisted_commands_summary
                     .entry(shell_host.clone())
                     .or_default();
+                let folder_host = shell_host.clone();
+                let id = command.id;
                 let hist_entry: HistoryEntry = command.into();
+                if let Some(path) = &hist_entry.pwd {
+                    persisted_folder_commands
+                        .entry((folder_host, path.clone()))
+                        .or_default()
+                        .entry(hist_entry.command.clone())
+                        .or_insert_with(|| (id, hist_entry.clone()));
+                }
                 summaries
                     .entry(hist_entry.command.clone())
                     .and_modify(|summary| summary.count += 1)
@@ -428,6 +444,7 @@ impl History {
 
         Self {
             persisted_commands_summary,
+            persisted_folder_commands,
             ..Default::default()
         }
     }
@@ -437,7 +454,9 @@ impl History {
         records: Vec<PersistedCommand>,
         ctx: &mut ModelContext<Self>,
     ) {
-        self.persisted_commands_summary = Self::new(records).persisted_commands_summary;
+        let refreshed = Self::new(records);
+        self.persisted_commands_summary = refreshed.persisted_commands_summary;
+        self.persisted_folder_commands = refreshed.persisted_folder_commands;
         // Imported shell commands remain, but their directory metadata must reflect surviving records.
         for (host, entries) in &mut self.history_file_commands {
             let summaries = self.persisted_commands_summary.get(host);
@@ -482,6 +501,9 @@ impl History {
         };
         for summaries in self.persisted_commands_summary.values_mut() {
             summaries.retain(|_, summary| !matches(&summary.most_recent_entry));
+        }
+        for commands in self.persisted_folder_commands.values_mut() {
+            commands.retain(|_, (_, entry)| !matches(entry));
         }
         for state in self.read_history_file_state.values_mut() {
             if let ReadHistoryFileState::InProgress {
@@ -765,9 +787,13 @@ impl History {
             let mut skip_index_set: HashSet<usize> = HashSet::new();
             self.session_skip_indices.insert(session_id, HashSet::new());
             for (idx, entry) in self
-                .collect_visible_commands_for_session(session_id, true, true, |index, entry| {
-                    (index, entry.as_ref())
-                })
+                .collect_visible_commands_for_session(
+                    session_id,
+                    None,
+                    true,
+                    true,
+                    |index, entry| (index, entry.as_ref()),
+                )
                 .unwrap_or_else(|| {
                     log::warn!("History commands are empty for session {session_id:?}");
                     Vec::new()
@@ -902,12 +928,13 @@ impl History {
     /// It is important that it is this concatenation specifically, because self.session_skip_indices is
     /// an index into this specific concatenation.
     pub fn commands(&self, session_id: SessionId) -> Option<Vec<&HistoryEntry>> {
-        self.collect_visible_commands_for_session(session_id, true, true, |_, h| h.as_ref())
+        self.collect_visible_commands_for_session(session_id, None, true, true, |_, h| h.as_ref())
     }
 
     fn collect_visible_commands_for_session<'a, T>(
         &'a self,
         session_id: SessionId,
+        shared_directory: Option<&str>,
         use_shell_history: bool,
         use_restored_history: bool,
         mut to_output: impl FnMut(usize, &'a Arc<HistoryEntry>) -> T,
@@ -963,6 +990,11 @@ impl History {
                 if skip_indices.contains(&idx) {
                     return None;
                 }
+                if !h.is_for_restored_block
+                    && shared_directory.is_some_and(|path| h.pwd.as_deref() == Some(path))
+                {
+                    return Some(to_output(idx, h));
+                }
                 // Restored blocks may appear before the session start index because they may be
                 // loaded before the history file has been read. However, restored block commands
                 // have the same semantics as post-start index session commands -- they should only
@@ -992,7 +1024,7 @@ impl History {
     /// `commands_shared` returns the same logical set as [`Self::commands`], but with shared
     /// ownership so callers can keep an owned snapshot without deep-cloning command data.
     pub fn commands_shared(&self, session_id: SessionId) -> Option<Vec<Arc<HistoryEntry>>> {
-        self.collect_visible_commands_for_session(session_id, true, true, |_, entry| {
+        self.collect_visible_commands_for_session(session_id, None, true, true, |_, entry| {
             Arc::clone(entry)
         })
     }

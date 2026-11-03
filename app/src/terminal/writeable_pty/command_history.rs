@@ -5,6 +5,7 @@ use parking_lot::FairMutex;
 use warpui::{AppContext, ModelHandle, SingletonEntity};
 
 use crate::persistence::StartedCommandMetadata;
+use crate::terminal::history::HistoryEvent;
 use crate::terminal::{view::ExecuteCommandEvent, TerminalModel};
 use crate::terminal::{History, HistoryEntry};
 use crate::{persistence::ModelEvent, terminal::model::session::Sessions};
@@ -29,7 +30,7 @@ pub fn update_command_history(
     }
 
     let session_ref = &*session;
-    History::handle(ctx).update(ctx, move |history, _| {
+    History::handle(ctx).update(ctx, move |history, ctx| {
         history.append_commands(
             session_id,
             vec![HistoryEntry::for_session_command(
@@ -38,7 +39,9 @@ pub fn update_command_history(
                 session_ref,
                 event.workflow_command.to_owned(),
             )],
-        )
+        );
+        ctx.emit(HistoryEvent::Initialized(session_id));
+        ctx.notify();
     });
 
     if let Some(sender) = model_event_sender {

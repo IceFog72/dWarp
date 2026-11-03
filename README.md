@@ -42,6 +42,12 @@ remaining source is not a promise that Warp's hosted sharing services work here.
 - **Clear live popup history…** removes commands currently held by open tabs from popup history for this app run. New commands still appear.
 - **Clear shell history file…** empties the selected file after confirmation. Detected local paths include `HISTFILE` overrides. Remote files are excluded.
 
+The popup puts saved dWarp commands for the current folder ahead of shell
+imports. Its first suggestion is the bottom row, beside the prompt. Saved folder
+commands run oldest to newest, followed by live commands in execution order.
+A command run in another tab in the same folder becomes the newest suggestion.
+The Settings history viewer retains its separate newest-first order.
+
 Shell imports and restored commands default to on. Both settings persist across
 restarts. Open shells may write their in-memory history back when they exit.
 Clearing a shell file affects every folder using that file. Saved dWarp records

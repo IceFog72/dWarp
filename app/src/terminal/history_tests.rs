@@ -1116,9 +1116,13 @@ fn history_management_controls_shell_and_restored_sources_without_losing_saved_o
         );
         let visible = |history: &History, shell, restored| {
             history
-                .collect_visible_commands_for_session(session_id, shell, restored, |_, entry| {
-                    entry.command.clone()
-                })
+                .collect_visible_commands_for_session(
+                    session_id,
+                    None,
+                    shell,
+                    restored,
+                    |_, entry| entry.command.clone(),
+                )
                 .unwrap()
         };
         assert_eq!(
