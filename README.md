@@ -35,6 +35,7 @@ remaining source is not a promise that Warp's hosted sharing services work here.
 
 **Settings → Command history** manages the sources shown in the history popup:
 
+- Command rows have **Delete…** and selection checkboxes. **Select all** covers the current folder across every page. **Delete selected…** asks for confirmation.
 - Folder **Clear history…** removes dWarp's saved records for that folder and account.
 - **Use shell history** includes commands imported from the shell history file. Turning it off keeps the file and dWarp's saved records.
 - **Restored commands** includes commands from restored terminal blocks. Turning it off keeps terminal scrollback.

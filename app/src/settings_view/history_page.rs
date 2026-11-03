@@ -1,6 +1,6 @@
 use settings::Setting as _;
 use std::{
-    collections::BTreeMap,
+    collections::{BTreeMap, HashSet},
     path::{Path, PathBuf},
 };
 
@@ -70,6 +70,11 @@ impl HistoryFolder {
 #[derive(Clone, Debug)]
 pub enum HistoryPageAction {
     Select(usize),
+    ToggleCommand(i32),
+    SelectAllCommands,
+    DeselectAllCommands,
+    DeleteCommand(i32),
+    DeleteSelectedCommands,
     ToggleShellHistory,
     RequestLiveClear,
     ConfirmLiveClear,
@@ -118,6 +123,12 @@ pub struct HistoryPageView {
     next: MouseStateHandle,
     previous: MouseStateHandle,
     copy_states: Vec<MouseStateHandle>,
+    command_select_states: Vec<MouseStateHandle>,
+    command_delete_states: Vec<MouseStateHandle>,
+    selected_commands: HashSet<i32>,
+    select_all: MouseStateHandle,
+    deselect_all: MouseStateHandle,
+    delete_selected: MouseStateHandle,
 }
 
 impl HistoryPageView {
@@ -150,6 +161,12 @@ impl HistoryPageView {
             cancel: Default::default(),
             next: Default::default(),
             previous: Default::default(),
+            command_select_states: (0..COMMANDS_PER_PAGE).map(|_| Default::default()).collect(),
+            command_delete_states: (0..COMMANDS_PER_PAGE).map(|_| Default::default()).collect(),
+            selected_commands: HashSet::new(),
+            select_all: Default::default(),
+            deselect_all: Default::default(),
+            delete_selected: Default::default(),
             copy_states: (0..COMMANDS_PER_PAGE)
                 .map(|_| MouseStateHandle::default())
                 .collect(),
@@ -247,6 +264,7 @@ impl HistoryPageView {
         }) {
             self.selected = None;
         }
+        self.selected_commands.clear();
         self.records = records;
         self.offset = 0;
         self.page.reset_scroll();
@@ -272,6 +290,52 @@ impl TypedActionView for HistoryPageView {
             return;
         }
         match action {
+            HistoryPageAction::ToggleCommand(id) => {
+                if self
+                    .selected_records()
+                    .iter()
+                    .any(|record| record.id == *id)
+                {
+                    if !self.selected_commands.remove(id) {
+                        self.selected_commands.insert(*id);
+                    }
+                    self.pending_clear = None;
+                }
+            }
+            HistoryPageAction::SelectAllCommands => {
+                self.selected_commands = self
+                    .selected_records()
+                    .iter()
+                    .map(|record| record.id)
+                    .collect();
+                self.pending_clear = None;
+            }
+            HistoryPageAction::DeselectAllCommands => {
+                self.selected_commands.clear();
+                self.pending_clear = None;
+            }
+            HistoryPageAction::DeleteCommand(id) => {
+                let records: Vec<_> = self
+                    .selected_records()
+                    .into_iter()
+                    .filter(|record| record.id == *id)
+                    .cloned()
+                    .collect();
+                if !records.is_empty() {
+                    self.pending_clear = Some(records);
+                }
+            }
+            HistoryPageAction::DeleteSelectedCommands => {
+                let records: Vec<_> = self
+                    .selected_records()
+                    .into_iter()
+                    .filter(|record| self.selected_commands.contains(&record.id))
+                    .cloned()
+                    .collect();
+                if !records.is_empty() {
+                    self.pending_clear = Some(records);
+                }
+            }
             HistoryPageAction::RequestLiveClear => self.pending_live_clear = true,
             HistoryPageAction::CancelLiveClear => self.pending_live_clear = false,
             HistoryPageAction::ConfirmLiveClear => {
@@ -328,6 +392,7 @@ impl TypedActionView for HistoryPageView {
             }
             HistoryPageAction::Select(index) => {
                 if let Some((folder, _, _, _)) = self.folders.get(*index) {
+                    self.selected_commands.clear();
                     self.selected = Some(folder.clone());
                     self.offset = 0;
                     self.pending_clear = None;
@@ -335,11 +400,13 @@ impl TypedActionView for HistoryPageView {
             }
             HistoryPageAction::Refresh => self.load(ctx),
             HistoryPageAction::Back => {
+                self.selected_commands.clear();
                 self.selected = None;
                 self.pending_clear = None;
             }
             HistoryPageAction::ClearFolder(index) => {
                 if let Some((folder, _, _, _)) = self.folders.get(*index) {
+                    self.selected_commands.clear();
                     self.selected = Some(folder.clone());
                     self.offset = 0;
                     self.pending_clear =
@@ -657,7 +724,7 @@ impl SettingsWidget for HistoryWidget {
             if let Some(records) = &view.pending_clear {
                 folder_header.add_child(
                     ui.span(format!(
-                        "Clear {} saved commands from this folder? This cannot be undone.",
+                        "Delete {} saved commands from this folder? This cannot be undone.",
                         records.len()
                     ))
                     .with_soft_wrap()
@@ -668,7 +735,7 @@ impl SettingsWidget for HistoryWidget {
                     Flex::row()
                         .with_spacing(8.)
                         .with_child(history_button(
-                            "Clear history",
+                            "Delete commands",
                             &view.confirm,
                             HistoryPageAction::ConfirmClear,
                             view.busy,
@@ -697,6 +764,44 @@ impl SettingsWidget for HistoryWidget {
                 );
             }
             body.add_child(history_panel(folder_header.finish(), appearance));
+            body.add_child(
+                Flex::column()
+                    .with_spacing(8.)
+                    .with_child(
+                        Flex::row()
+                            .with_spacing(8.)
+                            .with_child(history_button(
+                                "Select all",
+                                &view.select_all,
+                                HistoryPageAction::SelectAllCommands,
+                                view.busy || view.selected_commands.len() == records.len(),
+                                appearance,
+                            ))
+                            .with_child(history_button(
+                                "Deselect all",
+                                &view.deselect_all,
+                                HistoryPageAction::DeselectAllCommands,
+                                view.busy || view.selected_commands.is_empty(),
+                                appearance,
+                            ))
+                            .finish(),
+                    )
+                    .with_child(history_caption(
+                        format!(
+                            "{} selected · Selection covers this folder across all pages",
+                            view.selected_commands.len()
+                        ),
+                        appearance,
+                    ))
+                    .with_child(history_button(
+                        "Delete selected…",
+                        &view.delete_selected,
+                        HistoryPageAction::DeleteSelectedCommands,
+                        view.busy || view.selected_commands.is_empty(),
+                        appearance,
+                    ))
+                    .finish(),
+            );
             let mut navigation = Flex::row()
                 .with_cross_axis_alignment(CrossAxisAlignment::Center)
                 .with_spacing(8.)
@@ -752,27 +857,51 @@ impl SettingsWidget for HistoryWidget {
                     .exit_code
                     .map(|code| code.to_string())
                     .unwrap_or_else(|| "Unknown".into());
-                let metadata = Flex::row()
-                    .with_cross_axis_alignment(CrossAxisAlignment::Center)
+                let id = record.id;
+                let mut checkbox = ui
+                    .checkbox(view.command_select_states[index].clone(), None)
+                    .check(view.selected_commands.contains(&id))
+                    .with_label(ui.span("Select"))
+                    .with_style(
+                        UiComponentStyles::default()
+                            .set_background(appearance.theme().outline().into()),
+                    );
+                if view.busy {
+                    checkbox = checkbox.disabled();
+                }
+                let actions = Flex::row()
                     .with_spacing(8.)
+                    .with_cross_axis_alignment(CrossAxisAlignment::Center)
                     .with_child(
-                        Expanded::new(
-                            1.,
-                            history_caption(format!("{time} · Exit: {exit}"), appearance),
-                        )
-                        .finish(),
+                        checkbox
+                            .build()
+                            .on_click(move |ctx, _, _| {
+                                ctx.dispatch_typed_action(HistoryPageAction::ToggleCommand(id))
+                            })
+                            .finish(),
                     )
+                    .with_child(Expanded::new(1., Flex::row().finish()).finish())
                     .with_child(history_button(
                         "Copy",
                         &view.copy_states[index],
-                        HistoryPageAction::Copy(record.id),
+                        HistoryPageAction::Copy(id),
+                        view.busy,
+                        appearance,
+                    ))
+                    .with_child(history_button(
+                        "Delete…",
+                        &view.command_delete_states[index],
+                        HistoryPageAction::DeleteCommand(id),
                         view.busy,
                         appearance,
                     ));
                 commands.add_child(history_panel(
                     Flex::column()
                         .with_spacing(8.)
-                        .with_child(metadata.finish())
+                        .with_child(history_caption(
+                            format!("{time} · Exit: {exit}"),
+                            appearance,
+                        ))
                         .with_child(
                             ui.span(record.command.clone())
                                 .with_style(UiComponentStyles {
@@ -783,6 +912,7 @@ impl SettingsWidget for HistoryWidget {
                                 .build()
                                 .finish(),
                         )
+                        .with_child(actions.finish())
                         .finish(),
                     appearance,
                 ));
@@ -833,7 +963,12 @@ fn history_button(
         | HistoryPageAction::ConfirmShellClear
         | HistoryPageAction::ConfirmLiveClear => ButtonVariant::Error,
         HistoryPageAction::Select(..) => ButtonVariant::Accent,
-        HistoryPageAction::RequestLiveClear
+        HistoryPageAction::ToggleCommand(..)
+        | HistoryPageAction::SelectAllCommands
+        | HistoryPageAction::DeselectAllCommands
+        | HistoryPageAction::DeleteCommand(..)
+        | HistoryPageAction::DeleteSelectedCommands
+        | HistoryPageAction::RequestLiveClear
         | HistoryPageAction::CancelLiveClear
         | HistoryPageAction::ToggleShellHistory
         | HistoryPageAction::ToggleRestoredHistory

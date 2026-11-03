@@ -167,7 +167,8 @@ fn history_management_page_loads_and_clears_through_writer_acknowledgement() {
                 .iter()
                 .position(|(folder, _, _, _)| folder.path.as_deref() == Some("/work"))
                 .unwrap();
-            view.handle_action(&HistoryPageAction::ClearFolder(index), ctx);
+            view.handle_action(&HistoryPageAction::Select(index), ctx);
+            view.handle_action(&HistoryPageAction::DeleteCommand(1), ctx);
             view.handle_action(&HistoryPageAction::ConfirmClear, ctx);
             assert!(view.busy);
         });
@@ -331,5 +332,82 @@ fn history_management_source_controls_save_settings_and_require_file_confirmatio
         assert!(std::fs::read(&path).unwrap().is_empty());
         assert!(view.read(&app, |view, _| view.error.is_none()));
         assert!(view.read(&app, |view, _| view.message.is_some()));
+    });
+}
+
+#[test]
+fn history_management_command_selection_spans_pages_and_stays_inside_selected_folder() {
+    App::test((), |mut app| async move {
+        init_history_settings(&mut app);
+        app.add_singleton_model(|_| Appearance::mock());
+        let (_, view) = app.add_window(WindowStyle::NotStealFocus, |_| HistoryPageView::new());
+        view.update(&mut app, |view, ctx| {
+            let mut saved: Vec<_> = (1..=205)
+                .rev()
+                .map(|id| record(id, Some("/work"), "local", "alice"))
+                .collect();
+            saved.push(record(206, Some("/other"), "local", "alice"));
+            view.set_records(saved.clone());
+            let index = view
+                .folders
+                .iter()
+                .position(|(folder, _, _, _)| folder.path.as_deref() == Some("/work"))
+                .unwrap();
+            view.handle_action(&HistoryPageAction::Select(index), ctx);
+            view.handle_action(&HistoryPageAction::ToggleCommand(205), ctx);
+            view.handle_action(&HistoryPageAction::Next, ctx);
+            view.handle_action(&HistoryPageAction::ToggleCommand(101), ctx);
+            assert_eq!(view.selected_commands, [205, 101].into());
+            view.handle_action(&HistoryPageAction::DeleteSelectedCommands, ctx);
+            assert_eq!(
+                view.pending_clear
+                    .as_ref()
+                    .unwrap()
+                    .iter()
+                    .map(|record| record.id)
+                    .collect::<Vec<_>>(),
+                vec![205, 101]
+            );
+            view.handle_action(&HistoryPageAction::CancelClear, ctx);
+            view.handle_action(&HistoryPageAction::ToggleCommand(206), ctx);
+            assert!(!view.selected_commands.contains(&206));
+            view.handle_action(&HistoryPageAction::SelectAllCommands, ctx);
+            assert_eq!(view.selected_commands.len(), 205);
+            view.handle_action(&HistoryPageAction::ToggleCommand(1), ctx);
+            view.handle_action(&HistoryPageAction::DeleteSelectedCommands, ctx);
+            assert_eq!(view.pending_clear.as_ref().unwrap().len(), 204);
+            assert!(!view
+                .pending_clear
+                .as_ref()
+                .unwrap()
+                .iter()
+                .any(|record| record.id == 1 || record.id == 206));
+            view.handle_action(&HistoryPageAction::DeselectAllCommands, ctx);
+            view.handle_action(&HistoryPageAction::DeleteSelectedCommands, ctx);
+            assert!(view.pending_clear.is_none());
+            view.handle_action(&HistoryPageAction::DeleteCommand(101), ctx);
+            assert_eq!(
+                view.pending_clear
+                    .as_ref()
+                    .unwrap()
+                    .iter()
+                    .map(|record| record.id)
+                    .collect::<Vec<_>>(),
+                vec![101]
+            );
+            assert_eq!(
+                view.records
+                    .iter()
+                    .map(|record| record.id)
+                    .collect::<Vec<_>>(),
+                saved.iter().map(|record| record.id).collect::<Vec<_>>()
+            );
+            view.handle_action(&HistoryPageAction::CancelClear, ctx);
+            view.handle_action(&HistoryPageAction::DeleteCommand(206), ctx);
+            assert!(view.pending_clear.is_none());
+            view.handle_action(&HistoryPageAction::SelectAllCommands, ctx);
+            view.set_records(saved);
+            assert!(view.selected_commands.is_empty());
+        });
     });
 }
