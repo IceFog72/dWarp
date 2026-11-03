@@ -1,4 +1,8 @@
-use std::collections::BTreeMap;
+use settings::Setting as _;
+use std::{
+    collections::BTreeMap,
+    path::{Path, PathBuf},
+};
 
 use chrono::{DateTime, Local, Utc};
 use futures::channel::oneshot;
@@ -26,7 +30,8 @@ use super::{
 use crate::{
     appearance::Appearance,
     persistence::{model::Command, ModelEvent, PersistenceWriter},
-    terminal::history::History,
+    settings::InputSettings,
+    terminal::history::{History, ShellHost},
 };
 
 const COMMANDS_PER_PAGE: usize = 100;
@@ -65,6 +70,14 @@ impl HistoryFolder {
 #[derive(Clone, Debug)]
 pub enum HistoryPageAction {
     Select(usize),
+    ToggleShellHistory,
+    RequestLiveClear,
+    ConfirmLiveClear,
+    CancelLiveClear,
+    ToggleRestoredHistory,
+    RequestShellClear(usize),
+    ConfirmShellClear,
+    CancelShellClear,
     Refresh,
     Back,
     RequestClear,
@@ -78,6 +91,17 @@ pub enum HistoryPageAction {
 
 pub struct HistoryPageView {
     page: PageType<Self>,
+    shell_toggle: MouseStateHandle,
+    live_clear: MouseStateHandle,
+    live_confirm: MouseStateHandle,
+    live_cancel: MouseStateHandle,
+    pending_live_clear: bool,
+    restored_toggle: MouseStateHandle,
+    shell_files: Vec<(PathBuf, Vec<ShellHost>, MouseStateHandle)>,
+    pending_shell_clear: Option<(PathBuf, Vec<ShellHost>)>,
+    shell_confirm: MouseStateHandle,
+    shell_cancel: MouseStateHandle,
+    message: Option<String>,
     records: Vec<Command>,
     folders: Vec<(HistoryFolder, usize, MouseStateHandle, MouseStateHandle)>,
     selected: Option<HistoryFolder>,
@@ -100,6 +124,17 @@ impl HistoryPageView {
     pub fn new() -> Self {
         Self {
             page: PageType::new_monolith(HistoryWidget, None, true),
+            shell_toggle: Default::default(),
+            live_clear: Default::default(),
+            live_confirm: Default::default(),
+            live_cancel: Default::default(),
+            pending_live_clear: false,
+            restored_toggle: Default::default(),
+            shell_files: Vec::new(),
+            pending_shell_clear: None,
+            shell_confirm: Default::default(),
+            shell_cancel: Default::default(),
+            message: None,
             records: Vec::new(),
             folders: Vec::new(),
             selected: None,
@@ -173,6 +208,14 @@ impl HistoryPageView {
 
     fn load(&mut self, ctx: &mut ViewContext<Self>) {
         if !self.busy {
+            let mut files: BTreeMap<PathBuf, Vec<ShellHost>> = BTreeMap::new();
+            for (path, host) in History::as_ref(ctx).local_history_files() {
+                files.entry(path).or_default().push(host);
+            }
+            self.shell_files = files
+                .into_iter()
+                .map(|(path, hosts)| (path, hosts, Default::default()))
+                .collect();
             self.pending_clear = None;
             self.request(None, ctx);
         }
@@ -229,6 +272,60 @@ impl TypedActionView for HistoryPageView {
             return;
         }
         match action {
+            HistoryPageAction::RequestLiveClear => self.pending_live_clear = true,
+            HistoryPageAction::CancelLiveClear => self.pending_live_clear = false,
+            HistoryPageAction::ConfirmLiveClear => {
+                if self.pending_live_clear {
+                    self.pending_live_clear = false;
+                    History::handle(ctx)
+                        .update(ctx, |history, ctx| history.clear_live_history(ctx));
+                    self.message = Some("Live and restored commands removed from the popup for this app run. Saved records and shell files are separate. Restored blocks may return after restart unless Restored commands is Off.".into());
+                }
+            }
+            HistoryPageAction::ToggleShellHistory => {
+                let result = InputSettings::handle(ctx).update(ctx, |settings, ctx| {
+                    settings
+                        .use_shell_history
+                        .set_value(!*settings.use_shell_history, ctx)
+                });
+                if let Err(error) = result {
+                    self.error = Some(error.to_string());
+                }
+            }
+            HistoryPageAction::ToggleRestoredHistory => {
+                let result = InputSettings::handle(ctx).update(ctx, |settings, ctx| {
+                    settings
+                        .use_restored_history
+                        .set_value(!*settings.use_restored_history, ctx)
+                });
+                if let Err(error) = result {
+                    self.error = Some(error.to_string());
+                }
+            }
+            HistoryPageAction::RequestShellClear(index) => {
+                if let Some((path, hosts, _)) = self.shell_files.get(*index) {
+                    self.pending_shell_clear = Some((path.clone(), hosts.clone()));
+                }
+            }
+            HistoryPageAction::CancelShellClear => self.pending_shell_clear = None,
+            HistoryPageAction::ConfirmShellClear => {
+                if let Some((path, hosts)) = self.pending_shell_clear.take() {
+                    self.busy = true;
+                    self.error = None;
+                    self.message = None;
+                    ctx.spawn(async move { clear_shell_history_file(&path).await }, move |view, result, ctx| {
+                        view.busy = false;
+                        match result {
+                            Ok(()) => {
+                                History::handle(ctx).update(ctx, |history, ctx| history.forget_shell_history(hosts, ctx));
+                                view.message = Some("Shell history file cleared. Open shells may write their in-memory history back when they exit.".into());
+                            }
+                            Err(error) => view.error = Some(format!("Could not clear shell history: {error}")),
+                        }
+                        ctx.notify();
+                    });
+                }
+            }
             HistoryPageAction::Select(index) => {
                 if let Some((folder, _, _, _)) = self.folders.get(*index) {
                     self.selected = Some(folder.clone());
@@ -304,17 +401,26 @@ impl View for HistoryPageView {
     }
 }
 
+async fn clear_shell_history_file(path: &Path) -> std::io::Result<()> {
+    // Open an existing file only. Do not replace it or change its permissions.
+    let file = async_fs::OpenOptions::new().write(true).open(path).await?;
+    if !file.metadata().await?.is_file() {
+        return Err(std::io::Error::other("History path is not a regular file"));
+    }
+    file.set_len(0).await
+}
+
 struct HistoryWidget;
 impl SettingsWidget for HistoryWidget {
     type View = HistoryPageView;
     fn search_terms(&self) -> &str {
-        "command history commands history saved folders directory view clear delete cleanup"
+        "command history commands history saved folders directory view clear delete cleanup shell import restored HISTFILE"
     }
     fn render(
         &self,
         view: &HistoryPageView,
         appearance: &Appearance,
-        _: &AppContext,
+        ctx: &AppContext,
     ) -> Box<dyn Element> {
         let ui = appearance.ui_builder();
         let mut body = Flex::column().with_spacing(16.)
@@ -325,7 +431,102 @@ impl SettingsWidget for HistoryWidget {
                     .with_child(history_button("Refresh", &view.refresh, HistoryPageAction::Refresh, view.busy, appearance))
                     .finish()
             )
-            .with_child(ui.span("Browse and clear saved commands for each folder. Shell history files and terminal scrollback are kept.").with_soft_wrap().build().finish());
+            .with_child(ui.span("Manage saved folder history, shell imports, and commands from open or restored tabs.").with_soft_wrap().build().finish());
+        let settings = InputSettings::as_ref(ctx);
+        let mut sources = Flex::column().with_spacing(12.)
+            .with_child(ui.span("History sources").with_style(UiComponentStyles { font_weight: Some(Weight::Semibold), ..Default::default() }).build().finish())
+            .with_child(history_caption("The popup combines saved records, shell imports, live commands, and restored blocks.", appearance))
+            .with_child(history_button(if *settings.use_shell_history { "Use shell history: On" } else { "Use shell history: Off" }, &view.shell_toggle, HistoryPageAction::ToggleShellHistory, view.busy, appearance))
+            .with_child(history_caption("Show imported shell commands. Turning this off keeps the shell file, saved dWarp records, and new commands.", appearance))
+            .with_child(history_button(if *settings.use_restored_history { "Restored commands: On" } else { "Restored commands: Off" }, &view.restored_toggle, HistoryPageAction::ToggleRestoredHistory, view.busy, appearance))
+            .with_child(history_caption("Show commands from restored terminal blocks. Terminal scrollback is kept.", appearance));
+        sources.add_child(history_button(
+            "Clear live popup history…",
+            &view.live_clear,
+            HistoryPageAction::RequestLiveClear,
+            view.busy,
+            appearance,
+        ));
+        sources.add_child(history_caption("Hide commands held by open tabs until restart. New commands still appear. Saved records, shell files, and scrollback are kept.", appearance));
+        if view.pending_live_clear {
+            sources.add_child(history_caption("Remove current live and restored commands from popup history across all open tabs?", appearance));
+            sources.add_child(
+                Flex::row()
+                    .with_spacing(12.)
+                    .with_child(history_button(
+                        "Clear live history",
+                        &view.live_confirm,
+                        HistoryPageAction::ConfirmLiveClear,
+                        view.busy,
+                        appearance,
+                    ))
+                    .with_child(history_button(
+                        "Cancel",
+                        &view.live_cancel,
+                        HistoryPageAction::CancelLiveClear,
+                        view.busy,
+                        appearance,
+                    ))
+                    .finish(),
+            );
+        }
+        sources.add_child(
+            ui.span("Local shell history files")
+                .with_style(UiComponentStyles {
+                    font_weight: Some(Weight::Semibold),
+                    ..Default::default()
+                })
+                .build()
+                .finish(),
+        );
+        sources.add_child(history_caption("Files detected from local sessions, including HISTFILE overrides. Remote files are excluded. Clearing affects all folders using the file. Open shells may write history back on exit.", appearance));
+        if view.shell_files.is_empty() {
+            sources.add_child(history_caption(
+                "No local shell history files detected. Open a local terminal, then Refresh.",
+                appearance,
+            ));
+        }
+        for (index, (path, _, state)) in view.shell_files.iter().enumerate() {
+            sources.add_child(
+                ui.span(path.display().to_string())
+                    .with_soft_wrap()
+                    .build()
+                    .finish(),
+            );
+            sources.add_child(history_button(
+                "Clear shell history file…",
+                state,
+                HistoryPageAction::RequestShellClear(index),
+                view.busy,
+                appearance,
+            ));
+        }
+        if let Some((path, _)) = &view.pending_shell_clear {
+            sources.add_child(history_caption(format!("Permanently empty {}? This clears shell history across all folders using this file. dWarp database records and live session commands are separate.", path.display()), appearance));
+            sources.add_child(
+                Flex::row()
+                    .with_spacing(12.)
+                    .with_child(history_button(
+                        "Clear file",
+                        &view.shell_confirm,
+                        HistoryPageAction::ConfirmShellClear,
+                        view.busy,
+                        appearance,
+                    ))
+                    .with_child(history_button(
+                        "Cancel",
+                        &view.shell_cancel,
+                        HistoryPageAction::CancelShellClear,
+                        view.busy,
+                        appearance,
+                    ))
+                    .finish(),
+            );
+        }
+        body.add_child(history_panel(sources.finish(), appearance));
+        if let Some(message) = &view.message {
+            body.add_child(history_caption(message, appearance));
+        }
         if view.busy {
             body.add_child(ui.span("Loading…").build().finish());
         }
@@ -601,10 +802,10 @@ fn history_panel(content: Box<dyn Element>, appearance: &Appearance) -> Box<dyn 
         .finish()
 }
 
-fn history_caption(text: String, appearance: &Appearance) -> Box<dyn Element> {
+fn history_caption(text: impl Into<String>, appearance: &Appearance) -> Box<dyn Element> {
     appearance
         .ui_builder()
-        .span(text)
+        .span(text.into())
         .with_style(UiComponentStyles {
             font_size: Some(12.),
             font_color: Some(
@@ -628,9 +829,17 @@ fn history_button(
     appearance: &Appearance,
 ) -> Box<dyn Element> {
     let variant = match action {
-        HistoryPageAction::ConfirmClear => ButtonVariant::Error,
+        HistoryPageAction::ConfirmClear
+        | HistoryPageAction::ConfirmShellClear
+        | HistoryPageAction::ConfirmLiveClear => ButtonVariant::Error,
         HistoryPageAction::Select(..) => ButtonVariant::Accent,
-        HistoryPageAction::ClearFolder(..)
+        HistoryPageAction::RequestLiveClear
+        | HistoryPageAction::CancelLiveClear
+        | HistoryPageAction::ToggleShellHistory
+        | HistoryPageAction::ToggleRestoredHistory
+        | HistoryPageAction::RequestShellClear(..)
+        | HistoryPageAction::CancelShellClear
+        | HistoryPageAction::ClearFolder(..)
         | HistoryPageAction::RequestClear
         | HistoryPageAction::Refresh
         | HistoryPageAction::Back

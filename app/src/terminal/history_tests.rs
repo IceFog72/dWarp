@@ -1064,3 +1064,136 @@ fn history_management_refresh_preserves_same_command_saved_in_another_folder() {
         });
     });
 }
+
+#[test]
+fn history_management_controls_shell_and_restored_sources_without_losing_saved_or_new_commands() {
+    App::test((), |mut app| async move {
+        let host = ShellHost {
+            shell_type: ShellType::Bash,
+            user: "alice".into(),
+            hostname: "local".into(),
+        };
+        let session_id = SessionId::from(1);
+        let mut history = History::new(vec![crate::persistence::model::Command {
+            command: "saved command".into(),
+            shell: Some("bash".into()),
+            hostname: Some("local".into()),
+            username: Some("alice".into()),
+            ..Default::default()
+        }
+        .into()]);
+        history
+            .session_id_to_shell_host
+            .insert(session_id, host.clone());
+        history
+            .read_history_file_state
+            .insert(host.clone(), super::ReadHistoryFileState::Done);
+
+        history.session_start_indices.insert(session_id, 2);
+        history
+            .session_skip_indices
+            .insert(session_id, Default::default());
+        history.history_file_commands.insert(
+            host.clone(),
+            vec![
+                Arc::new(HistoryEntry::command_only("shell only")),
+                Arc::new(HistoryEntry::command_only("saved command")),
+            ],
+        );
+        history.session_commands.insert(
+            host.clone(),
+            vec![
+                Arc::new(HistoryEntry {
+                    session_id: Some(session_id),
+                    is_for_restored_block: true,
+                    ..HistoryEntry::command_only("restored")
+                }),
+                Arc::new(HistoryEntry {
+                    session_id: Some(session_id),
+                    ..HistoryEntry::command_only("new command")
+                }),
+            ],
+        );
+        let visible = |history: &History, shell, restored| {
+            history
+                .collect_visible_commands_for_session(session_id, shell, restored, |_, entry| {
+                    entry.command.clone()
+                })
+                .unwrap()
+        };
+        assert_eq!(
+            visible(&history, true, true),
+            vec!["shell only", "saved command", "restored", "new command"]
+        );
+        assert_eq!(
+            visible(&history, false, true),
+            vec!["saved command", "restored", "new command"]
+        );
+        assert_eq!(
+            visible(&history, false, false),
+            vec!["saved command", "new command"]
+        );
+        assert_eq!(
+            visible(&history, true, false),
+            vec!["shell only", "saved command", "new command"]
+        );
+        let handle = app.add_model(|_| history);
+        handle.update(&mut app, |history, ctx| {
+            history.forget_shell_history(vec![host], ctx);
+            assert_eq!(
+                visible(history, true, false),
+                vec!["saved command", "new command"]
+            );
+            history.refresh_saved_records(vec![], ctx);
+            assert_eq!(visible(history, true, false), vec!["new command"]);
+            history.clear_live_history(ctx);
+            assert!(visible(history, true, true).is_empty());
+            history.append_commands(
+                session_id,
+                vec![HistoryEntry::with_session_id(session_id, "after clearing")],
+            );
+            assert_eq!(visible(history, true, true), vec!["after clearing"]);
+            assert_eq!(history.session_start_indices[&session_id], 2);
+            let next_session = SessionId::from(2);
+            let host = history.session_id_to_shell_host[&session_id].clone();
+            history
+                .session_commands
+                .get_mut(&host)
+                .unwrap()
+                .push(Arc::new(HistoryEntry::with_session_id(
+                    session_id,
+                    "after clearing",
+                )));
+            history
+                .session_id_to_shell_host
+                .insert(next_session, host.clone());
+            history.initialize_session_start_and_skip_indices([next_session].into(), host, 6, ctx);
+            assert_eq!(
+                history
+                    .commands(next_session)
+                    .unwrap()
+                    .iter()
+                    .map(|entry| entry.command.as_str())
+                    .collect::<Vec<_>>(),
+                vec!["after clearing"]
+            );
+            assert!(history.session_skip_indices[&next_session].contains(&4));
+        });
+    });
+}
+
+#[test]
+fn history_management_detects_local_histfile_override_and_excludes_remote_files() {
+    let directory = tempfile::tempdir().unwrap();
+    let path = directory.path().join("custom-history");
+    std::fs::write(&path, "saved command\n").unwrap();
+    let info = SessionInfo::new_for_test().with_histfile(Some(path.display().to_string()));
+    let local = Session::new(info.clone(), Arc::new(TestCommandExecutor::default()));
+    assert_eq!(local.local_history_file_candidates(), vec![path.clone()]);
+    let mut remote_info = info;
+    remote_info.session_type = BootstrapSessionType::WarpifiedRemote;
+    let remote = Session::new(remote_info, Arc::new(TestCommandExecutor::default()));
+    assert!(remote.local_history_file_candidates().is_empty());
+    std::fs::remove_file(&path).unwrap();
+    assert_eq!(local.local_history_file_candidates(), vec![path]);
+}

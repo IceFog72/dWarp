@@ -31,6 +31,21 @@ network requests. Removing Warp's cloud features does not make those programs
 offline. The shared-session subsystem was left outside the removal work; its
 remaining source is not a promise that Warp's hosted sharing services work here.
 
+## Command history
+
+**Settings → Command history** manages the sources shown in the history popup:
+
+- Folder **Clear history…** removes dWarp's saved records for that folder and account.
+- **Use shell history** includes commands imported from the shell history file. Turning it off keeps the file and dWarp's saved records.
+- **Restored commands** includes commands from restored terminal blocks. Turning it off keeps terminal scrollback.
+- **Clear live popup history…** removes commands currently held by open tabs from popup history for this app run. New commands still appear.
+- **Clear shell history file…** empties the selected file after confirmation. Detected local paths include `HISTFILE` overrides. Remote files are excluded.
+
+Shell imports and restored commands default to on. Both settings persist across
+restarts. Open shells may write their in-memory history back when they exit.
+Clearing a shell file affects every folder using that file. Saved dWarp records
+and live commands have separate cleanup controls.
+
 ## Rendering
 
 GPU rendering is the default. Enable **Use CPU renderer** in settings and restart,

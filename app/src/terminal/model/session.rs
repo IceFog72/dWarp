@@ -1165,6 +1165,24 @@ impl Session {
         self.session_type() == SessionType::Local
     }
 
+    /// Local paths use the same HISTFILE override and fallback order as history import.
+    pub fn local_history_file_candidates(&self) -> Vec<PathBuf> {
+        if !self.is_local() {
+            return Vec::new();
+        }
+        let candidates = self.info.histfile.as_ref().map_or_else(
+            || self.shell().shell_type().history_files(),
+            |path| vec![path.to_string()],
+        );
+        candidates
+            .into_iter()
+            .filter_map(|path| {
+                self.maybe_convert_to_native_path(&TypedPath::from(path.as_str()))
+                    .ok()
+            })
+            .collect()
+    }
+
     async fn read_history_for_local_session(&self, is_kaspersky_running: bool) -> Vec<String> {
         let histfile = &self.info.histfile;
         let shell_type = &self.info.shell.shell_type();

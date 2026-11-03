@@ -1,4 +1,5 @@
 use super::*;
+use crate::settings::{UseRestoredHistory, UseShellHistory};
 use warpui::{platform::WindowStyle, units::Pixels, App};
 
 fn record(id: i32, path: Option<&str>, host: &str, user: &str) -> Command {
@@ -48,6 +49,7 @@ fn history_management_folder_browser_separates_hosts_users_and_missing_paths() {
 #[test]
 fn history_management_viewer_paginates_and_confirmation_tracks_only_selected_folder() {
     App::test((), |mut app| async move {
+        init_history_settings(&mut app);
         app.add_singleton_model(|_| Appearance::mock());
         let (_, view) = app.add_window(WindowStyle::NotStealFocus, |_| HistoryPageView::new());
         view.update(&mut app, |view, ctx| {
@@ -115,6 +117,7 @@ fn history_management_page_loads_and_clears_through_writer_acknowledgement() {
     use crate::persistence::WriterHandles;
     use std::{sync::mpsc, time::Duration};
     App::test((), |mut app| async move {
+        init_history_settings(&mut app);
         app.add_singleton_model(|_| Appearance::mock());
         let (sender, receiver) = mpsc::sync_channel(8);
         let handle = std::thread::spawn(move || {
@@ -190,6 +193,7 @@ fn history_management_layout_keeps_folder_actions_and_commands_inside_page() {
     use warpui::{Presenter, WindowInvalidation};
 
     App::test((), |mut app| async move {
+        init_history_settings(&mut app);
         app.add_singleton_model(|_| Appearance::mock());
         let (window, view) = app.add_window(WindowStyle::NotStealFocus, |_| HistoryPageView::new());
         view.update(&mut app, |view, _| {
@@ -243,5 +247,89 @@ fn history_management_layout_keeps_folder_actions_and_commands_inside_page() {
                 });
             }
         }
+    });
+}
+
+#[test]
+fn history_management_shell_file_clear_preserves_file_and_reports_missing_paths() {
+    futures_lite::future::block_on(async {
+        let directory = tempfile::tempdir().unwrap();
+        let path = directory.path().join("history");
+        std::fs::write(&path, "first command\nsecond command\n").unwrap();
+        let permissions = std::fs::metadata(&path).unwrap().permissions();
+        clear_shell_history_file(&path).await.unwrap();
+        assert!(path.is_file());
+        assert!(std::fs::read(&path).unwrap().is_empty());
+        assert_eq!(std::fs::metadata(&path).unwrap().permissions(), permissions);
+        clear_shell_history_file(&path).await.unwrap();
+        let missing = directory.path().join("missing");
+        assert_eq!(
+            clear_shell_history_file(&missing).await.unwrap_err().kind(),
+            std::io::ErrorKind::NotFound
+        );
+        assert!(!missing.exists());
+        assert!(clear_shell_history_file(directory.path()).await.is_err());
+    });
+}
+
+fn init_history_settings(ctx: &mut App) {
+    use settings::{PrivatePreferences, PublicPreferences, SettingsManager};
+    use warpui_extras::user_preferences::in_memory::InMemoryPreferences;
+    ctx.add_singleton_model(|_| PublicPreferences::new(Box::<InMemoryPreferences>::default()));
+    ctx.add_singleton_model(|_| PrivatePreferences::new(Box::<InMemoryPreferences>::default()));
+    ctx.add_singleton_model(|_| SettingsManager::default());
+    InputSettings::register(ctx);
+}
+
+#[test]
+fn history_management_source_controls_save_settings_and_require_file_confirmation() {
+    App::test((), |mut app| async move {
+        init_history_settings(&mut app);
+        app.add_singleton_model(|_| Appearance::mock());
+        app.add_singleton_model(|_| History::default());
+        let (_, view) = app.add_window(WindowStyle::NotStealFocus, |_| HistoryPageView::new());
+        let directory = tempfile::tempdir().unwrap();
+        let path = directory.path().join("history");
+        std::fs::write(&path, "keep until confirmed\n").unwrap();
+        view.update(&mut app, |view, ctx| {
+            assert!(*InputSettings::as_ref(ctx).use_shell_history);
+            assert!(*InputSettings::as_ref(ctx).use_restored_history);
+            view.handle_action(&HistoryPageAction::ToggleShellHistory, ctx);
+            view.handle_action(&HistoryPageAction::ToggleRestoredHistory, ctx);
+            assert!(!*InputSettings::as_ref(ctx).use_shell_history);
+            assert!(!*InputSettings::as_ref(ctx).use_restored_history);
+            view.shell_files
+                .push((path.clone(), vec![], Default::default()));
+            view.handle_action(&HistoryPageAction::ConfirmShellClear, ctx);
+            assert!(!view.busy);
+            view.handle_action(&HistoryPageAction::RequestShellClear(0), ctx);
+            assert_eq!(view.pending_shell_clear.as_ref().unwrap().0, path);
+            assert_eq!(
+                std::fs::read_to_string(&path).unwrap(),
+                "keep until confirmed\n"
+            );
+            view.handle_action(&HistoryPageAction::CancelShellClear, ctx);
+            assert!(view.pending_shell_clear.is_none());
+            assert_eq!(
+                std::fs::read_to_string(&path).unwrap(),
+                "keep until confirmed\n"
+            );
+            view.handle_action(&HistoryPageAction::RequestShellClear(0), ctx);
+            view.handle_action(&HistoryPageAction::ConfirmShellClear, ctx);
+        });
+        for _attempt in 0..200 {
+            if !view.read(&app, |view, _| view.busy) {
+                break;
+            }
+            warpui::r#async::Timer::after(std::time::Duration::from_millis(5)).await;
+        }
+        assert!(!view.read(&app, |view, _| view.busy));
+        app.update(|ctx| {
+            assert!(!*UseShellHistory::new_from_storage(ctx).value());
+            assert!(!*UseRestoredHistory::new_from_storage(ctx).value());
+        });
+        assert!(std::fs::read(&path).unwrap().is_empty());
+        assert!(view.read(&app, |view, _| view.error.is_none()));
+        assert!(view.read(&app, |view, _| view.message.is_some()));
     });
 }

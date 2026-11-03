@@ -3,6 +3,7 @@ use futures::Future;
 use serde::{Deserialize, Serialize};
 use std::{
     collections::{HashMap, HashSet},
+    path::PathBuf,
     sync::Arc,
 };
 
@@ -207,6 +208,9 @@ pub struct History {
     read_history_file_state: HashMap<ShellHost, ReadHistoryFileState>,
 
     session_id_to_shell_host: HashMap<SessionId, ShellHost>,
+    cleared_shell_hosts: HashSet<ShellHost>,
+    local_shell_history_files: HashMap<PathBuf, HashSet<ShellHost>>,
+    cleared_session_lengths: HashMap<ShellHost, usize>,
 }
 
 #[derive(Clone, Debug)]
@@ -501,6 +505,44 @@ impl History {
         ctx.notify();
     }
 
+    /// Keep indices stable while hiding commands already present in live sessions.
+    pub fn clear_live_history(&mut self, ctx: &mut ModelContext<Self>) {
+        self.cleared_session_lengths = self
+            .session_commands
+            .iter()
+            .map(|(host, entries)| (host.clone(), entries.len()))
+            .collect();
+        for state in self.read_history_file_state.values_mut() {
+            if let ReadHistoryFileState::InProgress {
+                session_commands_to_append,
+                ..
+            } = state
+            {
+                session_commands_to_append.clear();
+            }
+        }
+        for session_id in self.session_id_to_shell_host.keys() {
+            ctx.emit(HistoryEvent::Initialized(*session_id));
+        }
+        ctx.notify();
+    }
+
+    pub fn local_history_files(&self) -> Vec<(PathBuf, ShellHost)> {
+        self.local_shell_history_files
+            .iter()
+            .filter(|(path, _)| path.is_file())
+            .flat_map(|(path, hosts)| hosts.iter().map(|host| (path.clone(), host.clone())))
+            .collect()
+    }
+
+    pub fn forget_shell_history(&mut self, hosts: Vec<ShellHost>, ctx: &mut ModelContext<Self>) {
+        self.cleared_shell_hosts.extend(hosts);
+        for session_id in self.session_id_to_shell_host.keys() {
+            ctx.emit(HistoryEvent::Initialized(*session_id));
+        }
+        ctx.notify();
+    }
+
     /// Returns an iterator over a tuple of (count, &HistoryEntry) for all commands in the history.
     /// where count is the number of times the command has been run.
     pub fn command_summaries(&self, hostname: String) -> Vec<(u32, &HistoryEntry)> {
@@ -522,6 +564,13 @@ impl History {
     /// thread. Depending on whether or not the session is local or remote, history may be read
     /// directly from disk or via an in-band command.
     pub fn init_session(&mut self, session: Arc<Session>, ctx: &mut ModelContext<Self>) {
+        let host = ShellHost::from_session(&session);
+        for path in session.local_history_file_candidates() {
+            self.local_shell_history_files
+                .entry(path)
+                .or_default()
+                .insert(host.clone());
+        }
         if self.session_start_indices.contains_key(&session.id()) {
             log::debug!(
                 "In init_session but history was already initialized for session {:?}",
@@ -715,14 +764,15 @@ impl History {
             let mut seen_commands: HashSet<&str> = HashSet::new();
             let mut skip_index_set: HashSet<usize> = HashSet::new();
             self.session_skip_indices.insert(session_id, HashSet::new());
-            for (idx, &entry) in self
-                .commands(session_id)
+            for (idx, entry) in self
+                .collect_visible_commands_for_session(session_id, true, true, |index, entry| {
+                    (index, entry.as_ref())
+                })
                 .unwrap_or_else(|| {
                     log::warn!("History commands are empty for session {session_id:?}");
                     Vec::new()
                 })
-                .iter()
-                .enumerate()
+                .into_iter()
                 .rev()
             {
                 if seen_commands.contains(entry.command.as_str()) {
@@ -852,13 +902,15 @@ impl History {
     /// It is important that it is this concatenation specifically, because self.session_skip_indices is
     /// an index into this specific concatenation.
     pub fn commands(&self, session_id: SessionId) -> Option<Vec<&HistoryEntry>> {
-        self.collect_visible_commands_for_session(session_id, |h| h.as_ref())
+        self.collect_visible_commands_for_session(session_id, true, true, |_, h| h.as_ref())
     }
 
     fn collect_visible_commands_for_session<'a, T>(
         &'a self,
         session_id: SessionId,
-        mut to_output: impl FnMut(&'a Arc<HistoryEntry>) -> T,
+        use_shell_history: bool,
+        use_restored_history: bool,
+        mut to_output: impl FnMut(usize, &'a Arc<HistoryEntry>) -> T,
     ) -> Option<Vec<T>> {
         let Some(shell_host) = self.session_id_to_shell_host.get(&session_id) else {
             log::warn!("ShellHost should be populated in the map for all bootstrapped sessions.");
@@ -886,6 +938,28 @@ impl History {
             .chain(session_commands.iter())
             .enumerate()
             .filter_map(|(idx, h)| {
+                if idx >= histfile_commands.len()
+                    && idx - histfile_commands.len()
+                        < self
+                            .cleared_session_lengths
+                            .get(shell_host)
+                            .copied()
+                            .unwrap_or(0)
+                {
+                    return None;
+                }
+                if !use_restored_history && h.is_for_restored_block {
+                    return None;
+                }
+                if idx < histfile_commands.len()
+                    && (!use_shell_history || self.cleared_shell_hosts.contains(shell_host))
+                    && !self
+                        .persisted_commands_summary
+                        .get(shell_host)
+                        .is_some_and(|summaries| summaries.contains_key(&h.command))
+                {
+                    return None;
+                }
                 if skip_indices.contains(&idx) {
                     return None;
                 }
@@ -896,18 +970,18 @@ impl History {
                 if idx < *session_start_index && !h.is_for_restored_block {
                     // This history entry was from before the session's history
                     // started, so we include it.
-                    return Some(to_output(h));
+                    return Some(to_output(idx, h));
                 }
                 // Otherwise, we need to check if the history entry is from this session.
                 if let Some(history_session_id) = h.session_id {
                     if history_session_id == session_id {
-                        Some(to_output(h))
+                        Some(to_output(idx, h))
                     } else {
                         None
                     }
                 } else {
                     // No session id, so command is from the history file
-                    Some(to_output(h))
+                    Some(to_output(idx, h))
                 }
             })
             .collect();
@@ -918,7 +992,9 @@ impl History {
     /// `commands_shared` returns the same logical set as [`Self::commands`], but with shared
     /// ownership so callers can keep an owned snapshot without deep-cloning command data.
     pub fn commands_shared(&self, session_id: SessionId) -> Option<Vec<Arc<HistoryEntry>>> {
-        self.collect_visible_commands_for_session(session_id, Arc::clone)
+        self.collect_visible_commands_for_session(session_id, true, true, |_, entry| {
+            Arc::clone(entry)
+        })
     }
 
     #[allow(clippy::len_without_is_empty)]

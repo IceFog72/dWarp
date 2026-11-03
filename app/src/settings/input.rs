@@ -34,6 +34,24 @@ pub enum InputBoxType {
 
 define_settings_group!(InputSettings,
     settings: [
+        use_shell_history: UseShellHistory {
+            type: bool,
+            default: true,
+            supported_platforms: SupportedPlatforms::DESKTOP,
+            sync_to_cloud: SyncToCloud::Never,
+            private: false,
+            toml_path: "terminal.input.use_shell_history",
+            description: "Include imported shell history in the command history popup.",
+        },
+        use_restored_history: UseRestoredHistory {
+            type: bool,
+            default: true,
+            supported_platforms: SupportedPlatforms::DESKTOP,
+            sync_to_cloud: SyncToCloud::Never,
+            private: false,
+            toml_path: "terminal.input.use_restored_history",
+            description: "Include commands from restored terminal blocks in the command history popup.",
+        },
         show_hint_text: ShowHintText {
             type: bool,
             default: true,

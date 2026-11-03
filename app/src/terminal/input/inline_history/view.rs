@@ -6,13 +6,16 @@ use warp_core::ui::appearance::Appearance;
 use warp_core::ui::theme::color::internal_colors;
 use warp_core::ui::theme::Fill;
 use warpui::elements::ChildView;
-use warpui::{AppContext, Element, Entity, ModelHandle, View, ViewContext, ViewHandle};
+use warpui::{
+    AppContext, Element, Entity, ModelHandle, SingletonEntity, View, ViewContext, ViewHandle,
+};
 
 use crate::features::FeatureFlag;
 use crate::search::data_source::{Query, QueryFilter};
 use crate::search::mixer::{SearchMixer, SearchMixerEvent};
+use crate::settings::{InputSettings, InputSettingsChangedEvent};
 use crate::settings_view::SettingsSection;
-use crate::terminal::history::LinkedWorkflowData;
+use crate::terminal::history::{History, LinkedWorkflowData};
 use crate::terminal::input::buffer_model::InputBufferModel;
 use crate::terminal::input::inline_history::data_source::{
     AcceptHistoryItem, InlineHistoryMenuDataSource,
@@ -186,6 +189,24 @@ impl InlineHistoryMenuView {
             let InputSuggestionsModeEvent::ModeChanged { .. } = event;
             if model.as_ref(ctx).is_inline_history_menu() {
                 me.open_with_current_buffer(ctx);
+            }
+        });
+
+        let history_mode = input_suggestions_model.clone();
+        ctx.subscribe_to_model(&History::handle(ctx), move |me, _, _, ctx| {
+            if history_mode.as_ref(ctx).is_inline_history_menu() {
+                me.rerun_query(ctx);
+            }
+        });
+        let history_mode = input_suggestions_model.clone();
+        ctx.subscribe_to_model(&InputSettings::handle(ctx), move |me, _, event, ctx| {
+            if matches!(
+                event,
+                InputSettingsChangedEvent::UseShellHistory { .. }
+                    | InputSettingsChangedEvent::UseRestoredHistory { .. }
+            ) && history_mode.as_ref(ctx).is_inline_history_menu()
+            {
+                me.rerun_query(ctx);
             }
         });
 
