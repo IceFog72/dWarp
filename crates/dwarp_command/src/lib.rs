@@ -21,6 +21,10 @@ pub struct RunArgs {
     /// Raise dWarp for interactive user input, including sudo passwords.
     #[arg(long)]
     pub focus: bool,
+    /// Forward this process's standard input to the command's terminal. Input is
+    /// refused while the terminal hides typed characters, such as at a password prompt.
+    #[arg(long)]
+    pub stdin: bool,
     /// dWarp launcher executable.
     #[arg(long, default_value = "dwarp")]
     pub warp: PathBuf,

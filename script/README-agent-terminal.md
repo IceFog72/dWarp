@@ -38,6 +38,25 @@ directly there. Input keystrokes are not logged; output is mirrored after the
 command's terminal has applied its echo settings. Never supply passwords through
 chat, tool input, `sudo -S`, arguments, or environment variables.
 
+## Agent input to a running command
+
+By default `dwarp run` ignores its own standard input. Add `--stdin` to forward
+it to the command's terminal, so a coding assistant can drive a REPL, installer
+menu, or remote shell through its shell tool's stdin/session mechanism:
+
+```bash
+dwarp run --stdin --group Codex -- python3 -q
+```
+
+You can still type in the pane. Both sources reach the same PTY. When the
+terminal hides typed characters (echo off with line editing on, as at `sudo` and
+`ssh` password prompts), the worker drops the forwarded bytes and prints
+`dWarp: caller input refused` in the pane and in the caller's output. Raw-mode
+programs such as full-screen tools and remote shells stay allowed. This guard
+cannot see a password prompt that a remote shell shows inside a raw-mode `ssh`
+session, so never send passwords that way. End of forwarded input does not stop
+the command.
+
 Commands have a PTY, so disable pagers for unattended output, for example with
 `git --no-pager` or `SYSTEMD_PAGER=cat`. Leave interactive prompts available.
 

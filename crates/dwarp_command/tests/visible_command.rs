@@ -336,3 +336,113 @@ fn launch_timeout_preserves_a_launcher_that_may_be_the_gui() {
     assert_eq!(output.status.code(), Some(125));
     assert!(!terminal.directory.path().join("should-not-exist").exists());
 }
+
+/// Collects a spawned caller's standard output so a test can wait for a prompt.
+fn collect_output(stdout: std::process::ChildStdout) -> std::sync::Arc<std::sync::Mutex<Vec<u8>>> {
+    let collected = std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
+    let sink = collected.clone();
+    thread::spawn(move || {
+        let mut stdout = stdout;
+        let mut bytes = [0; 4096];
+        while let Ok(count) = stdout.read(&mut bytes) {
+            if count == 0 {
+                break;
+            }
+            sink.lock().unwrap().extend_from_slice(&bytes[..count]);
+        }
+    });
+    collected
+}
+
+fn wait_for_text(collected: &std::sync::Mutex<Vec<u8>>, text: &str) {
+    let started = Instant::now();
+    while !String::from_utf8_lossy(&collected.lock().unwrap()).contains(text) {
+        assert!(
+            started.elapsed() < Duration::from_secs(8),
+            "missing {text:?} in {:?}",
+            String::from_utf8_lossy(&collected.lock().unwrap())
+        );
+        thread::sleep(Duration::from_millis(20));
+    }
+}
+
+#[test]
+fn stdin_option_forwards_caller_input_to_the_command() {
+    let terminal = Terminal::new();
+    let mut caller = terminal
+        .command()
+        .args([
+            "--stdin",
+            "--",
+            "bash",
+            "-c",
+            "printf 'ready: '; read -r answer; printf 'received: %s\\n' \"$answer\"",
+        ])
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .unwrap();
+    let output = collect_output(caller.stdout.take().unwrap());
+    wait_for_text(&output, "ready: ");
+    caller.stdin.take().unwrap().write_all(b"agent\n").unwrap();
+    assert!(caller.wait().unwrap().success());
+    wait_for_text(&output, "received: agent");
+}
+
+#[test]
+fn caller_input_is_ignored_without_the_stdin_option() {
+    let terminal = Terminal::new();
+    let mut caller = terminal
+        .command()
+        .args([
+            "--",
+            "bash",
+            "-c",
+            "printf 'ready: '; read -r -t 1 answer; printf 'received: [%s]\\n' \"$answer\"",
+        ])
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .unwrap();
+    let output = collect_output(caller.stdout.take().unwrap());
+    wait_for_text(&output, "ready: ");
+    let mut stdin = caller.stdin.take().unwrap();
+    stdin.write_all(b"agent\n").unwrap();
+    caller.wait().unwrap();
+    drop(stdin);
+    wait_for_text(&output, "received: []");
+}
+
+#[test]
+fn caller_input_is_refused_while_the_terminal_hides_typed_characters() {
+    let terminal = Terminal::new();
+    let mut caller = terminal
+        .command()
+        .args([
+            "--stdin",
+            "--",
+            "bash",
+            "-c",
+            "stty -echo; printf 'secret: '; read -r answer; printf 'received: %s\\n' \"$answer\"",
+        ])
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .unwrap();
+    let output = collect_output(caller.stdout.take().unwrap());
+    wait_for_text(&output, "secret: ");
+    caller.stdin.take().unwrap().write_all(b"agent\n").unwrap();
+    wait_for_text(&output, "caller input refused");
+    // Only the user's own keyboard, which writes to the terminal, can answer the prompt.
+    terminal
+        ._master
+        .try_clone()
+        .unwrap()
+        .write_all(b"user\n")
+        .unwrap();
+    assert!(caller.wait().unwrap().success());
+    wait_for_text(&output, "received: user");
+}

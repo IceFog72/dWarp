@@ -28,7 +28,7 @@ use nix::{
     pty::openpty,
     sys::{
         signal::{Signal, killpg},
-        termios::{self, SetArg, Termios},
+        termios::{self, LocalFlags, SetArg, Termios},
     },
     unistd::Pid,
 };
@@ -39,7 +39,9 @@ use crate::RunArgs;
 const REQUEST: u8 = 1;
 const OUTPUT: u8 = 2;
 const EXIT: u8 = 3;
+const INPUT: u8 = 4;
 const MAX_FRAME: usize = 4 * 1024 * 1024;
+const MAX_PENDING_INPUT: usize = 1024 * 1024;
 
 #[derive(Serialize, Deserialize)]
 struct Request {
@@ -230,16 +232,33 @@ pub(super) fn client(args: &RunArgs, worker_prefix: &[&str]) -> Result<i32> {
         timeout: args.timeout,
     };
     write_frame(&mut stream, REQUEST, &serde_json::to_vec(&request)?)?;
+    let mut forwarding = args.stdin;
+    let mut buffer = [0; 16384];
     loop {
         if interrupt.received() {
             return Ok(130);
         } // Closing the socket cancels the worker's process group.
-        let mut descriptors = [libc::pollfd {
-            fd: stream.as_raw_fd(),
-            events: libc::POLLIN,
-            revents: 0,
-        }];
+        let mut descriptors = [
+            libc::pollfd {
+                fd: stream.as_raw_fd(),
+                events: libc::POLLIN,
+                revents: 0,
+            },
+            libc::pollfd {
+                fd: if forwarding { 0 } else { -1 },
+                events: libc::POLLIN,
+                revents: 0,
+            },
+        ];
         poll(&mut descriptors)?;
+        if descriptors[1].revents & (libc::POLLIN | libc::POLLHUP) != 0 {
+            match io::stdin().read(&mut buffer) {
+                Ok(0) => forwarding = false,
+                Ok(count) => write_frame(&mut stream, INPUT, &buffer[..count])?,
+                Err(error) if error.kind() == io::ErrorKind::Interrupted => {}
+                Err(error) => return Err(error.into()),
+            }
+        }
         if descriptors[0].revents == 0 {
             continue;
         }
@@ -298,6 +317,15 @@ impl Drop for ChildGroup {
             let _ = self.0.wait();
         }
     }
+}
+
+/// Password prompts clear ECHO but keep line editing. Full-screen programs and remote
+/// shells clear both, so their input stays allowed.
+fn hides_input(master: &File) -> bool {
+    termios::tcgetattr(master.as_raw_fd()).is_ok_and(|terminal| {
+        !terminal.local_flags.contains(LocalFlags::ECHO)
+            && terminal.local_flags.contains(LocalFlags::ICANON)
+    })
 }
 
 fn size(fd: RawFd) -> libc::winsize {
@@ -478,8 +506,33 @@ fn execute(request: &Request, stream: &mut UnixStream, log: &mut File) -> Result
         ];
         poll(&mut descriptors)?;
         if descriptors[2].revents != 0 {
-            connected = false;
-            cancellation.get_or_insert((Instant::now(), "caller disconnected"));
+            match read_frame(stream) {
+                Ok((INPUT, bytes)) => {
+                    let refusal = if hides_input(&master) {
+                        Some("caller input refused: the terminal is hiding typed characters")
+                    } else if input.len() + bytes.len() > MAX_PENDING_INPUT {
+                        Some("caller input refused: too much input is waiting for the command")
+                    } else {
+                        input.extend_from_slice(&bytes);
+                        None
+                    };
+                    if let Some(refusal) = refusal {
+                        let notice = format!("\r\ndWarp: {refusal}\r\n");
+                        let _ = io::stdout()
+                            .write_all(notice.as_bytes())
+                            .and_then(|()| io::stdout().flush());
+                        if write_frame(stream, OUTPUT, notice.as_bytes()).is_err() {
+                            connected = false;
+                            cancellation.get_or_insert((Instant::now(), "caller disconnected"));
+                        }
+                    }
+                }
+                Ok((other, _)) => anyhow::bail!("unexpected caller message: {other}"),
+                Err(_) => {
+                    connected = false;
+                    cancellation.get_or_insert((Instant::now(), "caller disconnected"));
+                }
+            }
         }
         if descriptors[1].revents & (libc::POLLIN | libc::POLLHUP) != 0 {
             match io::stdin().read(&mut buffer) {
