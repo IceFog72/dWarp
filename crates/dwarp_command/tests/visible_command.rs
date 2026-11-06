@@ -446,3 +446,37 @@ fn caller_input_is_refused_while_the_terminal_hides_typed_characters() {
     assert!(caller.wait().unwrap().success());
     wait_for_text(&output, "received: user");
 }
+
+#[test]
+fn input_sent_after_the_command_exits_does_not_hide_its_exit_status() {
+    let terminal = Terminal::new();
+    // The echo of forwarded input fills an undrained pane and would block the worker.
+    let mut display = terminal._master.try_clone().unwrap();
+    thread::spawn(move || {
+        let mut bytes = [0; 4096];
+        while display.read(&mut bytes).is_ok_and(|count| count > 0) {}
+    });
+    let mut caller = terminal
+        .command()
+        .args(["--stdin", "--", "bash", "-c", "exit 23"])
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .unwrap();
+    let mut stdin = caller.stdin.take().unwrap();
+    let writer = thread::spawn(move || {
+        // Keep sending until the caller closes its end, as a chatty agent would.
+        while stdin.write_all(&[b'x'; 4096]).is_ok() {
+            thread::sleep(Duration::from_millis(5));
+        }
+    });
+    let output = caller.wait_with_output().unwrap();
+    writer.join().unwrap();
+    assert_eq!(
+        output.status.code(),
+        Some(23),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+}

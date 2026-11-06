@@ -232,33 +232,36 @@ pub(super) fn client(args: &RunArgs, worker_prefix: &[&str]) -> Result<i32> {
         timeout: args.timeout,
     };
     write_frame(&mut stream, REQUEST, &serde_json::to_vec(&request)?)?;
-    let mut forwarding = args.stdin;
-    let mut buffer = [0; 16384];
+    if args.stdin {
+        // A separate writer keeps a stalled worker from blocking output reads. Its
+        // failure only ends forwarding: the command's exit status still arrives.
+        let mut writer = stream.try_clone()?;
+        thread::spawn(move || {
+            let mut buffer = [0; 16384];
+            loop {
+                match io::stdin().read(&mut buffer) {
+                    Ok(0) => break,
+                    Ok(count) => {
+                        if write_frame(&mut writer, INPUT, &buffer[..count]).is_err() {
+                            break;
+                        }
+                    }
+                    Err(error) if error.kind() == io::ErrorKind::Interrupted => {}
+                    Err(_) => break,
+                }
+            }
+        });
+    }
     loop {
         if interrupt.received() {
             return Ok(130);
         } // Closing the socket cancels the worker's process group.
-        let mut descriptors = [
-            libc::pollfd {
-                fd: stream.as_raw_fd(),
-                events: libc::POLLIN,
-                revents: 0,
-            },
-            libc::pollfd {
-                fd: if forwarding { 0 } else { -1 },
-                events: libc::POLLIN,
-                revents: 0,
-            },
-        ];
+        let mut descriptors = [libc::pollfd {
+            fd: stream.as_raw_fd(),
+            events: libc::POLLIN,
+            revents: 0,
+        }];
         poll(&mut descriptors)?;
-        if descriptors[1].revents & (libc::POLLIN | libc::POLLHUP) != 0 {
-            match io::stdin().read(&mut buffer) {
-                Ok(0) => forwarding = false,
-                Ok(count) => write_frame(&mut stream, INPUT, &buffer[..count])?,
-                Err(error) if error.kind() == io::ErrorKind::Interrupted => {}
-                Err(error) => return Err(error.into()),
-            }
-        }
         if descriptors[0].revents == 0 {
             continue;
         }
@@ -436,6 +439,7 @@ fn execute(request: &Request, stream: &mut UnixStream, log: &mut File) -> Result
     let mut output_open = true;
     let mut input_open = true;
     let mut connected = true;
+    let mut refusing = false;
     let mut input = Vec::new();
     let mut buffer = [0; 16384];
     loop {
@@ -516,7 +520,10 @@ fn execute(request: &Request, stream: &mut UnixStream, log: &mut File) -> Result
                         input.extend_from_slice(&bytes);
                         None
                     };
-                    if let Some(refusal) = refusal {
+                    if refusal.is_none() {
+                        refusing = false;
+                    } else if let Some(refusal) = refusal.filter(|_| !refusing) {
+                        refusing = true;
                         let notice = format!("\r\ndWarp: {refusal}\r\n");
                         let _ = io::stdout()
                             .write_all(notice.as_bytes())
