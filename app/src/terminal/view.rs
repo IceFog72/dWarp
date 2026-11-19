@@ -2009,6 +2009,8 @@ pub struct TerminalView {
     active_session: ModelHandle<ActiveSession>,
 
     pty_spawn_failed: bool,
+    #[cfg(feature = "local_tty")]
+    pub(crate) local_shell_pid: Option<u32>,
 
     model_events_handle: ModelHandle<ModelEventDispatcher>,
 
@@ -2748,6 +2750,8 @@ impl TerminalView {
             cursor_position_id: format!("terminal_view:cursor_{}", ctx.view_id()),
             active_session,
             pty_spawn_failed: false,
+            #[cfg(feature = "local_tty")]
+            local_shell_pid: None,
             model_events_handle,
             #[cfg(feature = "local_fs")]
             git_repo_status: None,
@@ -5168,6 +5172,10 @@ impl TerminalView {
                 ctx.request_user_attention();
             }
             ModelEvent::Exit { .. } => {
+                #[cfg(feature = "local_tty")]
+                {
+                    self.local_shell_pid = None;
+                }
                 // If the pty spawn has failed, we've already inserted a banner.
                 if !self.pty_spawn_failed {
                     let shell_detail = self.shell_detail.take().unwrap_or("shell".to_owned());
@@ -7281,8 +7289,9 @@ impl TerminalView {
         }
     }
 
-    #[cfg(not(target_family = "wasm"))]
-    pub(super) fn on_shell_determined(&self, ctx: &mut ViewContext<Self>) {
+    #[cfg(feature = "local_tty")]
+    pub(super) fn on_shell_determined(&mut self, pid: u32, ctx: &mut ViewContext<Self>) {
+        self.local_shell_pid = Some(pid);
         if !self.model.lock().shared_session_status().is_viewer() {
             // Start a timer for the initial session bootstrapping, so that we can log and show a
             // banner to the user if the bootstrapping takes too long

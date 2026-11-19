@@ -1515,6 +1515,8 @@ impl Workspace {
             let _ = settings.use_vertical_tabs.set_value(true, ctx);
         });
         self.vertical_tabs_panel_open = true;
+        #[cfg(feature = "local_tty")]
+        self.sync_vertical_tabs_cli_usage(ctx);
         self.sync_window_button_visibility(ctx);
 
         // The pinned position is captured lazily on the first step change
@@ -2449,6 +2451,8 @@ impl Workspace {
                 ctx.notify();
             }
         }
+        #[cfg(feature = "local_tty")]
+        self.sync_vertical_tabs_cli_usage(ctx);
     }
 
     /// Opens a launch config window into the workspace.
@@ -2648,6 +2652,8 @@ impl Workspace {
         self.left_panel_view.update(ctx, |left_panel, ctx| {
             left_panel.set_active_pane_group(active_pane_group, &working_directories_model, ctx);
         });
+        #[cfg(feature = "local_tty")]
+        self.sync_vertical_tabs_cli_usage(ctx);
     }
 
     fn initial_vertical_tabs_panel_open(
@@ -4391,6 +4397,8 @@ impl Workspace {
         if use_vertical_tabs {
             if !self.vertical_tabs_panel_open {
                 self.vertical_tabs_panel_open = true;
+                #[cfg(feature = "local_tty")]
+                self.sync_vertical_tabs_cli_usage(ctx);
                 self.sync_window_button_visibility(ctx);
             }
             self.open_tab_configs_menu(
@@ -5248,6 +5256,8 @@ impl Workspace {
 
     fn toggle_vertical_tabs_panel(&mut self, ctx: &mut ViewContext<Self>) {
         self.vertical_tabs_panel_open = !self.vertical_tabs_panel_open;
+        #[cfg(feature = "local_tty")]
+        self.sync_vertical_tabs_cli_usage(ctx);
         if !self.vertical_tabs_panel_open {
             self.close_vertical_tabs_settings_popup();
             self.vertical_tabs_panel.clear_detail_sidecar();

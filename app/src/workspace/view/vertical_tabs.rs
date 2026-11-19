@@ -73,6 +73,16 @@ use warpui::ui_components::components::{UiComponent, UiComponentStyles};
 use warpui::ui_components::text_input::TextInput;
 use warpui::{AppContext, EntityId, SingletonEntity, ViewHandle, WindowId};
 
+#[cfg(feature = "local_tty")]
+mod cli_usage;
+
+const CLI_USAGE_OPTIONS: [VerticalTabsCompactSubtitle; 4] = [
+    VerticalTabsCompactSubtitle::Cpu,
+    VerticalTabsCompactSubtitle::Ram,
+    VerticalTabsCompactSubtitle::CpuAndRam,
+    VerticalTabsCompactSubtitle::CommandCpuAndRam,
+];
+
 const PANEL_WIDTH: f32 = 248.;
 const MIN_PANEL_WIDTH: f32 = 200.;
 const MAX_PANEL_WIDTH_RATIO: f32 = 0.5;
@@ -572,8 +582,9 @@ pub(super) struct VerticalTabsPanelState {
     command_option_mouse_state: MouseStateHandle,
     directory_option_mouse_state: MouseStateHandle,
     branch_option_mouse_state: MouseStateHandle,
-    subtitle_option_1_mouse_state: MouseStateHandle,
-    subtitle_option_2_mouse_state: MouseStateHandle,
+    subtitle_option_mouse_states: [MouseStateHandle; 2 + CLI_USAGE_OPTIONS.len()],
+    #[cfg(feature = "local_tty")]
+    cli_usage: cli_usage::CliUsage,
     show_pr_link_mouse_state: MouseStateHandle,
     show_pr_link_info_tooltip_mouse_state: MouseStateHandle,
     show_diff_stats_mouse_state: MouseStateHandle,
@@ -607,8 +618,9 @@ impl Default for VerticalTabsPanelState {
             command_option_mouse_state: Default::default(),
             directory_option_mouse_state: Default::default(),
             branch_option_mouse_state: Default::default(),
-            subtitle_option_1_mouse_state: Default::default(),
-            subtitle_option_2_mouse_state: Default::default(),
+            subtitle_option_mouse_states: Default::default(),
+            #[cfg(feature = "local_tty")]
+            cli_usage: Default::default(),
             show_pr_link_mouse_state: Default::default(),
             show_pr_link_info_tooltip_mouse_state: Default::default(),
             show_diff_stats_mouse_state: Default::default(),
@@ -1893,7 +1905,9 @@ fn render_tab_group_internal(
                 };
                 let view_mode = *TabSettings::as_ref(app).vertical_tabs_view_mode.value();
                 let row = match view_mode {
-                    VerticalTabsViewMode::Compact => render_compact_pane_row(pane_props, app),
+                    VerticalTabsViewMode::Compact => {
+                        render_compact_pane_row(pane_props, state, app)
+                    }
                     VerticalTabsViewMode::Expanded => render_pane_row(pane_props, app),
                 };
                 rows.add_child(row);
@@ -4049,7 +4063,7 @@ fn resolve_compact_subtitle(
             VerticalTabsCompactSubtitle::Branch
         )
     );
-    if is_conflict {
+    if is_conflict || (!cfg!(feature = "local_tty") && CLI_USAGE_OPTIONS.contains(&subtitle_pref)) {
         default_compact_subtitle(primary)
     } else {
         subtitle_pref
@@ -4072,6 +4086,12 @@ fn compact_subtitle_label(value: VerticalTabsCompactSubtitle) -> String {
         }
         VerticalTabsCompactSubtitle::Command => {
             crate::t!("vertical-tabs-setting-command-conversation")
+        }
+        VerticalTabsCompactSubtitle::Cpu => crate::t!("vertical-tabs-setting-cpu"),
+        VerticalTabsCompactSubtitle::Ram => crate::t!("vertical-tabs-setting-ram"),
+        VerticalTabsCompactSubtitle::CpuAndRam => crate::t!("vertical-tabs-setting-cpu-and-ram"),
+        VerticalTabsCompactSubtitle::CommandCpuAndRam => {
+            crate::t!("vertical-tabs-setting-command-cpu-and-ram")
         }
     }
 }
@@ -4389,17 +4409,15 @@ pub(super) fn render_settings_popup(
             .finish();
             popup_col.add_child(subtitle_header);
 
-            let options = subtitle_options_for_primary(current_primary_info);
-            let mouse_states = [
-                state.subtitle_option_1_mouse_state.clone(),
-                state.subtitle_option_2_mouse_state.clone(),
-            ];
-            for (i, value) in options.iter().enumerate() {
+            let options = subtitle_options_for_primary(current_primary_info).into_iter();
+            #[cfg(feature = "local_tty")]
+            let options = options.chain(CLI_USAGE_OPTIONS);
+            for (value, mouse_state) in options.zip(&state.subtitle_option_mouse_states) {
                 popup_col.add_child(render_compact_subtitle_option(
-                    compact_subtitle_label(*value),
-                    current_subtitle == *value,
-                    mouse_states[i].clone(),
-                    *value,
+                    compact_subtitle_label(value),
+                    current_subtitle == value,
+                    mouse_state.clone(),
+                    value,
                     appearance,
                     theme,
                 ));
@@ -5484,7 +5502,12 @@ pub(super) fn render_detail_sidecar(
     })
 }
 
-fn render_compact_pane_row(props: PaneProps<'_>, app: &AppContext) -> Box<dyn Element> {
+#[cfg_attr(not(feature = "local_tty"), allow(unused_variables))]
+fn render_compact_pane_row(
+    props: PaneProps<'_>,
+    state: &VerticalTabsPanelState,
+    app: &AppContext,
+) -> Box<dyn Element> {
     let effective_subtitle = props.subtitle.clone();
     let appearance = Appearance::as_ref(app);
     let theme = appearance.theme();
@@ -5555,6 +5578,18 @@ fn render_compact_pane_row(props: PaneProps<'_>, app: &AppContext) -> Box<dyn El
                 app,
             );
 
+            #[cfg(feature = "local_tty")]
+            let render_usage = |pid| {
+                Text::new_inline(
+                    state.cli_usage.subtitle(pid, compact_subtitle),
+                    font_family,
+                    10.,
+                )
+                .with_clip(ClipConfig::ellipsis())
+                .with_color(sub_text_color.into())
+                .finish()
+            };
+
             // Subtitle based on "Additional metadata"
             let subtitle: Option<Box<dyn Element>> = match compact_subtitle {
                 VerticalTabsCompactSubtitle::Branch => compact_branch_subtitle_display(
@@ -5577,7 +5612,8 @@ fn render_compact_pane_row(props: PaneProps<'_>, app: &AppContext) -> Box<dyn El
                         .with_color(sub_text_color.into())
                         .finish()
                 }),
-                VerticalTabsCompactSubtitle::Command => {
+                VerticalTabsCompactSubtitle::Command
+                | VerticalTabsCompactSubtitle::CommandCpuAndRam => {
                     let agent_text = terminal_agent_text(terminal_view, app);
                     let cli_title =
                         preferred_agent_tab_titles(&agent_text, agent_tab_text_preference(app));
@@ -5589,12 +5625,34 @@ fn render_compact_pane_row(props: PaneProps<'_>, app: &AppContext) -> Box<dyn El
                         terminal_title_fallback_font(&agent_text),
                         terminal_view.last_completed_command_text(),
                     );
-                    Some(
-                        Text::new_inline(line_data.text().to_string(), font_family, 10.)
-                            .with_clip(ClipConfig::ellipsis())
-                            .with_color(sub_text_color.into())
-                            .finish(),
-                    )
+                    let command = Text::new_inline(line_data.text().to_string(), font_family, 10.)
+                        .with_clip(ClipConfig::ellipsis())
+                        .with_color(sub_text_color.into())
+                        .finish();
+                    #[cfg(feature = "local_tty")]
+                    let command = if let Some(pid) = terminal_view.local_shell_pid.filter(|_| {
+                        compact_subtitle == VerticalTabsCompactSubtitle::CommandCpuAndRam
+                    }) {
+                        Flex::row()
+                            .with_spacing(6.)
+                            .with_cross_axis_alignment(CrossAxisAlignment::Center)
+                            .with_child(Shrinkable::new(1., command).finish())
+                            .with_child(render_usage(pid))
+                            .finish()
+                    } else {
+                        command
+                    };
+                    Some(command)
+                }
+                VerticalTabsCompactSubtitle::Cpu
+                | VerticalTabsCompactSubtitle::Ram
+                | VerticalTabsCompactSubtitle::CpuAndRam => {
+                    #[cfg(feature = "local_tty")]
+                    {
+                        terminal_view.local_shell_pid.map(render_usage)
+                    }
+                    #[cfg(not(feature = "local_tty"))]
+                    None
                 }
             };
 

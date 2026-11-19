@@ -426,6 +426,10 @@ pub enum VerticalTabsCompactSubtitle {
     Branch,
     WorkingDirectory,
     Command,
+    Cpu,
+    Ram,
+    CpuAndRam,
+    CommandCpuAndRam,
 }
 
 settings::macros::implement_setting_for_enum!(
