@@ -1768,10 +1768,37 @@ fn create_window(
         }
     }
 
+    #[cfg(any(target_os = "linux", target_os = "freebsd"))]
+    let defer_x11_map = winit::platform::x11::ActiveEventLoopExtX11::is_x11(window_target);
+    #[cfg(any(target_os = "linux", target_os = "freebsd"))]
+    if defer_x11_map {
+        // winit's X11 backend calls map_window() and a synchronous XKB round-trip
+        // before select_xinput_events(XIEventMask::FOCUS_IN). If the WM focuses the
+        // window during that gap, XI_FocusIn is missed and winit drops all keyboard
+        // input until a focus change or resize. Create unmapped so XInput2 is
+        // selected and synced first, then map below.
+        window_attributes.visible = false;
+    }
+
     #[allow(clippy::let_and_return)]
     let created_window = window_target
         .create_window(window_attributes)
         .map_err(Into::into);
+
+    #[cfg(any(target_os = "linux", target_os = "freebsd"))]
+    if defer_x11_map {
+        if let Ok(window) = created_window.as_ref() {
+            window.set_visible(true);
+            match window_options.fullscreen_state {
+                FullscreenState::Maximized => window.set_maximized(true),
+                FullscreenState::Fullscreen | FullscreenState::Normal => {}
+            }
+            let level = window_level_for_style(window_options.style);
+            if level != WindowLevel::Normal {
+                window.set_window_level(level);
+            }
+        }
+    }
 
     #[cfg(windows)]
     {
@@ -2069,11 +2096,18 @@ impl Window {
     }
 
     pub(super) fn set_occluded(&self, occluded: bool) {
+        let should_request_redraw =
+            !occluded && (self.needs_rebuild.get() || self.scene.borrow().is_some());
         if let Some(inner) = self.inner.borrow_mut().as_mut() {
             inner.is_occluded = occluded;
-        }
-        if !occluded && (self.needs_rebuild.get() || self.scene.borrow().is_some()) {
-            self.request_redraw_if_visible();
+            if should_request_redraw && !self.redraw_pending.get() {
+                // On X11, winit dispatches WindowEvent::Occluded(false) from
+                // VisibilityNotify before flipping Visibility::YesWait to Yes,
+                // so is_visible() is still false here. Queue the redraw anyway;
+                // begin_redraw() still gates presentation on is_visible().
+                self.redraw_pending.set(true);
+                inner.window.request_redraw();
+            }
         }
     }
 
